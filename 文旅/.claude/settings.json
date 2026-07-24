@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(ls -la \"d:\\\\vue_learning1\\\\文旅\\\\vu\\\\src\\\\views\\\\Itinerary\"*.vue)",
+      "Bash(ls -la \"d:\\\\vue_learning1\\\\文旅\\\\vu\\\\src\\\\views\\\\ItineraryPage\"*)",
+      "Read(//d/vue_learning1/文旅/vu/src/views/**)",
+      "Read(//d/vue_learning1/文旅/vu/src/views/ItineraryPage/**)",
+      "Read(//d/vue_learning1/文旅/vu/src/router/**)"
+    ]
+  }
+}
