@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5173/src/views/Landing/Landing.vue)",
+      "WebSearch",
+      "Bash(python3 -c ' *)",
+      "Bash(convert /d/wenlv/reference.jpg -resize 100x100 /d/wenlv/thumb.jpg)",
+      "Bash(ffprobe /d/wenlv/reference.jpg)",
+      "Bash(cp /d/wenlv/reference.jpg /tmp/ref.jpg)",
+      "Bash(cp /d/wenlv/reference.jpg /c/Users/ASUS/AppData/Local/Temp/ref.jpg)",
+      "Read(//c/Users/ASUS/AppData/Local/Temp/**)",
+      "Bash(cmd.exe /c \"python3 -c \\\\\"from PIL import Image; img = Image.open\\('C:/Users/ASUS/AppData/Local/Temp/ref.jpg'\\); print\\(img.size, 'brightness:', sum\\(sum\\(img.getpixel\\(\\(x,y\\)\\)[:3]\\)/3 for x in range\\(0,img.width,100\\) for y in range\\(0,img.height,100\\)\\) / \\(\\(img.width//100\\)*\\(img.height//100\\)\\)\\)\\\\\"\")"
+    ]
+  }
+}

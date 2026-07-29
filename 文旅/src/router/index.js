@@ -3,6 +3,7 @@ import Landing from '../views/Landing/Landing.vue'
 import Login from '../views/Login/Login.vue'
 import Main from '../views/Main/Main.vue'
 import HomePage from '../views/HomePage/HomePage.vue'
+import CollectionPage from '../views/CollectionPage/CollectionPage.vue'
 import Sichuan3DMap from '../views/Sichuan3DMap/Sichuan3DMap.vue'
 import ItineraryPage from '../views/ItineraryPage/ItineraryPage.vue'
 import NotificationsPage from '../views/NotificationsPage/NotificationsPage.vue'
@@ -17,9 +18,10 @@ const routes = [
     name: 'Main',
     component: Main,
     meta: { requiresAuth: true },
-    redirect: '/main/home',
     children: [
+      { path: '',              redirect: '/main/home' },
       { path: 'home',          name: 'Home',          component: HomePage },
+      { path: 'collection',    name: 'Collection',    component: CollectionPage },
       { path: 'map',           name: 'Map',           component: Sichuan3DMap },
       { path: 'itinerary',     name: 'Itinerary',     component: ItineraryPage },
       { path: 'notifications', name: 'Notifications', component: NotificationsPage },
