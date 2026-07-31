@@ -1,0 +1,475 @@
+/** 成都各区县 & 标志性景点数据集 */
+import type { District, ScenicSpot } from '@/types'
+
+export const districts: District[] = [
+  {
+    id: 'jinjiang',
+    nameZh: '锦江区',
+    nameEn: 'Jinjiang',
+    descriptionZh: '成都市中心城区，天府文化核心区，汇聚春熙路、太古里等时尚地标',
+    descriptionEn: 'Chengdu\'s central district, home to Chunxi Road and Taikoo Li',
+    color: '#C9A96E',
+  },
+  {
+    id: 'wuhou',
+    nameZh: '武侯区',
+    nameEn: 'Wuhou',
+    descriptionZh: '三国文化核心区，武侯祠、锦里古街闻名遐迩',
+    descriptionEn: 'Heart of Three Kingdoms culture, home to Wuhou Shrine and Jinli',
+    color: '#A23B3B',
+  },
+  {
+    id: 'qingyang',
+    nameZh: '青羊区',
+    nameEn: 'Qingyang',
+    descriptionZh: '成都历史文化底蕴最深厚的区域，宽窄巷子、杜甫草堂所在地',
+    descriptionEn: 'Chengdu\'s most historic district — Kuanzhai Alley, Du Fu\'s Cottage',
+    color: '#7A8A7A',
+  },
+  {
+    id: 'jinniu',
+    nameZh: '金牛区',
+    nameEn: 'Jinniu',
+    descriptionZh: '成都北部核心城区，永陵博物馆展示前蜀历史文化',
+    descriptionEn: 'Northern core district featuring Yongling Museum',
+    color: '#8B7355',
+  },
+  {
+    id: 'chenghua',
+    nameZh: '成华区',
+    nameEn: 'Chenghua',
+    descriptionZh: '大熊猫繁育基地所在地，东郊记忆见证成都工业记忆',
+    descriptionEn: 'Home to the Panda Base and Eastern Suburb Memory Park',
+    color: '#5A7A5A',
+  },
+  {
+    id: 'gaoxin',
+    nameZh: '高新区',
+    nameEn: 'Hi-tech Zone',
+    descriptionZh: '成都现代化新城，交子公园、铁像寺水街展现传统与现代交融',
+    descriptionEn: 'Modern new city blending tradition with innovation',
+    color: '#4A7A9C',
+  },
+  {
+    id: 'longquanyi',
+    nameZh: '龙泉驿区',
+    nameEn: 'Longquanyi',
+    descriptionZh: '洛带古镇客家文化浓郁，龙泉山城市森林公园景色宜人',
+    descriptionEn: 'Hakka culture at Luodai Ancient Town, scenic Longquan Mountain',
+    color: '#8B7A5A',
+  },
+  {
+    id: 'tianfu',
+    nameZh: '天府新区',
+    nameEn: 'Tianfu New Area',
+    descriptionZh: '国家级新区，兴隆湖、麓湖生态城展现公园城市理念',
+    descriptionEn: 'National-level new area showcasing park city concepts',
+    color: '#5A8A7A',
+  },
+  {
+    id: 'wenjiang',
+    nameZh: '温江区',
+    nameEn: 'Wenjiang',
+    descriptionZh: '国色天乡乐园所在地，成都后花园',
+    descriptionEn: 'Home to Country Paradise theme park, Chengdu\'s backyard garden',
+    color: '#7A9A6A',
+  },
+  {
+    id: 'shuangliu',
+    nameZh: '双流区',
+    nameEn: 'Shuangliu',
+    descriptionZh: '黄龙溪古镇水乡风情，空港花田浪漫唯美',
+    descriptionEn: 'Huanglongxi ancient water town and airport flower fields',
+    color: '#6A8A7A',
+  },
+  {
+    id: 'pidu',
+    nameZh: '郫都区',
+    nameEn: 'Pidu',
+    descriptionZh: '川菜博物馆品味麻辣文化，望丛祠纪念古蜀先贤',
+    descriptionEn: 'Sichuan Cuisine Museum, Wangcong Temple honoring ancient Shu',
+    color: '#8A7A5A',
+  },
+  {
+    id: 'xindu',
+    nameZh: '新都区',
+    nameEn: 'Xindu',
+    descriptionZh: '宝光寺千年古刹，桂湖公园杨升庵祠书香氤氲',
+    descriptionEn: 'Baoguang Temple\'s millennium pagoda, Guihu Lake\'s scholarly legacy',
+    color: '#7A7A5A',
+  },
+  {
+    id: 'dujiangyan',
+    nameZh: '都江堰市',
+    nameEn: 'Dujiangyan',
+    descriptionZh: '世界文化遗产都江堰水利工程，道教名山青城山',
+    descriptionEn: 'UNESCO Dujiangyan irrigation system and sacred Mt. Qingcheng',
+    color: '#5A7A6A',
+  },
+  {
+    id: 'qingbaijiang',
+    nameZh: '青白江区',
+    nameEn: 'Qingbaijiang',
+    descriptionZh: '凤凰湖湿地公园樱花烂漫，成都国际铁路港连通世界',
+    descriptionEn: 'Phoenix Lake cherry blossoms, Chengdu international railway port',
+    color: '#6A8A8A',
+  },
+  {
+    id: 'dayi',
+    nameZh: '大邑县',
+    nameEn: 'Dayi',
+    descriptionZh: '西岭雪山"窗含西岭千秋雪"，安仁古镇博物馆群聚',
+    descriptionEn: 'Xiling Snow Mountain and Anren Ancient Town\'s museum cluster',
+    color: '#7A8A8A',
+  },
+]
+
+/** 成都标志性景点数据 (核心景点) */
+export const scenicSpots: ScenicSpot[] = [
+  // ──── 锦江区 ────
+  {
+    id: 'chunxi-road',
+    districtId: 'jinjiang',
+    nameZh: '春熙路',
+    nameEn: 'Chunxi Road',
+    shortDescZh: '成都百年商业金街，时尚与历史交融的购物天堂',
+    shortDescEn: 'Chengdu\'s century-old premier shopping street',
+    descriptionZh: '春熙路始建于1924年，是成都最繁华的商业步行街，汇聚国际奢侈品牌与本土老字号，日均客流量超30万人次。',
+    descriptionEn: 'Founded in 1924, Chunxi Road is Chengdu\'s most bustling pedestrian shopping street.',
+    tags: ['购物', '地标', '步行街'],
+    imageUrl: '/images/placeholder-chunxi.jpg',
+    rating: 4.5,
+  },
+  {
+    id: 'taikoo-li',
+    districtId: 'jinjiang',
+    nameZh: '成都太古里',
+    nameEn: 'Taikoo Li',
+    shortDescZh: '开放式街区购物中心，川西建筑风格与现代设计完美融合',
+    shortDescEn: 'Open-plan mall blending Sichuan architecture with modern design',
+    descriptionZh: '太古里毗邻千年古刹大慈寺，采用川西青瓦坡屋顶建筑风格，集合奢侈品、潮流品牌与精致餐饮。',
+    descriptionEn: 'Adjacent to Daci Temple, featuring Sichuan-style tiled roofs with luxury brands and dining.',
+    tags: ['购物', '建筑', '美食'],
+    imageUrl: '/images/placeholder-taikoo.jpg',
+    rating: 4.7,
+  },
+  {
+    id: 'jiuyanqiao',
+    districtId: 'jinjiang',
+    nameZh: '九眼桥',
+    nameEn: 'Jiuyan Bridge',
+    shortDescZh: '成都夜生活地标，安顺廊桥灯火璀璨',
+    shortDescEn: 'Chengdu\'s nightlife landmark with the illuminated Anshun Bridge',
+    descriptionZh: '九眼桥始建于明代，横跨府河，夜晚酒吧街灯火辉煌，是感受成都夜生活的首选去处。',
+    descriptionEn: 'Built in the Ming Dynasty, spanning the Fu River — the heart of Chengdu nightlife.',
+    tags: ['夜景', '酒吧', '地标'],
+    imageUrl: '/images/placeholder-jiuyan.jpg',
+    rating: 4.3,
+  },
+
+  // ──── 武侯区 ────
+  {
+    id: 'wuhou-shrine',
+    districtId: 'wuhou',
+    nameZh: '武侯祠',
+    nameEn: 'Wuhou Shrine',
+    shortDescZh: '中国唯一君臣合祀祠庙，三国文化圣地',
+    shortDescEn: 'China\'s only temple honoring both monarch and minister',
+    descriptionZh: '武侯祠始建于公元223年，纪念蜀汉丞相诸葛亮，是全国影响最大的三国遗迹博物馆。',
+    descriptionEn: 'Built in 223 AD, honoring Zhuge Liang — the premier Three Kingdoms heritage site.',
+    tags: ['三国', '历史', '博物馆'],
+    imageUrl: '/images/placeholder-wuhou.jpg',
+    rating: 4.6,
+  },
+  {
+    id: 'jinli',
+    districtId: 'wuhou',
+    nameZh: '锦里古街',
+    nameEn: 'Jinli Ancient Street',
+    shortDescZh: '西蜀最古老的商业街之一，集三国文化与民俗于一体',
+    shortDescEn: 'One of western Sichuan\'s oldest commercial streets',
+    descriptionZh: '锦里古街毗邻武侯祠，全长550米，以三国文化和四川传统民俗为特色，有茶楼、戏台、小吃琳琅满目。',
+    descriptionEn: 'Adjacent to Wuhou Shrine, 550m of Three Kingdoms culture, tea houses, and Sichuan snacks.',
+    tags: ['古街', '美食', '民俗'],
+    imageUrl: '/images/placeholder-jinli.jpg',
+    rating: 4.4,
+  },
+
+  // ──── 青羊区 ────
+  {
+    id: 'kuanzhai-alley',
+    districtId: 'qingyang',
+    nameZh: '宽窄巷子',
+    nameEn: 'Kuanzhai Alley',
+    shortDescZh: '成都遗留下来的较成规模的清朝古街道，城市文化名片',
+    shortDescEn: 'Chengdu\'s best-preserved Qing Dynasty street and cultural icon',
+    descriptionZh: '宽窄巷子由宽巷子、窄巷子和井巷子三条平行街道组成，是成都三大历史文化保护区之一。',
+    descriptionEn: 'Three parallel lanes — Wide, Narrow, and Well — forming one of Chengdu\'s three historic protected areas.',
+    tags: ['古街', '文化', '美食', '拍照'],
+    imageUrl: '/images/placeholder-kuanzhai.jpg',
+    rating: 4.6,
+  },
+  {
+    id: 'du-fu-cottage',
+    districtId: 'qingyang',
+    nameZh: '杜甫草堂',
+    nameEn: 'Du Fu Thatched Cottage',
+    shortDescZh: '诗圣杜甫流寓成都时的故居，中国文学圣地',
+    shortDescEn: 'The former residence of poet Du Fu, a Chinese literary pilgrimage site',
+    descriptionZh: '杜甫草堂是唐代大诗人杜甫在成都的故居，他在此居住四年间创作了240余首诗歌。',
+    descriptionEn: 'Tang dynasty poet Du Fu lived here for four years, composing over 240 poems.',
+    tags: ['历史', '文学', '园林'],
+    imageUrl: '/images/placeholder-dufu.jpg',
+    rating: 4.5,
+  },
+  {
+    id: 'qingyang-palace',
+    districtId: 'qingyang',
+    nameZh: '青羊宫',
+    nameEn: 'Qingyang Palace',
+    shortDescZh: '川西第一道观，始建于周代的千年古观',
+    shortDescEn: 'The premier Taoist temple in western Sichuan',
+    descriptionZh: '青羊宫始建于周代，是成都最古老的道教宫观，因供奉青羊而得名。',
+    descriptionEn: 'First built in the Zhou Dynasty, Chengdu\'s oldest Taoist temple, named for its bronze goat statue.',
+    tags: ['道教', '历史', '古建'],
+    imageUrl: '/images/placeholder-qingyang.jpg',
+    rating: 4.3,
+  },
+
+  // ──── 成华区 ────
+  {
+    id: 'panda-base',
+    districtId: 'chenghua',
+    nameZh: '大熊猫繁育研究基地',
+    nameEn: 'Giant Panda Breeding Research Base',
+    shortDescZh: '全球最大的大熊猫人工繁育机构，近距离观察国宝',
+    shortDescEn: 'World\'s largest giant panda breeding facility, see pandas up close',
+    descriptionZh: '成都大熊猫繁育研究基地占地面积1000亩，饲养大熊猫近百只，是全球最大的大熊猫人工繁育机构。',
+    descriptionEn: 'Covering 1,000 mu with nearly 100 pandas — the world\'s premier panda conservation center.',
+    tags: ['大熊猫', '自然', '亲子'],
+    imageUrl: '/images/placeholder-panda.jpg',
+    rating: 4.9,
+  },
+  {
+    id: 'dongjiao-memory',
+    districtId: 'chenghua',
+    nameZh: '东郊记忆',
+    nameEn: 'Eastern Suburb Memory',
+    shortDescZh: '成都工业遗产改造的文化创意园区',
+    shortDescEn: 'Cultural creative park transformed from industrial heritage',
+    descriptionZh: '东郊记忆在原成都国营红光电子管厂旧址上改建，是集合音乐、美术、戏剧、摄影等文化形态的创意园区。',
+    descriptionEn: 'Built on the former Hongguang Electronics factory site, a creative hub for music, art and theater.',
+    tags: ['文创', '工业遗产', '拍照', '艺术'],
+    imageUrl: '/images/placeholder-dongjiao.jpg',
+    rating: 4.2,
+  },
+
+  // ──── 高新区 ────
+  {
+    id: 'tiexiangsi',
+    districtId: 'gaoxin',
+    nameZh: '铁像寺水街',
+    nameEn: 'Tiexiangsi Water Street',
+    shortDescZh: '现代都市中的川西水乡风情街区',
+    shortDescEn: 'Sichuan water town ambience in the modern city',
+    descriptionZh: '铁像寺水街以铁像寺为文化核心，引水入街，再现川西水乡风情，融合茶馆、艺术空间与精品餐饮。',
+    descriptionEn: 'Centered on Tiexiang Temple, with waterways evoking Sichuan water towns, tea houses and art spaces.',
+    tags: ['水街', '艺术', '茶文化'],
+    imageUrl: '/images/placeholder-tiexiangsi.jpg',
+    rating: 4.3,
+  },
+
+  // ──── 都江堰市 ────
+  {
+    id: 'dujiangyan-project',
+    districtId: 'dujiangyan',
+    nameZh: '都江堰水利工程',
+    nameEn: 'Dujiangyan Irrigation System',
+    shortDescZh: '世界文化遗产，两千余年仍在使用的古代水利工程',
+    shortDescEn: 'UNESCO World Heritage, an ancient irrigation system still in use after 2,000 years',
+    descriptionZh: '都江堰由战国时期秦国蜀郡太守李冰父子主持修建，是世界迄今为止年代最久、唯一留存、以无坝引水为特征的宏大水利工程。',
+    descriptionEn: 'Built by Li Bing and his son during the Warring States period — the oldest surviving dam-less irrigation system.',
+    tags: ['世界遗产', '水利', '历史'],
+    imageUrl: '/images/placeholder-dujiangyan.jpg',
+    rating: 4.8,
+  },
+  {
+    id: 'qingcheng-mountain',
+    districtId: 'dujiangyan',
+    nameZh: '青城山',
+    nameEn: 'Mount Qingcheng',
+    shortDescZh: '道教发源地之一，"青城天下幽"闻名遐迩',
+    shortDescEn: 'Birthplace of Taoism, famed as "the most serene mountain under heaven"',
+    descriptionZh: '青城山是道教十大洞天之一，群峰环绕起伏、林木葱茏幽翠，享有"青城天下幽"的美誉。',
+    descriptionEn: 'One of Taoism\'s ten sacred grotto-heavens, renowned for its lush forest and serene beauty.',
+    tags: ['道教', '自然', '登山', '世界遗产'],
+    imageUrl: '/images/placeholder-qingcheng.jpg',
+    rating: 4.7,
+  },
+
+  // ──── 龙泉驿区 ────
+  {
+    id: 'luodai',
+    districtId: 'longquanyi',
+    nameZh: '洛带古镇',
+    nameEn: 'Luodai Ancient Town',
+    shortDescZh: '中国西部最大的客家移民古镇',
+    shortDescEn: 'The largest Hakka immigrant town in western China',
+    descriptionZh: '洛带古镇是成都近郊保存最完整的客家古镇，拥有广东会馆、江西会馆等客家建筑群。',
+    descriptionEn: 'Best-preserved Hakka town near Chengdu, with Guangdong and Jiangxi guild halls.',
+    tags: ['古镇', '客家文化', '美食'],
+    imageUrl: '/images/placeholder-luodai.jpg',
+    rating: 4.2,
+  },
+
+  // ──── 双流区 ────
+  {
+    id: 'huanglongxi',
+    districtId: 'shuangliu',
+    nameZh: '黄龙溪古镇',
+    nameEn: 'Huanglongxi Ancient Town',
+    shortDescZh: '千年水乡古镇，川西坝子上的明珠',
+    shortDescEn: 'Millennium-old water town, a pearl on the western Sichuan plain',
+    descriptionZh: '黄龙溪古镇建镇1700余年，以古街、古树、古庙、古码头闻名，是川西保存最完好的水乡古镇。',
+    descriptionEn: 'Over 1,700 years old, known for ancient streets, trees, temples and wharves.',
+    tags: ['古镇', '水乡', '避暑'],
+    imageUrl: '/images/placeholder-huanglongxi.jpg',
+    rating: 4.4,
+  },
+
+  // ──── 温江区 ────
+  {
+    id: 'country-paradise',
+    districtId: 'wenjiang',
+    nameZh: '国色天乡',
+    nameEn: 'Country Paradise',
+    shortDescZh: '成都最大的主题乐园，集游乐、休闲于一体',
+    shortDescEn: 'Chengdu\'s largest theme park with rides and leisure',
+    descriptionZh: '国色天乡位于温江区，占地600余亩，是西南地区规模最大的主题游乐园之一。',
+    descriptionEn: 'Located in Wenjiang, covering 600+ mu — one of SW China\'s largest theme parks.',
+    tags: ['主题乐园', '亲子', '娱乐'],
+    imageUrl: '/images/placeholder-country.jpg',
+    rating: 4.1,
+  },
+
+  // ──── 郫都区 ────
+  {
+    id: 'sichuan-cuisine-museum',
+    districtId: 'pidu',
+    nameZh: '川菜博物馆',
+    nameEn: 'Sichuan Cuisine Museum',
+    shortDescZh: '世界唯一以菜系文化为主题的博物馆',
+    shortDescEn: 'The world\'s only museum dedicated to a regional cuisine',
+    descriptionZh: '川菜博物馆位于郫都区古城镇，是国家AAA级旅游景区，展示了川菜刀功、火候及调味的独特技艺。',
+    descriptionEn: 'Located in Pidu, a AAA-rated scenic spot showcasing Sichuan culinary arts.',
+    tags: ['美食', '博物馆', '体验'],
+    imageUrl: '/images/placeholder-cuisine.jpg',
+    rating: 4.3,
+  },
+
+  // ──── 新都区 ────
+  {
+    id: 'baoguang-temple',
+    districtId: 'xindu',
+    nameZh: '宝光寺',
+    nameEn: 'Baoguang Temple',
+    shortDescZh: '长江流域"四大丛林"之一，千年古刹',
+    shortDescEn: 'One of the four great Buddhist monasteries of the Yangtze region',
+    descriptionZh: '宝光寺始建于东汉，是成都地区历史最悠久、规模最宏大的佛教寺院之一。',
+    descriptionEn: 'First built in the Eastern Han Dynasty, one of Chengdu\'s oldest and grandest Buddhist temples.',
+    tags: ['佛教', '古建', '历史'],
+    imageUrl: '/images/placeholder-baoguang.jpg',
+    rating: 4.3,
+  },
+
+  // ──── 大邑县 ────
+  {
+    id: 'xiling-snow',
+    districtId: 'dayi',
+    nameZh: '西岭雪山',
+    nameEn: 'Xiling Snow Mountain',
+    shortDescZh: '"窗含西岭千秋雪"——诗圣杜甫笔下的雪山胜景',
+    shortDescEn: 'The snow-capped peak immortalized by poet Du Fu\'s famous verse',
+    descriptionZh: '西岭雪山是成都第一高峰，海拔5364米，因杜甫诗句"窗含西岭千秋雪"而闻名于世。',
+    descriptionEn: 'Chengdu\'s highest peak at 5,364m, famed through Du Fu\'s verse "the west ridge\'s eternal snow."',
+    tags: ['雪山', '自然', '滑雪', '登山'],
+    imageUrl: '/images/placeholder-xiling.jpg',
+    rating: 4.5,
+  },
+  {
+    id: 'anren',
+    districtId: 'dayi',
+    nameZh: '安仁古镇',
+    nameEn: 'Anren Ancient Town',
+    shortDescZh: '中国博物馆小镇，拥有建川博物馆聚落',
+    shortDescEn: 'China\'s museum town, home to the Jianchuan Museum Cluster',
+    descriptionZh: '安仁古镇有保存完好的民国时期公馆建筑群27座，建川博物馆聚落是中国最大的民间博物馆群。',
+    descriptionEn: '27 well-preserved Republic-era mansions and China\'s largest private museum cluster.',
+    tags: ['古镇', '博物馆', '民国'],
+    imageUrl: '/images/placeholder-anren.jpg',
+    rating: 4.4,
+  },
+
+  // ──── 金牛区 ────
+  {
+    id: 'yongling',
+    districtId: 'jinniu',
+    nameZh: '永陵博物馆',
+    nameEn: 'Yongling Museum',
+    shortDescZh: '前蜀开国皇帝王建陵墓，中国唯一地上皇陵',
+    shortDescEn: 'The only above-ground imperial mausoleum in China',
+    descriptionZh: '永陵是五代时期前蜀开国皇帝王建的陵墓，棺床上有著名的"二十四伎乐"石刻。',
+    descriptionEn: 'Tomb of Wang Jian, founding emperor of Former Shu, famed for the "24 Court Musicians" relief.',
+    tags: ['历史', '博物馆', '五代'],
+    imageUrl: '/images/placeholder-yongling.jpg',
+    rating: 4.2,
+  },
+
+  // ──── 天府新区 ────
+  {
+    id: 'xinglong-lake',
+    districtId: 'tianfu',
+    nameZh: '兴隆湖',
+    nameEn: 'Xinglong Lake',
+    shortDescZh: '成都科学城核心生态湖泊，城市绿肺',
+    shortDescEn: 'Centerpiece eco-lake of Chengdu Science City',
+    descriptionZh: '兴隆湖是天府新区的生态核心，水域面积约4500亩，湖畔有湖畔书店、水上运动中心等设施。',
+    descriptionEn: 'The ecological heart of Tianfu New Area, a 4,500-mu lake with lakeside bookstores and water sports.',
+    tags: ['自然', '休闲', '科技'],
+    imageUrl: '/images/placeholder-xinglong.jpg',
+    rating: 4.2,
+  },
+
+  // ──── 青白江区 ────
+  {
+    id: 'fenghuang-lake',
+    districtId: 'qingbaijiang',
+    nameZh: '凤凰湖湿地公园',
+    nameEn: 'Phoenix Lake Wetland Park',
+    shortDescZh: '四川最大的城市湿地公园之一，春季樱花烂漫',
+    shortDescEn: 'One of Sichuan\'s largest urban wetland parks, famed for spring cherry blossoms',
+    descriptionZh: '凤凰湖湿地公园占地约2000亩，每年春季举办的樱花节吸引数十万游客。',
+    descriptionEn: 'Covering 2,000 mu, its annual Cherry Blossom Festival draws hundreds of thousands of visitors.',
+    tags: ['湿地', '樱花', '自然'],
+    imageUrl: '/images/placeholder-fenghuang.jpg',
+    rating: 4.1,
+  },
+]
+
+/** 根据区ID获取景点 */
+export function getScenicSpotsByDistrict(districtId: string): ScenicSpot[] {
+  if (!districtId || districtId === 'all') return scenicSpots
+  return scenicSpots.filter(spot => spot.districtId === districtId)
+}
+
+/** 根据区ID获取区信息 */
+export function getDistrictById(id: string): District | undefined {
+  return districts.find(d => d.id === id)
+}
+
+/** 区域下拉数据源 — 仅“区”级（剔除 都江堰市 / 大邑县 等），供区域筛选使用 */
+export function getDistrictOptions(): Array<{ id: string; name: string }> {
+  return districts
+    .filter(d => d.nameZh.endsWith('区'))
+    .map(d => ({ id: d.id, name: d.nameZh }))
+}

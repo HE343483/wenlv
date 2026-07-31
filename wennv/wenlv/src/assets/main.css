@@ -1,0 +1,244 @@
+/* ============================================================
+   数智文旅 + 国际传播：巴蜀文化出海
+   成都文旅推广网站 — 设计系统
+   奢华质感 × 蜀锦金 × 成都文化
+   ============================================================ */
+
+/* ---- Fonts ---- */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ---- Reset ---- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ============================================================
+   DARK THEME (default)
+   ============================================================ */
+:root,
+.theme-dark {
+  /* 墨韵 — 暖调墨黑，比纯黑平和 */
+  --color-bg:            #0F0D0B;
+  --color-bg-alt:        #151210;
+  --color-surface:       #1A1714;
+  --color-surface-hover: #221E1A;
+  --color-surface-elevated: #27221D;
+
+  --color-gold:          #C9A96E;
+  --color-gold-light:    #E8D5A8;
+  --color-gold-dark:     #A8883E;
+  --color-gold-glow:     rgba(201, 169, 110, 0.15);
+
+  --color-cinnabar:      #A23B3B;
+  --color-cinnabar-dim:  rgba(162, 59, 59, 0.15);
+
+  --color-sage:          #7A8A7A;
+  --color-sage-dim:      rgba(122, 138, 122, 0.12);
+
+  --color-text-primary:  #EFE8DA;
+  --color-text-secondary:#A09786;
+  --color-text-muted:    #756A5C;
+  --color-text-inverse:  #0F0D0B;
+
+  --color-border:        #2F2923;
+  --color-border-light:  #3D362E;
+
+  --color-nav-bg:        rgba(15, 13, 11, 0.92);
+  --color-bottom-nav:    #151210;
+}
+
+/* ============================================================
+   LIGHT THEME
+   — 暖白基调，保留蜀锦金点缀，营造"宣纸+金箔"质感
+   ============================================================ */
+.theme-light {
+  /* 宣纸 — 暖白纸面，柔和不刺眼 */
+  --color-bg:            #F4EFE6;
+  --color-bg-alt:        #ECE6DA;
+  --color-surface:       #FBF8F2;
+  --color-surface-hover: #F6F0E7;
+  --color-surface-elevated: #FFFFFF;
+
+  --color-gold:          #AE8B48;
+  --color-gold-light:    #CFB274;
+  --color-gold-dark:     #856A2E;
+  --color-gold-glow:     rgba(174, 139, 72, 0.12);
+
+  --color-cinnabar:      #B8453E;
+  --color-cinnabar-dim:  rgba(184, 69, 62, 0.10);
+
+  --color-sage:          #6A7A6A;
+  --color-sage-dim:      rgba(106, 122, 106, 0.10);
+
+  --color-text-primary:  #211D17;
+  --color-text-secondary:#6E6151;
+  --color-text-muted:    #9C8E7A;
+  --color-text-inverse:  #F4EFE6;
+
+  --color-border:        #D7CDBE;
+  --color-border-light:  #E6DED2;
+
+  --color-nav-bg:        rgba(244, 239, 230, 0.92);
+  --color-bottom-nav:    #FBF8F2;
+}
+
+/* ---- 排版 tokens（主题无关） ---- */
+:root {
+  --font-display:        'Noto Serif SC', 'Playfair Display', 'Times New Roman', serif;
+  --font-body:           'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+  --font-en-display:     'Playfair Display', 'Times New Roman', serif;
+  --font-en-body:        'Inter', -apple-system, sans-serif;
+
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.25rem;
+  --text-2xl:  1.5rem;
+  --text-3xl:  2rem;
+  --text-4xl:  2.5rem;
+  --text-5xl:  3.5rem;
+  --text-6xl:  5rem;
+
+  --leading-tight: 1.15;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.8;
+
+  --tracking-wide: 0.08em;
+  --tracking-wider: 0.12em;
+  --tracking-widest: 0.2em;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-gold: 0 0 20px var(--color-gold-glow);
+
+  --transition-fast: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 600ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --nav-height: 72px;
+  --bottom-nav-height: 64px;
+  --max-width: 1280px;
+  --max-width-wide: 1440px;
+
+  /* 温度色调 — 由 utils/weatherTone.ts 动态写入 --temp-tone / --temp-tone-soft */
+  --temp-tone: #C9A96E;
+  --temp-tone-soft: rgba(201, 169, 110, 0.12);
+  --temp-tone-text: color-mix(in srgb, var(--temp-tone) 78%, var(--color-text-primary));
+}
+
+.theme-light {
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Base ---- */
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gold-dark); }
+
+::selection {
+  background: var(--color-gold-dark);
+  color: var(--color-text-inverse);
+}
+
+img, video, svg { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
+ul, ol { list-style: none; }
+
+/* ---- 蜀锦pattern ---- */
+.shu-pattern {
+  position: relative;
+}
+.shu-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-conic-gradient(
+      transparent 0deg 89deg,
+      rgba(201, 169, 110, 0.015) 90deg 91deg,
+      transparent 91deg 179deg,
+      rgba(201, 169, 110, 0.015) 180deg 181deg
+    );
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ---- Utilities ---- */
+.container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-8);
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.section-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  font-weight: 300;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  :root {
+    --nav-height: 60px;
+    --bottom-nav-height: 56px;
+  }
+  .container { padding: 0 var(--space-4); }
+}
