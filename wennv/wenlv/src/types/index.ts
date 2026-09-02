@@ -57,3 +57,35 @@ export type WeatherState = 'idle' | 'loading' | 'success' | 'error'
 
 /** 语言 */
 export type Language = 'zh' | 'en'
+
+/** 路线中的站点 */
+export interface RouteStop {
+  /** 对应景点ID */
+  spotId: string
+  /** 站点备注 (如 "上午" / "下午") */
+  noteZh: string
+  noteEn: string
+}
+
+/** 精品旅游路线 */
+export interface TravelRoute {
+  id: string
+  nameZh: string
+  nameEn: string
+  /** 行程时长 */
+  durationZh: string
+  durationEn: string
+  /** 主题 */
+  themeZh: string
+  themeEn: string
+  /** 难度/强度 */
+  levelZh: string
+  levelEn: string
+  summaryZh: string
+  summaryEn: string
+  /** 路线站点 */
+  stops: RouteStop[]
+  /** 行程亮点 */
+  highlightsZh: string[]
+  highlightsEn: string[]
+}

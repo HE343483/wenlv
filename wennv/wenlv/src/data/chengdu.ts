@@ -1,5 +1,5 @@
 /** 成都各区县 & 标志性景点数据集 */
-import type { District, ScenicSpot } from '@/types'
+import type { District, ScenicSpot, TravelRoute } from '@/types'
 
 export const districts: District[] = [
   {
@@ -472,4 +472,173 @@ export function getDistrictOptions(): Array<{ id: string; name: string }> {
   return districts
     .filter(d => d.nameZh.endsWith('区'))
     .map(d => ({ id: d.id, name: d.nameZh }))
+}
+
+/** ============================================================
+ *  精品旅游路线
+ *  ============================================================ */
+export const travelRoutes: TravelRoute[] = [
+  {
+    id: 'route-city-heritage',
+    nameZh: '城市文脉一日游',
+    nameEn: 'City Heritage One-Day Tour',
+    durationZh: '1日',
+    durationEn: '1 Day',
+    themeZh: '历史人文',
+    themeEn: 'History & Culture',
+    levelZh: '轻松',
+    levelEn: 'Easy',
+    summaryZh: '从三国圣地武侯祠出发，穿过锦里的烟火气，再到杜甫草堂的诗意园林，最后在宽窄巷子的盖碗茶里结束这一天。',
+    summaryEn: 'Start at Wuhou Shrine, wander the lively Jinli, soak in Du Fu\'s poetic garden, and end the day with gaiwan tea in Kuanzhai Alley.',
+    stops: [
+      { spotId: 'wuhou-shrine', noteZh: '上午 · 三国文化', noteEn: 'Morning · Three Kingdoms' },
+      { spotId: 'jinli', noteZh: '中午 · 锦里美食', noteEn: 'Noon · Jinli bites' },
+      { spotId: 'du-fu-cottage', noteZh: '下午 · 诗意园林', noteEn: 'Afternoon · Poetic garden' },
+      { spotId: 'kuanzhai-alley', noteZh: '傍晚 · 慢生活', noteEn: 'Evening · Slow life' },
+    ],
+    highlightsZh: ['武侯祠红墙竹影', '锦里川剧变脸表演', '杜甫草堂茅屋', '宽窄巷子盖碗茶'],
+    highlightsEn: ['Bamboo-shadowed red walls of Wuhou', 'Sichuan opera face-changing at Jinli', 'Du Fu\'s thatched cottage', 'Gaiwan tea in Kuanzhai'],
+  },
+  {
+    id: 'route-panda-family',
+    nameZh: '熊猫亲子两日游',
+    nameEn: 'Panda Family Two-Day Tour',
+    durationZh: '2日',
+    durationEn: '2 Days',
+    themeZh: '亲子休闲',
+    themeEn: 'Family & Leisure',
+    levelZh: '轻松',
+    levelEn: 'Easy',
+    summaryZh: '第一天在大熊猫基地看憨态可掬的国宝，第二天在东郊记忆感受工业艺术，再去国色天乡尽情游乐，是亲子家庭的最爱。',
+    summaryEn: 'Meet the adorable pandas on day one; explore industrial art at Eastern Suburb Memory and enjoy Country Paradise rides on day two.',
+    stops: [
+      { spotId: 'panda-base', noteZh: '第1天 · 大熊猫基地', noteEn: 'Day 1 · Panda Base' },
+      { spotId: 'dongjiao-memory', noteZh: '第1天 · 东郊记忆', noteEn: 'Day 1 · Eastern Suburb Memory' },
+      { spotId: 'country-paradise', noteZh: '第2天 · 国色天乡', noteEn: 'Day 2 · Country Paradise' },
+    ],
+    highlightsZh: ['清晨看熊猫进食', '与熊猫玩偶合影', '东郊记忆红砖厂房', '国色天乡主题乐园'],
+    highlightsEn: ['Morning panda feeding', 'Panda plush photo ops', 'Red-brick factories of Eastern Suburb Memory', 'Country Paradise theme park'],
+  },
+  {
+    id: 'route-world-heritage',
+    nameZh: '世界遗产二日游',
+    nameEn: 'World Heritage Two-Day Tour',
+    durationZh: '2日',
+    durationEn: '2 Days',
+    themeZh: '世界遗产',
+    themeEn: 'World Heritage',
+    levelZh: '适中',
+    levelEn: 'Moderate',
+    summaryZh: '拜谒两千余年的都江堰水利工程，登临"青城天下幽"的道教名山，在世界遗产的荣光中感受天人合一。',
+    summaryEn: 'Pay homage to the 2,000-year-old Dujiangyan irrigation system and ascend the Taoist sacred mountain of Qingcheng — a journey into world heritage.',
+    stops: [
+      { spotId: 'dujiangyan-project', noteZh: '第1天 · 都江堰', noteEn: 'Day 1 · Dujiangyan' },
+      { spotId: 'qingcheng-mountain', noteZh: '第2天 · 青城山', noteEn: 'Day 2 · Mt. Qingcheng' },
+    ],
+    highlightsZh: ['宝瓶口俯瞰岷江', '二王庙瞻仰李冰父子', '青城山前山道观群', '清幽山径吸氧'],
+    highlightsEn: ['View the Min River at Baopingkou', 'Pay respects at Erwang Temple', 'Taoist temples on Qingcheng\'s front mountain', 'Fresh mountain air on serene trails'],
+  },
+  {
+    id: 'route-ancient-towns',
+    nameZh: '古镇水乡一日游',
+    nameEn: 'Ancient Towns One-Day Tour',
+    durationZh: '1日',
+    durationEn: '1 Day',
+    themeZh: '古镇水乡',
+    themeEn: 'Ancient Towns',
+    levelZh: '适中',
+    levelEn: 'Moderate',
+    summaryZh: '上午在黄龙溪踏着青石板听千年水声，下午到洛带古镇感受客家风韵，一日看尽川西古镇的双重魅力。',
+    summaryEn: 'Morning at Huanglongxi\'s ancient water town, afternoon at Luodai\'s Hakka heritage — two sides of western Sichuan\'s ancient charm in one day.',
+    stops: [
+      { spotId: 'huanglongxi', noteZh: '上午 · 黄龙溪', noteEn: 'Morning · Huanglongxi' },
+      { spotId: 'luodai', noteZh: '下午 · 洛带古镇', noteEn: 'Afternoon · Luodai' },
+    ],
+    highlightsZh: ['黄龙溪古码头', '一江两岸吊脚楼', '洛带客家会馆', '伤心凉粉'],
+    highlightsEn: ['Huanglongxi ancient wharf', 'Stilt houses along the river', 'Luodai Hakka guild halls', 'Fiery "heartbreak" cold noodles'],
+  },
+  {
+    id: 'route-snow-nature',
+    nameZh: '雪山自然二日游',
+    nameEn: 'Snow & Nature Two-Day Tour',
+    durationZh: '2日',
+    durationEn: '2 Days',
+    themeZh: '自然风光',
+    themeEn: 'Nature',
+    levelZh: '适中',
+    levelEn: 'Moderate',
+    summaryZh: '登临杜甫笔下"窗含西岭千秋雪"的雪山，在山林间滑雪戏雪，再去安仁古镇穿越民国公馆群，感受时光沉淀。',
+    summaryEn: 'Ascend the snow mountain of Du Fu\'s verse, ski and play in the snow, then time-travel through Anren\'s Republic-era mansions.',
+    stops: [
+      { spotId: 'xiling-snow', noteZh: '第1天 · 西岭雪山', noteEn: 'Day 1 · Xiling Snow Mountain' },
+      { spotId: 'anren', noteZh: '第2天 · 安仁古镇', noteEn: 'Day 2 · Anren Ancient Town' },
+    ],
+    highlightsZh: ['日月坪看云海', '冬季滑雪体验', '安仁民国公馆', '建川博物馆聚落'],
+    highlightsEn: ['Cloud sea at Riyueping', 'Winter skiing', 'Anren Republic-era mansions', 'Jianchuan Museum Cluster'],
+  },
+  {
+    id: 'route-cuisine-culture',
+    nameZh: '川味文化之旅',
+    nameEn: 'Sichuan Cuisine & Culture Tour',
+    durationZh: '1日',
+    durationEn: '1 Day',
+    themeZh: '美食文化',
+    themeEn: 'Food & Culture',
+    levelZh: '轻松',
+    levelEn: 'Easy',
+    summaryZh: '从川菜博物馆学一学豆瓣酱的秘密，到宽窄巷子尝遍成都小吃，最后在锦里的夜色里品一场川剧。',
+    summaryEn: 'Learn the secrets of doubanjiang at the Sichuan Cuisine Museum, taste Chengdu snacks in Kuanzhai, and watch Sichuan opera in Jinli\'s evening glow.',
+    stops: [
+      { spotId: 'sichuan-cuisine-museum', noteZh: '上午 · 川菜博物馆', noteEn: 'Morning · Cuisine Museum' },
+      { spotId: 'kuanzhai-alley', noteZh: '中午 · 宽窄巷子', noteEn: 'Noon · Kuanzhai Alley' },
+      { spotId: 'jinli', noteZh: '傍晚 · 锦里', noteEn: 'Evening · Jinli' },
+    ],
+    highlightsZh: ['豆瓣酱手作体验', '成都小吃一条街', '锦里张飞牛肉', '川剧变脸秀'],
+    highlightsEn: ['DIY doubanjiang experience', 'Chengdu snack street', 'Zhang Fei beef at Jinli', 'Face-changing opera show'],
+  },
+  {
+    id: 'route-tech-park',
+    nameZh: '现代成都一日游',
+    nameEn: 'Modern Chengdu One-Day Tour',
+    durationZh: '1日',
+    durationEn: '1 Day',
+    themeZh: '都市现代',
+    themeEn: 'Modern City',
+    levelZh: '轻松',
+    levelEn: 'Easy',
+    summaryZh: '从太古里的川西坡屋顶逛到春熙路的摩登橱窗，再去兴隆湖吹一吹公园城市的风，感受古老与现代的交融。',
+    summaryEn: 'From Taikoo Li\'s Sichuan rooftops to Chunxi Road\'s modern shopfronts, then a breezy stroll around Xinglong Lake — ancient and modern in harmony.',
+    stops: [
+      { spotId: 'taikoo-li', noteZh: '上午 · 太古里', noteEn: 'Morning · Taikoo Li' },
+      { spotId: 'chunxi-road', noteZh: '中午 · 春熙路', noteEn: 'Noon · Chunxi Road' },
+      { spotId: 'xinglong-lake', noteZh: '下午 · 兴隆湖', noteEn: 'Afternoon · Xinglong Lake' },
+    ],
+    highlightsZh: ['太古里川西建筑', '春熙路IFS熊猫', '湖畔书店', '兴隆湖日落'],
+    highlightsEn: ['Sichuan-style Taikoo Li architecture', 'IFS panda on Chunxi Road', 'Lakeside bookstore', 'Xinglong Lake sunset'],
+  },
+  {
+    id: 'route-panda-tech',
+    nameZh: '熊猫科技二日游',
+    nameEn: 'Panda & Tech Two-Day Tour',
+    durationZh: '2日',
+    durationEn: '2 Days',
+    themeZh: '亲子休闲',
+    themeEn: 'Family & Leisure',
+    levelZh: '轻松',
+    levelEn: 'Easy',
+    summaryZh: '白天看国宝、逛水街，傍晚到九眼桥感受都市夜生活，成都的多元魅力一日尽收。',
+    summaryEn: 'See pandas by day, wander the water street, and dive into Chengdu\'s nightlife at Jiuyan Bridge.',
+    stops: [
+      { spotId: 'panda-base', noteZh: '第1天 · 大熊猫基地', noteEn: 'Day 1 · Panda Base' },
+      { spotId: 'tiexiangsi', noteZh: '第1天 · 铁像寺水街', noteEn: 'Day 1 · Tiexiangsi Water Street' },
+      { spotId: 'jiuyanqiao', noteZh: '第2天 · 九眼桥', noteEn: 'Day 2 · Jiuyan Bridge' },
+    ],
+    highlightsZh: ['国宝熊猫观赏', '水街慢生活', '铁像寺禅意', '九眼桥酒吧街'],
+    highlightsEn: ['Giant panda viewing', 'Water street slow life', 'Tiexiang Temple serenity', 'Jiuyan Bridge bar street'],
+  },
+]
+
+/** 根据景点ID获取景点信息 */
+export function getScenicSpotById(id: string): ScenicSpot | undefined {
+  return scenicSpots.find(s => s.id === id)
 }
