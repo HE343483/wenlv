@@ -74,6 +74,11 @@ const filteredSpots = computed(() => {
 
 /* ── 已选区域名称 ── */
 const selectedDistrictName = computed(() => {
+  if (selectedDistrict.value === 'all') return langStore.t('district.allDistricts')
+  const d = districts.find(d => d.id === selectedDistrict.value)
+  if (!d) return ''
+  return langStore.lang === 'zh' ? d.nameZh : d.nameEn
+})
 </script>
 
 <template>
