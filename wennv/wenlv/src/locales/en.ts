@@ -66,6 +66,58 @@ export default {
     cultureDesc: 'Experience millennia of Bashu cultural heritage',
     routesDesc: 'Curated tours for an in-depth Tianfu experience',
   },
+  culture: {
+    badge: 'Sichuan · Chengdu',
+    title: 'Bashu Culture',
+    titleEn: 'Bashu Culture',
+    subtitle: 'A millennium of civilization, the charm of Tianfu',
+    intro: 'Bashu is a land nourished by the Yangtze and Min rivers for millennia. Here the mysterious ancient Shu civilization was born, dazzling Shu brocade and embroidery flourished, and the high-pitched arias of Sichuan opera and the fragrance of gaiwan tea still drift through the air. Every facet here is a living piece of history.',
+    stats: {
+      history: 'Years of Civilization',
+      heritage: 'Intangible Heritage',
+      landmark: 'Heritage Sites',
+      visitors: 'Annual Visitors',
+    },
+    cardsTitle: 'Cultural Icons',
+    cardsSubtitle: 'Six dimensions to understand Bashu',
+    exploreBtn: 'Explore More',
+    timelineTitle: 'Civilization Timeline',
+    timelineSubtitle: 'From ancient Shu to Tianfu, one continuous thread',
+    heritageTitle: 'Intangible Heritage',
+    heritageSubtitle: 'Craftsmanship passed down through generations',
+    card: {
+      brocade: {
+        name: '蜀锦',
+        en: 'Shu Brocade',
+        desc: 'A millennium of weaving from the "City of Brocade", its warp and weft threading a glorious chapter of Chinese silk civilization.',
+      },
+      opera: {
+        name: '川剧',
+        en: 'Sichuan Opera',
+        desc: 'Face-changing, fire-spitting and chorus accompaniment — the living memory of Sichuan opera, performing the many faces of life.',
+      },
+      tea: {
+        name: '盖碗茶',
+        en: 'Gaiwan Tea',
+        desc: 'A cup of tea, half a day of leisure. In Chengdu\'s teahouses brews the most authentic slow life.',
+      },
+      cuisine: {
+        name: '川菜',
+        en: 'Sichuan Cuisine',
+        desc: 'One dish, one style; a hundred dishes, a hundred flavors. Numbing, spicy and fresh — the warm and open-hearted character of Sichuan people.',
+      },
+      history: {
+        name: '古蜀文明',
+        en: 'Ancient Shu',
+        desc: 'Sanxingdui and Jinsha — bronze and gold tell the story of a mysterious, radiant ancient civilization.',
+      },
+      embroidery: {
+        name: '蜀绣',
+        en: 'Shu Embroidery',
+        desc: 'The needle as pen, the thread as ink. A thousand years of Shu embroidery captures the grace of Bashu\'s mountains and rivers.',
+      },
+    },
+  },
   login: {
     title: 'Login',
     username: 'Username',

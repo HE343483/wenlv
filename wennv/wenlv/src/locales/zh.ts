@@ -66,6 +66,58 @@ export default {
     cultureDesc: '感受千年巴蜀文化的深厚底蕴',
     routesDesc: '精品旅游路线，深度体验天府之美',
   },
+  culture: {
+    badge: '四川省 · 成都',
+    title: '巴蜀文化',
+    titleEn: 'Bashu Culture',
+    subtitle: '千年文明，天府之韵',
+    intro: '巴蜀，一片被长江与岷江滋养了数千年的沃土。这里孕育了神秘的古蜀文明，诞生了绚烂的蜀锦与蜀绣，飘荡着川剧的高腔与盖碗茶的清香。每一处风物，都是一部活着的历史。',
+    stats: {
+      history: '数千年文明',
+      heritage: '非遗项目',
+      landmark: '文保单位',
+      visitors: '年接待游客',
+    },
+    cardsTitle: '文化名片',
+    cardsSubtitle: '六大维度，读懂巴蜀',
+    exploreBtn: '探索详情',
+    timelineTitle: '文明脉络',
+    timelineSubtitle: '从古蜀到天府，一脉相承',
+    heritageTitle: '非遗传承',
+    heritageSubtitle: '匠心传世，生生不息',
+    card: {
+      brocade: {
+        name: '蜀锦',
+        en: 'Shu Brocade',
+        desc: '“锦官之城”的千年织造，经纬之间织就华夏丝绸文明的华彩篇章。',
+      },
+      opera: {
+        name: '川剧',
+        en: 'Sichuan Opera',
+        desc: '变脸、吐火、帮腔，巴蜀戏曲的活态记忆，演绎人间百态。',
+      },
+      tea: {
+        name: '盖碗茶',
+        en: 'Gaiwan Tea',
+        desc: '一茶一坐，半日浮生。成都的茶馆里，泡着最地道的慢生活。',
+      },
+      cuisine: {
+        name: '川菜',
+        en: 'Sichuan Cuisine',
+        desc: '一菜一格，百菜百味。麻辣鲜香间，是川人热烈而豁达的性情。',
+      },
+      history: {
+        name: '古蜀文明',
+        en: 'Ancient Shu',
+        desc: '三星堆、金沙遗址，青铜与金器诉说着神秘而璀璨的上古文明。',
+      },
+      embroidery: {
+        name: '蜀绣',
+        en: 'Shu Embroidery',
+        desc: '以针代笔，以线为墨。千年蜀绣，绣出巴山蜀水的灵秀与温润。',
+      },
+    },
+  },
   login: {
     title: '登录',
     username: '用户名',
