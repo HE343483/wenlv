@@ -1,5 +1,5 @@
 /** 成都各区县 & 标志性景点数据集 */
-import type { District, ScenicSpot, TravelRoute } from '@/types'
+import type { District, ScenicSpot, TravelRoute, NewsItem, FunFact } from '@/types'
 
 export const districts: District[] = [
   {
@@ -139,6 +139,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['购物', '地标', '步行街'],
     imageUrl: '/images/placeholder-chunxi.jpg',
     rating: 4.5,
+    coords: { lng: 104.081, lat: 30.657 },
   },
   {
     id: 'taikoo-li',
@@ -152,6 +153,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['购物', '建筑', '美食'],
     imageUrl: '/images/placeholder-taikoo.jpg',
     rating: 4.7,
+    coords: { lng: 104.083, lat: 30.653 },
   },
   {
     id: 'jiuyanqiao',
@@ -165,6 +167,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['夜景', '酒吧', '地标'],
     imageUrl: '/images/placeholder-jiuyan.jpg',
     rating: 4.3,
+    coords: { lng: 104.082, lat: 30.646 },
   },
 
   // ──── 武侯区 ────
@@ -180,6 +183,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['三国', '历史', '博物馆'],
     imageUrl: '/images/placeholder-wuhou.jpg',
     rating: 4.6,
+    coords: { lng: 104.047, lat: 30.645 },
   },
   {
     id: 'jinli',
@@ -193,6 +197,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['古街', '美食', '民俗'],
     imageUrl: '/images/placeholder-jinli.jpg',
     rating: 4.4,
+    coords: { lng: 104.048, lat: 30.644 },
   },
 
   // ──── 青羊区 ────
@@ -208,6 +213,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['古街', '文化', '美食', '拍照'],
     imageUrl: '/images/placeholder-kuanzhai.jpg',
     rating: 4.6,
+    coords: { lng: 104.054, lat: 30.665 },
   },
   {
     id: 'du-fu-cottage',
@@ -221,6 +227,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['历史', '文学', '园林'],
     imageUrl: '/images/placeholder-dufu.jpg',
     rating: 4.5,
+    coords: { lng: 104.037, lat: 30.664 },
   },
   {
     id: 'qingyang-palace',
@@ -234,6 +241,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['道教', '历史', '古建'],
     imageUrl: '/images/placeholder-qingyang.jpg',
     rating: 4.3,
+    coords: { lng: 104.043, lat: 30.663 },
   },
 
   // ──── 成华区 ────
@@ -249,6 +257,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['大熊猫', '自然', '亲子'],
     imageUrl: '/images/placeholder-panda.jpg',
     rating: 4.9,
+    coords: { lng: 104.147, lat: 30.736 },
   },
   {
     id: 'dongjiao-memory',
@@ -262,6 +271,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['文创', '工业遗产', '拍照', '艺术'],
     imageUrl: '/images/placeholder-dongjiao.jpg',
     rating: 4.2,
+    coords: { lng: 104.118, lat: 30.667 },
   },
 
   // ──── 高新区 ────
@@ -277,6 +287,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['水街', '艺术', '茶文化'],
     imageUrl: '/images/placeholder-tiexiangsi.jpg',
     rating: 4.3,
+    coords: { lng: 104.058, lat: 30.548 },
   },
 
   // ──── 都江堰市 ────
@@ -292,6 +303,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['世界遗产', '水利', '历史'],
     imageUrl: '/images/placeholder-dujiangyan.jpg',
     rating: 4.8,
+    coords: { lng: 103.639, lat: 30.999 },
   },
   {
     id: 'qingcheng-mountain',
@@ -305,6 +317,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['道教', '自然', '登山', '世界遗产'],
     imageUrl: '/images/placeholder-qingcheng.jpg',
     rating: 4.7,
+    coords: { lng: 103.575, lat: 30.895 },
   },
 
   // ──── 龙泉驿区 ────
@@ -320,6 +333,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['古镇', '客家文化', '美食'],
     imageUrl: '/images/placeholder-luodai.jpg',
     rating: 4.2,
+    coords: { lng: 104.322, lat: 30.637 },
   },
 
   // ──── 双流区 ────
@@ -335,6 +349,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['古镇', '水乡', '避暑'],
     imageUrl: '/images/placeholder-huanglongxi.jpg',
     rating: 4.4,
+    coords: { lng: 104.001, lat: 30.322 },
   },
 
   // ──── 温江区 ────
@@ -350,6 +365,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['主题乐园', '亲子', '娱乐'],
     imageUrl: '/images/placeholder-country.jpg',
     rating: 4.1,
+    coords: { lng: 103.827, lat: 30.702 },
   },
 
   // ──── 郫都区 ────
@@ -365,6 +381,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['美食', '博物馆', '体验'],
     imageUrl: '/images/placeholder-cuisine.jpg',
     rating: 4.3,
+    coords: { lng: 103.926, lat: 30.751 },
   },
 
   // ──── 新都区 ────
@@ -380,6 +397,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['佛教', '古建', '历史'],
     imageUrl: '/images/placeholder-baoguang.jpg',
     rating: 4.3,
+    coords: { lng: 104.180, lat: 30.828 },
   },
 
   // ──── 大邑县 ────
@@ -395,6 +413,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['雪山', '自然', '滑雪', '登山'],
     imageUrl: '/images/placeholder-xiling.jpg',
     rating: 4.5,
+    coords: { lng: 103.205, lat: 30.638 },
   },
   {
     id: 'anren',
@@ -408,6 +427,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['古镇', '博物馆', '民国'],
     imageUrl: '/images/placeholder-anren.jpg',
     rating: 4.4,
+    coords: { lng: 103.624, lat: 30.507 },
   },
 
   // ──── 金牛区 ────
@@ -423,6 +443,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['历史', '博物馆', '五代'],
     imageUrl: '/images/placeholder-yongling.jpg',
     rating: 4.2,
+    coords: { lng: 104.048, lat: 30.667 },
   },
 
   // ──── 天府新区 ────
@@ -438,6 +459,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['自然', '休闲', '科技'],
     imageUrl: '/images/placeholder-xinglong.jpg',
     rating: 4.2,
+    coords: { lng: 104.076, lat: 30.416 },
   },
 
   // ──── 青白江区 ────
@@ -453,6 +475,7 @@ export const scenicSpots: ScenicSpot[] = [
     tags: ['湿地', '樱花', '自然'],
     imageUrl: '/images/placeholder-fenghuang.jpg',
     rating: 4.1,
+    coords: { lng: 104.279, lat: 30.883 },
   },
 ]
 
@@ -641,4 +664,146 @@ export const travelRoutes: TravelRoute[] = [
 /** 根据景点ID获取景点信息 */
 export function getScenicSpotById(id: string): ScenicSpot | undefined {
   return scenicSpots.find(s => s.id === id)
+}
+
+/** ============================================================
+ *  热点新闻（成都文旅动态）
+ *  ============================================================ */
+export const newsItems: NewsItem[] = [
+  {
+    id: 'news-panda-2026',
+    titleZh: '大熊猫基地2026年新生幼崽数量创历史新高',
+    titleEn: 'Panda Base sets new record for cub births in 2026',
+    sourceZh: '成都日报',
+    sourceEn: 'Chengdu Daily',
+    timeZh: '2天前',
+    timeEn: '2 days ago',
+    summaryZh: '成都大熊猫繁育研究基地今年已成功繁育大熊猫幼崽23只，创下建基地以来最高纪录，其中包括一对罕见的双胞胎。',
+    summaryEn: 'The Giant Panda Base has successfully bred 23 cubs this year, a record high including a rare pair of twins.',
+    hot: true,
+  },
+  {
+    id: 'news-sanxingdui',
+    titleZh: '三星堆遗址新发现：出土迄今最大青铜神树',
+    titleEn: 'Sanxingdui discovery: largest bronze sacred tree ever found',
+    sourceZh: '新华社',
+    sourceEn: 'Xinhua News',
+    timeZh: '5天前',
+    timeEn: '5 days ago',
+    summaryZh: '三星堆考古发掘取得重大突破，新发现的青铜神树高达3.9米，造型精美，为研究古蜀文明提供了珍贵实物资料。',
+    summaryEn: 'A major breakthrough at Sanxingdui — a 3.9m bronze sacred tree offers invaluable insights into ancient Shu civilization.',
+    hot: true,
+  },
+  {
+    id: 'news-chengdu-night',
+    titleZh: '成都夜经济再升级：锦江夜游项目获评全国示范',
+    titleEn: 'Chengdu night economy: Jinjiang Night Cruise named national model',
+    sourceZh: '四川新闻网',
+    sourceEn: 'Sichuan News',
+    timeZh: '1周前',
+    timeEn: '1 week ago',
+    summaryZh: '成都"锦江夜游"项目入选全国夜间文旅消费示范项目，沿线灯光秀、川剧演出、夜市美食吸引大量游客。',
+    summaryEn: 'The Jinjiang Night Cruise has been named a national model for nighttime cultural tourism.',
+    hot: false,
+  },
+  {
+    id: 'news-tea-culture',
+    titleZh: '人民公园鹤鸣茶社迎来百年庆典',
+    titleEn: 'Heming Teahouse in People\'s Park celebrates centennial',
+    sourceZh: '成都文旅',
+    sourceEn: 'Chengdu Tourism',
+    timeZh: '2周前',
+    timeEn: '2 weeks ago',
+    summaryZh: '始建于1923年的鹤鸣茶社迎来百年华诞，这座成都最具代表性的老茶馆见证了成都茶文化的百年变迁。',
+    summaryEn: 'Founded in 1923, the iconic Heming Teahouse marks its centennial as a symbol of Chengdu\'s tea culture.',
+    hot: false,
+  },
+  {
+    id: 'news-food-fest',
+    titleZh: '2026成都国际美食节将于国庆期间盛大开幕',
+    titleEn: '2026 Chengdu Int\'l Food Festival kicks off during National Day',
+    sourceZh: '成都发布',
+    sourceEn: 'Chengdu Release',
+    timeZh: '3周前',
+    timeEn: '3 weeks ago',
+    summaryZh: '本届美食节将汇聚全球百余种美食，设川菜大师展演、非遗美食体验、火锅文化节三大主题板块。',
+    summaryEn: 'The festival features 100+ global cuisines, Sichuan master chef demo, heritage food experiences, and hotpot culture.',
+    hot: true,
+  },
+  {
+    id: 'news-mountain-hike',
+    titleZh: '青城山新开放生态徒步路线，全长12公里',
+    titleEn: 'New 12km eco-hiking trail opens on Mount Qingcheng',
+    sourceZh: '成都商报',
+    sourceEn: 'Chengdu Business Daily',
+    timeZh: '1月前',
+    timeEn: '1 month ago',
+    summaryZh: '青城山新开辟的"问道自然"生态徒步路线正式开放，途经原始森林、千年古观、飞瀑流泉，全程约4小时。',
+    summaryEn: 'The new "Quest for Dao" eco-trail passes through ancient forests, millennium-old temples, and waterfalls.',
+    hot: false,
+  },
+]
+
+/** ============================================================
+ *  成都趣闻（冷知识 & 有趣故事）
+ *  ============================================================ */
+export const funFacts: FunFact[] = [
+  {
+    id: 'fact-chengdu-name',
+    icon: '📜',
+    titleZh: '成都为什么叫"成都"？',
+    titleEn: 'Why is it called "Chengdu"?',
+    contentZh: '"成都"一名起源于西周，取"一年成邑，二年成都"之意，意为"成为都城"。两千多年来，成都从未更名，是中国名称沿用最久的城市之一。',
+    contentEn: 'The name dates back to the Western Zhou Dynasty, meaning "become a capital." It is one of China\'s oldest continuously used city names.',
+  },
+  {
+    id: 'fact-panda',
+    icon: '🐼',
+    titleZh: '大熊猫其实不是"素食主义者"',
+    titleEn: 'Pandas are not actually herbivores',
+    contentZh: '虽然大熊猫99%的食物是竹子，但它们的消化系统其实保留了肉食动物的特征。偶尔，野生大熊猫也会捕食小动物或吃腐肉。',
+    contentEn: 'Though 99% of their diet is bamboo, pandas\' digestive systems retain carnivore traits. Wild pandas occasionally eat small animals.',
+  },
+  {
+    id: 'fact-teahouse',
+    icon: '🍵',
+    titleZh: '成都有超过一万家茶馆',
+    titleEn: 'Chengdu has over 10,000 teahouses',
+    contentZh: '成都被称为"泡在茶汤里的城市"，茶馆数量超过一万家，是中国茶馆密度最高的城市。在成都，喝茶不是一种仪式，而是生活本身。',
+    contentEn: 'Chengdu is known as "the city steeped in tea." With over 10,000 teahouses, it has the highest density of teahouses in China.',
+  },
+  {
+    id: 'fact-brocade',
+    icon: '🧵',
+    titleZh: '蜀锦是"丝绸之路"的重要源头',
+    titleEn: 'Shu brocade was a key origin of the Silk Road',
+    contentZh: '蜀锦兴起于汉代，是中国四大名锦之首。早在两千多年前，蜀锦就通过南方丝绸之路远销中亚、欧洲，成为中国文化输出的重要载体。',
+    contentEn: 'Shu brocade emerged in the Han Dynasty as the top of China\'s four famous brocades. It reached Central Asia and Europe via the Southern Silk Road.',
+  },
+  {
+    id: 'fact-face-changing',
+    icon: '🎭',
+    titleZh: '川剧变脸最快只需0.1秒',
+    titleEn: 'Sichuan Opera face-changing takes just 0.1 seconds',
+    contentZh: '川剧变脸是国家级非物质文化遗产，演员能在极短时间内变换多张脸谱，最快可达0.1秒/张，其秘诀至今仍是川剧界的不传之秘。',
+    contentEn: 'Sichuan Opera face-changing is a national intangible cultural heritage. The fastest change takes just 0.1 seconds — a secret still closely guarded.',
+  },
+  {
+    id: 'fact-dufu',
+    icon: '🏠',
+    titleZh: '杜甫在成都只住了4年，却写了240首诗',
+    titleEn: 'Du Fu wrote 240 poems in just 4 years in Chengdu',
+    contentZh: '诗圣杜甫在成都草堂居住的四年间，创作了《春夜喜雨》《茅屋为秋风所破歌》等240余首传世名篇，占其现存诗作的六分之一。',
+    contentEn: 'During his four years in Chengdu, Du Fu composed over 240 masterpieces, including "Happy Rain on a Spring Night," one-sixth of his surviving works.',
+  },
+]
+
+/** 获取热门新闻（置顶优先） */
+export function getHotNews(): NewsItem[] {
+  return newsItems.filter(n => n.hot)
+}
+
+/** 获取推荐景点（首页精选，评分最高的前6个） */
+export function getRecommendedSpots(): ScenicSpot[] {
+  return [...scenicSpots].sort((a, b) => b.rating - a.rating).slice(0, 6)
 }

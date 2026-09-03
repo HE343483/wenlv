@@ -14,16 +14,6 @@ const tabs = [
   { route: '/home/culture', icon: 'culture', key: 'bottomNav.culture' },
   { route: '/home/routes', icon: 'routes', key: 'bottomNav.routes' },
 ] as const
-
-function getIcon(name: string): string {
-  const icons: Record<string, string> = {
-    home:    '🏠',
-    explore: '🔍',
-    culture: '🏛',
-    routes:  '🗺',
-  }
-  return icons[name] || '●'
-}
 </script>
 
 <template>
@@ -36,7 +26,40 @@ function getIcon(name: string): string {
         class="bottom-nav__item"
         active-class="bottom-nav__item--active"
       >
-        <span class="bottom-nav__icon">{{ getIcon(tab.icon) }}</span>
+        <span class="bottom-nav__icon">
+          <!-- 首页 — 传统中式屋顶房屋 -->
+          <svg v-if="tab.icon === 'home'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5 L12 3 L21 9.5"/>
+            <path d="M3 9.5 Q12 7 21 9.5"/>
+            <rect x="5" y="9.5" width="14" height="12.5" rx="0.5"/>
+            <rect x="10" y="14" width="4" height="8" rx="0.5"/>
+          </svg>
+          <!-- 探索 — 指南针 -->
+          <svg v-else-if="tab.icon === 'explore'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2 L16 12 L12 22 L8 12 Z"/>
+            <line x1="12" y1="2" x2="12" y2="4"/>
+            <line x1="12" y1="20" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="4" y2="12"/>
+            <line x1="20" y1="12" x2="22" y2="12"/>
+          </svg>
+          <!-- 文化 — 庙宇/建筑 -->
+          <svg v-else-if="tab.icon === 'culture'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 14 L12 4 L18 14"/>
+            <path d="M6 14 Q12 11 18 14"/>
+            <rect x="8" y="14" width="8" height="8" rx="0.5"/>
+            <path d="M11 14 L11 22"/>
+            <path d="M13 14 L13 22"/>
+          </svg>
+          <!-- 路线 — 路线/地图 -->
+          <svg v-else-if="tab.icon === 'routes'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="5" r="2.5"/>
+            <circle cx="19" cy="19" r="2.5"/>
+            <path d="M7 7 L17 17"/>
+            <path d="M7 7 L9 7 L9 11 L15 17 L17 17"/>
+            <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+          </svg>
+        </span>
         <span class="bottom-nav__label">{{ langStore.t(tab.key) }}</span>
       </router-link>
     </div>

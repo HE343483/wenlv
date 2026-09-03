@@ -30,6 +30,11 @@ export interface ScenicSpot {
   imageUrl: string
   /** 评级 1-5 */
   rating: number
+  /** 地图坐标 (百度地图 BD-09 近似) */
+  coords: {
+    lng: number
+    lat: number
+  }
 }
 
 /** 天气数据 — 温度采用区间格式 {{min_temp}}° ~ {{max_temp}}° */
@@ -57,6 +62,36 @@ export type WeatherState = 'idle' | 'loading' | 'success' | 'error'
 
 /** 语言 */
 export type Language = 'zh' | 'en'
+
+/** 新闻热点 */
+export interface NewsItem {
+  id: string
+  /** 新闻标题 */
+  titleZh: string
+  titleEn: string
+  /** 来源 / 频道标签 */
+  sourceZh: string
+  sourceEn: string
+  /** 发布时间 (显示用) */
+  timeZh: string
+  timeEn: string
+  /** 摘要 */
+  summaryZh: string
+  summaryEn: string
+  /** 是否置顶/热门 */
+  hot?: boolean
+}
+
+/** 趣闻故事 */
+export interface FunFact {
+  id: string
+  titleZh: string
+  titleEn: string
+  contentZh: string
+  contentEn: string
+  /** emoji 图标 */
+  icon: string
+}
 
 /** 路线中的站点 */
 export interface RouteStop {

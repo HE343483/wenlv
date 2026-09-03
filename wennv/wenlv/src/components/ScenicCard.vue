@@ -7,6 +7,7 @@
  */
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import type { ScenicSpot } from '@/types'
 
@@ -15,11 +16,16 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
+const router = useRouter()
 const langStore = useLanguageStore()
 const { lang } = storeToRefs(langStore)
 
 const name = computed(() => lang.value === 'zh' ? props.spot.nameZh : props.spot.nameEn)
 const shortDesc = computed(() => lang.value === 'zh' ? props.spot.shortDescZh : props.spot.shortDescEn)
+
+function goDetail() {
+  router.push({ name: 'scenic-detail', params: { id: props.spot.id } })
+}
 
 function ratingStars(rating: number): string {
   const full = Math.floor(rating)
@@ -32,6 +38,9 @@ function ratingStars(rating: number): string {
   <article
     class="scenic-card"
     :class="{ 'scenic-card--loading': loading }"
+    @click="goDetail"
+    @keyup.enter="goDetail"
+    tabindex="0"
   >
     <!-- 图片占位区 -->
     <div class="scenic-card__image">
@@ -62,7 +71,7 @@ function ratingStars(rating: number): string {
           <span class="scenic-card__stars">{{ ratingStars(spot.rating) }}</span>
           <span class="scenic-card__rating-num">{{ spot.rating }}</span>
         </div>
-        <button class="scenic-card__action">
+        <button class="scenic-card__action" @click.stop="goDetail">
           {{ langStore.t('scenic.viewDetail') }}
           <span class="scenic-card__arrow">→</span>
         </button>
@@ -80,9 +89,12 @@ function ratingStars(rating: number): string {
   transition: all var(--transition-base);
   display: flex;
   flex-direction: column;
+  cursor: pointer;
+  outline: none;
 }
 
-.scenic-card:hover {
+.scenic-card:hover,
+.scenic-card:focus-visible {
   border-color: var(--color-gold-dark);
   transform: translateY(-3px);
   box-shadow: 0 8px 24px var(--color-gold-glow), var(--shadow-lg);

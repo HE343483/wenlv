@@ -89,7 +89,7 @@ const selectedDistrictName = computed(() => {
         <div class="explore-hero__gradient" />
       </div>
       <div class="explore-hero__content">
-        <h1 class="explore-hero__title">{{ langStore.t('nav.explore') }}</h1>
+        <h1 class="explore-hero__title">找出成都风景</h1>
         <p class="explore-hero__subtitle">{{ langStore.t('scenic.subtitle') }}</p>
 
         <!-- 搜索栏 -->
@@ -107,47 +107,51 @@ const selectedDistrictName = computed(() => {
       </div>
     </section>
 
-    <!-- ──── 区域选择 ──── -->
-    <section class="explore-district">
-      <DistrictSelector @select="onDistrictSelect" />
-    </section>
-
-    <!-- ──── 标签筛选 ──── -->
-    <section class="explore-tags">
+    <!-- ──── 筛选面板 ──── -->
+    <section class="explore-filters">
       <div class="container">
-        <div class="explore-tags__track">
-          <button
-            v-for="tag in allTags"
-            :key="tag"
-            class="explore-tag"
-            :class="{ 'explore-tag--active': selectedTags.includes(tag) }"
-            @click="toggleTag(tag)"
-          >
-            {{ tag }}
-          </button>
-          <button
-            v-if="selectedTags.length > 0"
-            class="explore-tag explore-tag--clear"
-            @click="clearTags()"
-          >
-            {{ langStore.lang === 'zh' ? '清除筛选' : 'Clear filters' }}
-          </button>
-        </div>
-      </div>
-    </section>
+        <div class="explore-filters__panel">
+          <div class="explore-filters__header">
+            <div>
+              <h2 class="section-title">{{ langStore.lang === 'zh' ? '筛选景点' : 'Filter attractions' }}</h2>
+              <p class="section-subtitle">{{ langStore.lang === 'zh' ? '通过区域、标签和关键词快速锁定目标' : 'Narrow down by district, tags, and keywords' }}</p>
+            </div>
+            <div class="explore-stats__bar explore-stats__bar--compact">
+              <span class="explore-stats__count">
+                {{ langStore.lang === 'zh'
+                  ? `找到 ${filteredSpots.length} 个景点`
+                  : `Found ${filteredSpots.length} attractions` }}
+                <span v-if="selectedDistrict !== 'all'" class="explore-stats__district">
+                  · {{ selectedDistrictName }}
+                </span>
+              </span>
+            </div>
+          </div>
 
-    <!-- ──── 结果统计 ──── -->
-    <section class="explore-stats">
-      <div class="container">
-        <div class="explore-stats__bar">
-          <span class="explore-stats__count">
-            {{ langStore.lang === 'zh'
-              ? `找到 ${filteredSpots.length} 个景点`
-              : `Found ${filteredSpots.length} attractions` }}
-            <span v-if="selectedDistrict !== 'all'" class="explore-stats__district">
-              · {{ selectedDistrictName }}
-            </span>
-          </span>
+          <div class="explore-filters__section explore-filters__section--district">
+            <DistrictSelector @select="onDistrictSelect" />
+          </div>
+
+          <div class="explore-filters__section explore-filters__section--tags">
+            <div class="explore-tags__track">
+              <button
+                v-for="tag in allTags"
+                :key="tag"
+                class="explore-tag"
+                :class="{ 'explore-tag--active': selectedTags.includes(tag) }"
+                @click="toggleTag(tag)"
+              >
+                {{ tag }}
+              </button>
+              <button
+                v-if="selectedTags.length > 0"
+                class="explore-tag explore-tag--clear"
+                @click="clearTags()"
+              >
+                {{ langStore.lang === 'zh' ? '清除筛选' : 'Clear filters' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>

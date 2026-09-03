@@ -50,10 +50,10 @@ const router = createRouter({
       ],
     },
     {
-      // 预留：景点详情页
+      // 景点详情页
       path: '/scenic/:id',
       name: 'scenic-detail',
-      component: { template: '<router-view />' },
+      component: () => import('@/views/ScenicDetail/ScenicDetail.vue'),
     },
   ],
 })

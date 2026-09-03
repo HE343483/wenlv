@@ -61,6 +61,7 @@ function handleSubmit() {
         <router-link to="/login" class="auth-card__footer-link">{{ langStore.t('register.goLogin') }}</router-link>
       </div>
     </div>
+    
   </div>
 </template>
 
