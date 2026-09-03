@@ -3,18 +3,30 @@
  * HomeLayout.vue — 登录后内部页面布局
  * 包含: 简易顶栏 + 子路由内容 + 底部导航
  */
+import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useThemeStore } from '@/stores/theme'
+import { useWeatherStore } from '@/stores/weather'
 import BottomNav from '@/components/BottomNav.vue'
+import WeatherTrigger from '@/components/WeatherTrigger.vue'
+import WeatherPanel from '@/components/WeatherPanel.vue'
 
 const router = useRouter()
 const langStore = useLanguageStore()
 const themeStore = useThemeStore()
+const weatherStore = useWeatherStore()
+const { open } = storeToRefs(weatherStore)
+const { theme } = storeToRefs(themeStore)
 
 function goBack() {
   router.push('/')
 }
+
+/* 天气下拉：触发点 ref + 面板 ref（面板 Teleport 到 body，用暴露的 getElement 判点击范围） */
+const triggerRef = ref<InstanceType<typeof WeatherTrigger> | null>(null)
+const panelRef = ref<InstanceType<typeof WeatherPanel> | null>(null)
 </script>
 
 <template>
@@ -32,17 +44,25 @@ function goBack() {
       </div>
 
       <div class="internal-topbar__actions">
-        <!-- 主题切换 -->
+        <!-- 天气：锚点按钮（含温度区间） + 下拉面板 -->
+        <WeatherTrigger ref="triggerRef" />
+        <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
+
+        <!-- 亮/暗色调切换 -->
         <button
           class="internal-topbar__icon-btn"
           @click="themeStore.toggle()"
-          :title="themeStore.theme === 'dark' ? '切换浅色' : '切换深色'"
+          :title="theme === 'dark' ? langStore.t('theme.switchToLight') : langStore.t('theme.switchToDark')"
+          :aria-label="theme === 'dark' ? langStore.t('theme.switchToLight') : langStore.t('theme.switchToDark')"
         >
-          <svg v-if="themeStore.theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          <!-- 暗色 → 点按切换亮色 -->
+          <svg v-if="theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
           </svg>
+          <!-- 亮色 → 点按切换暗色 -->
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
           </svg>
         </button>
         <!-- 语言切换 -->

@@ -7,7 +7,7 @@
  */
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import WeatherRowCell from '@/components/WeatherRowCell.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import { getRecommendedSpots, newsItems, funFacts } from '@/data/chengdu'
 
 const router = useRouter()
@@ -40,11 +40,6 @@ function goExplore() {
       </div>
     </section>
 
-    <!-- ──── 天气 ──── -->
-    <div class="dashboard__weather">
-      <WeatherRowCell />
-    </div>
-
     <!-- ──── 推荐景点 ──── -->
     <section class="recommend">
       <header class="section-head">
@@ -69,7 +64,10 @@ function goExplore() {
         >
           <div class="recommend-card__top">
             <span class="recommend-card__rank">{{ padRank(index) }}</span>
-            <span class="recommend-card__rating">{{ spot.rating }} ★</span>
+            <span class="recommend-card__rating">
+              <AppIcon name="star" :size="12" filled />
+              {{ spot.rating }}
+            </span>
           </div>
           <div class="recommend-card__placeholder" aria-hidden="true">
             <span class="recommend-card__shu">{{ spot.nameZh.charAt(0) }}</span>
@@ -131,7 +129,9 @@ function goExplore() {
 
       <div class="facts__grid">
         <article v-for="fact in funFacts" :key="fact.id" class="fact-card">
-          <span class="fact-card__icon" aria-hidden="true">{{ fact.icon }}</span>
+          <span class="fact-card__icon" aria-hidden="true">
+            <AppIcon :name="fact.icon" :size="28" />
+          </span>
           <h3 class="fact-card__title">{{ langStore.lang === 'zh' ? fact.titleZh : fact.titleEn }}</h3>
           <p class="fact-card__content">{{ langStore.lang === 'zh' ? fact.contentZh : fact.contentEn }}</p>
         </article>
@@ -487,8 +487,10 @@ function goExplore() {
 }
 
 .fact-card__icon {
-  font-size: var(--text-3xl);
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gold);
 }
 
 .fact-card__title {

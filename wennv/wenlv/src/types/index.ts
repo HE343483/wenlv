@@ -43,7 +43,7 @@ export interface WeatherData {
   min_temp: number
   /** 最高温 (动态占位 {{max_temp}}) */
   max_temp: number
-  /** 天气图标 (emoji) */
+  /** 天气图标 — AppIcon 名称 */
   weather_icon: string
   /** 天气描述，随语言切换 */
   weather_desc: string
@@ -89,7 +89,7 @@ export interface FunFact {
   titleEn: string
   contentZh: string
   contentEn: string
-  /** emoji 图标 */
+  /** AppIcon 图标名称 */
   icon: string
 }
 

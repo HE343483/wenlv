@@ -44,7 +44,7 @@ watch(() => props.districtId, loadSpots, { immediate: true })
     <!-- 加载态 -->
     <div v-if="loading" class="scenic-grid__loading">
       <div class="scenic-grid__shimmer">
-        <ScenicCard v-for="n in 6" :key="n" :spot="{ id: 'loading', districtId: '', nameZh: '', nameEn: '', shortDescZh: '', shortDescEn: '', descriptionZh: '', descriptionEn: '', tags: [], imageUrl: '', rating: 0 }" :loading="true" />
+        <ScenicCard v-for="n in 6" :key="n" :spot="{ id: 'loading', districtId: '', nameZh: '', nameEn: '', shortDescZh: '', shortDescEn: '', descriptionZh: '', descriptionEn: '', tags: [], imageUrl: '', rating: 0, coords: { lng: 0, lat: 0 } }" :loading="true" />
       </div>
     </div>
 

@@ -103,7 +103,7 @@ async function mockWeatherApi(districtId: string): Promise<WeatherData> {
   return {
     min_temp: min,
     max_temp: max,
-    weather_icon: '☀️',
+    weather_icon: 'sunny',
     weather_desc: langStore.lang === 'zh' ? '晴' : 'Sunny',
     city_name: district?.nameZh ?? districtId,
     humidity: 50 + Math.floor(Math.random() * 15),

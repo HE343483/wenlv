@@ -750,7 +750,7 @@ export const newsItems: NewsItem[] = [
 export const funFacts: FunFact[] = [
   {
     id: 'fact-chengdu-name',
-    icon: '📜',
+    icon: 'scroll',
     titleZh: '成都为什么叫"成都"？',
     titleEn: 'Why is it called "Chengdu"?',
     contentZh: '"成都"一名起源于西周，取"一年成邑，二年成都"之意，意为"成为都城"。两千多年来，成都从未更名，是中国名称沿用最久的城市之一。',
@@ -758,7 +758,7 @@ export const funFacts: FunFact[] = [
   },
   {
     id: 'fact-panda',
-    icon: '🐼',
+    icon: 'panda',
     titleZh: '大熊猫其实不是"素食主义者"',
     titleEn: 'Pandas are not actually herbivores',
     contentZh: '虽然大熊猫99%的食物是竹子，但它们的消化系统其实保留了肉食动物的特征。偶尔，野生大熊猫也会捕食小动物或吃腐肉。',
@@ -766,7 +766,7 @@ export const funFacts: FunFact[] = [
   },
   {
     id: 'fact-teahouse',
-    icon: '🍵',
+    icon: 'tea',
     titleZh: '成都有超过一万家茶馆',
     titleEn: 'Chengdu has over 10,000 teahouses',
     contentZh: '成都被称为"泡在茶汤里的城市"，茶馆数量超过一万家，是中国茶馆密度最高的城市。在成都，喝茶不是一种仪式，而是生活本身。',
@@ -774,7 +774,7 @@ export const funFacts: FunFact[] = [
   },
   {
     id: 'fact-brocade',
-    icon: '🧵',
+    icon: 'brocade',
     titleZh: '蜀锦是"丝绸之路"的重要源头',
     titleEn: 'Shu brocade was a key origin of the Silk Road',
     contentZh: '蜀锦兴起于汉代，是中国四大名锦之首。早在两千多年前，蜀锦就通过南方丝绸之路远销中亚、欧洲，成为中国文化输出的重要载体。',
@@ -782,7 +782,7 @@ export const funFacts: FunFact[] = [
   },
   {
     id: 'fact-face-changing',
-    icon: '🎭',
+    icon: 'opera',
     titleZh: '川剧变脸最快只需0.1秒',
     titleEn: 'Sichuan Opera face-changing takes just 0.1 seconds',
     contentZh: '川剧变脸是国家级非物质文化遗产，演员能在极短时间内变换多张脸谱，最快可达0.1秒/张，其秘诀至今仍是川剧界的不传之秘。',
@@ -790,7 +790,7 @@ export const funFacts: FunFact[] = [
   },
   {
     id: 'fact-dufu',
-    icon: '🏠',
+    icon: 'house',
     titleZh: '杜甫在成都只住了4年，却写了240首诗',
     titleEn: 'Du Fu wrote 240 poems in just 4 years in Chengdu',
     contentZh: '诗圣杜甫在成都草堂居住的四年间，创作了《春夜喜雨》《茅屋为秋风所破歌》等240余首传世名篇，占其现存诗作的六分之一。',

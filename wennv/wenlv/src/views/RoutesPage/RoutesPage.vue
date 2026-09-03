@@ -1,16 +1,34 @@
 <script setup lang="ts">
 /**
- * RoutesPage.vue — 路线规划 (静态版式 Mockup)
- * 功能：精品路线 Tab + 自定义路线 Tab，左侧路线卡片/表单，右侧地图区
- * 说明：当前全部使用本地静态数据（travelRoutes / scenicSpots）做版式，
- *       后期接入后端 API 与百度地图 JS API 后替换数据源与渲染逻辑。
+ * RoutesPage.vue — 路线规划
+ * 功能：精品路线 Tab + 自定义路线 Tab，左侧路线卡片/表单，右侧真实百度地图
+ * 地图：百度地图 JS API v3.0，AK 从 .env 的 VITE_BAIDU_MAP_AK 读取
+ *       - 精品路线：在地图上标注途经站点，连线展示
+ *       - 自定义路线：支持“我的位置”定位 + 驾车路线规划
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useLanguageStore } from '@/stores/language'
 import { travelRoutes, scenicSpots, getScenicSpotById } from '@/data/chengdu'
+import { loadBaiduMap } from '@/utils/baiduMap'
+import AppIcon from '@/components/AppIcon.vue'
 import type { TravelRoute, ScenicSpot } from '@/types'
 
 const langStore = useLanguageStore()
+
+/* ── 地图 AK ── */
+const mapAK = (import.meta.env.VITE_BAIDU_MAP_AK as string | undefined) ?? ''
+
+/* ── 页头统计 ── */
+const routeStats = computed(() => {
+  const themes = new Set(travelRoutes.map(r => r.themeZh))
+  const coveredSpots = new Set(travelRoutes.flatMap(r => r.stops.map(s => s.spotId)))
+  return [
+    { value: String(travelRoutes.length), label: langStore.lang === 'zh' ? '精品路线' : 'Curated Routes' },
+    { value: String(themes.size), label: langStore.lang === 'zh' ? '出行主题' : 'Themes' },
+    { value: String(coveredSpots.size), label: langStore.lang === 'zh' ? '覆盖景点' : 'Covered Spots' },
+    { value: String(scenicSpots.length), label: langStore.lang === 'zh' ? '可规划景点' : 'Plan-able Spots' },
+  ]
+})
 
 /* ── Tab ── */
 type RoutesTab = 'prebuilt' | 'custom'
@@ -45,33 +63,377 @@ function routeStopsSummary(route: TravelRoute): string {
     .join(' → ')
 }
 
+/* ============================================================
+   百度地图
+   ============================================================ */
+type MapStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+/* 地图容器 */
+const prebuiltMapEl = ref<HTMLDivElement | null>(null)
+const customMapEl = ref<HTMLDivElement | null>(null)
+
+/* 地图状态 */
+const prebuiltMapStatus = ref<MapStatus>('idle')
+const customMapStatus = ref<MapStatus>('idle')
+
+/* 地图实例与图层 */
+let prebuiltMap: any = null
+let prebuiltOverlays: any[] = []
+let customMap: any = null
+let myLocationMarker: any = null
+let routeSearch: any = null
+
+/* 自定义路线规划结果 */
+const routePlanned = ref(false)
+const routeDistance = ref('')
+const routeDuration = ref('')
+
+/* ── 加载 BMap 脚本（幂等） ── */
+async function ensureBMap(): Promise<boolean> {
+  if (!mapAK) return false
+  try {
+    await loadBaiduMap(mapAK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/* ── 精品路线地图 ── */
+async function initPrebuiltMap() {
+  if (prebuiltMap || prebuiltMapStatus.value !== 'idle') return
+  prebuiltMapStatus.value = 'loading'
+  const ok = await ensureBMap()
+  if (!ok) {
+    prebuiltMapStatus.value = 'error'
+    return
+  }
+  await nextTick()
+  const el = prebuiltMapEl.value
+  if (!el) return
+  const BMap = (window as any).BMap
+  prebuiltMap = new BMap.Map(el)
+  prebuiltMap.enableScrollWheelZoom()
+  prebuiltMap.addControl(new BMap.NavigationControl())
+  prebuiltMap.addControl(new BMap.ScaleControl())
+  renderPrebuiltRoute()
+  prebuiltMapStatus.value = 'ready'
+}
+
+/* 渲染精品路线：标注站点 + 连线 */
+function renderPrebuiltRoute() {
+  if (!prebuiltMap) return
+  const BMap = (window as any).BMap
+
+  // 清除旧的覆盖物
+  prebuiltOverlays.forEach(o => prebuiltMap.removeOverlay(o))
+  prebuiltOverlays = []
+
+  const points: any[] = []
+  selectedStops.value.forEach(stop => {
+    const spot = stop.spot!
+    const pt = new BMap.Point(spot.coords.lng, spot.coords.lat)
+    points.push(pt)
+
+    const marker = new BMap.Marker(pt)
+    const label = new BMap.Label(
+      langStore.lang === 'zh' ? spot.nameZh : spot.nameEn,
+      { position: pt, offset: new BMap.Size(18, -32) }
+    )
+    label.setStyle({
+      color: '#0F0D0B',
+      background: '#C9A96E',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '2px 8px',
+      fontSize: '12px',
+      letterSpacing: '0.08em',
+      fontWeight: '600',
+      whiteSpace: 'nowrap',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+    })
+    marker.setLabel(label)
+
+    marker.addEventListener('click', () => {
+      const content =
+        `<div style="font-family: 'Noto Serif SC', serif; min-width: 180px;">
+          <h4 style="margin:0 0 6px; font-size:15px; color:#211D17;">${langStore.lang === 'zh' ? spot.nameZh : spot.nameEn}</h4>
+          <p style="margin:0; font-size:12px; line-height:1.6; color:#6E6151;">${langStore.lang === 'zh' ? spot.shortDescZh : spot.shortDescEn}</p>
+        </div>`
+      const info = new BMap.InfoWindow(content)
+      prebuiltMap.openInfoWindow(info, pt)
+    })
+
+    prebuiltMap.addOverlay(marker)
+    prebuiltOverlays.push(marker)
+  })
+
+  // 站点连线
+  if (points.length >= 2) {
+    const line = new BMap.Polyline(points, {
+      strokeColor: '#C9A96E',
+      strokeWeight: 4,
+      strokeOpacity: 0.85,
+      strokeStyle: 'dashed',
+    })
+    prebuiltMap.addOverlay(line)
+    prebuiltOverlays.push(line)
+  }
+
+  if (points.length > 0) {
+    prebuiltMap.setViewport(points, { enableAnimation: true })
+  }
+}
+
+/* ── 自定义路线地图 ── */
+async function initCustomMap() {
+  if (customMap || customMapStatus.value !== 'idle') return
+  customMapStatus.value = 'loading'
+  const ok = await ensureBMap()
+  if (!ok) {
+    customMapStatus.value = 'error'
+    return
+  }
+  await nextTick()
+  const el = customMapEl.value
+  if (!el) return
+  const BMap = (window as any).BMap
+  customMap = new BMap.Map(el)
+  customMap.enableScrollWheelZoom()
+  customMap.addControl(new BMap.NavigationControl())
+  customMap.addControl(new BMap.ScaleControl())
+  // 默认以成都为中心
+  customMap.centerAndZoom(new BMap.Point(104.065, 30.66), 11)
+  customMapStatus.value = 'ready'
+
+  // 如果之前点击了“我的位置”但地图未就绪，地图就绪后自动定位
+  if (myLocation.value && locating.value) {
+    locateMe()
+  }
+}
+
 /* ── 自定义路线 ── */
 const startSpotId = ref('')
 const destSpotId = ref('')
 const myLocation = ref(false)
+const locating = ref(false)
+
+/* 自定义路线绘制的覆盖物（路线折线 + 标记） */
+let routeOverlays: any[] = []
 
 const spotOptions = computed<ScenicSpot[]>(() => scenicSpots)
 
-function toggleMyLocation() {
-  myLocation.value = !myLocation.value
-  if (myLocation.value) {
-    startSpotId.value = '' // 起点交给定位
-  }
+/* 定位：获取当前位置 */
+function locateMe() {
+  if (!customMap) return
+  locating.value = true
+  const BMap = (window as any).BMap
+  const geo = new BMap.Geolocation()
+  geo.getCurrentPosition((res: any) => {
+    locating.value = false
+    if (geo.getStatus() === (window as any).BMAP_STATUS_SUCCESS) {
+      if (myLocationMarker && customMap) customMap.removeOverlay(myLocationMarker)
+      const pt = new BMap.Point(res.point.lng, res.point.lat)
+      myLocationMarker = new BMap.Marker(pt)
+      const label = new BMap.Label(
+        langStore.lang === 'zh' ? '我的位置' : 'My Location',
+        { position: pt, offset: new BMap.Size(18, -32) }
+      )
+      label.setStyle({
+        color: '#0F0D0B',
+        background: '#7A8A7A',
+        border: 'none',
+        borderRadius: '4px',
+        padding: '2px 8px',
+        fontSize: '12px',
+        letterSpacing: '0.08em',
+        fontWeight: '600',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+      })
+      myLocationMarker.setLabel(label)
+      customMap.addOverlay(myLocationMarker)
+      customMap.panTo(pt)
+    } else {
+      myLocation.value = false
+      window.alert?.(langStore.t('routes.locationError'))
+    }
+  })
 }
 
-function planRoute() {
-  // 后期：调用百度地图/后端路径规划 API
-  if (myLocation.value || startSpotId.value) {
-    // TODO: 接入 API 后替换为真实规划逻辑与状态提示
-    console.log('planRoute →', { start: startSpotId.value, dest: destSpotId.value })
+function toggleMyLocation() {
+  myLocation.value = !myLocation.value
+  if (!myLocation.value) {
+    locating.value = false
+    startSpotId.value = ''
+    if (myLocationMarker && customMap) {
+      customMap.removeOverlay(myLocationMarker)
+      myLocationMarker = null
+    }
+    return
   }
+  startSpotId.value = ''
+  if (customMap) locateMe()
+  else locating.value = true
 }
+
+/* 规划驾车路线 */
+async function planRoute() {
+  if (!customMap) {
+    await initCustomMap()
+  }
+  if (!customMap) return
+  if (!destSpotId.value) return
+
+  const BMap = (window as any).BMap
+
+  // 起点：我的位置 或 选择的起点景点
+  let startPt: any = null
+  let startName = ''
+  if (myLocation.value) {
+    if (!myLocationMarker) {
+      window.alert?.(langStore.t('routes.noStart'))
+      return
+    }
+    startPt = myLocationMarker.getPosition()
+    startName = langStore.lang === 'zh' ? '我的位置' : 'My Location'
+  } else if (startSpotId.value) {
+    const start = getScenicSpotById(startSpotId.value)
+    if (!start) {
+      window.alert?.(langStore.t('routes.noStart'))
+      return
+    }
+    startPt = new BMap.Point(start.coords.lng, start.coords.lat)
+    startName = langStore.lang === 'zh' ? start.nameZh : start.nameEn
+  } else {
+    window.alert?.(langStore.t('routes.noStart'))
+    return
+  }
+
+  const dest = getScenicSpotById(destSpotId.value)
+  if (!dest) return
+  const endPt = new BMap.Point(dest.coords.lng, dest.coords.lat)
+  const endName = langStore.lang === 'zh' ? dest.nameZh : dest.nameEn
+
+  // 清除上次规划结果
+  if (routeSearch) {
+    routeSearch.clearResults()
+    routeSearch = null
+  }
+  clearCustomRouteOverlays()
+  routePlanned.value = false
+
+  // 使用 BMap.DrivingRoute 计算路线，关闭自动渲染，手动绘制品牌色路径
+  const driving = new BMap.DrivingRoute(customMap, {
+    onSearchComplete: (res: any) => {
+      if (driving.getStatus() !== (window as any).BMAP_STATUS_SUCCESS) {
+        window.alert?.(langStore.t('routes.planError'))
+        return
+      }
+      const plan = res.getPlan(0)
+      const route = plan.getRoute(0)
+      const points = route.getPath()
+      if (!points || points.length === 0) {
+        window.alert?.(langStore.t('routes.planError'))
+        return
+      }
+
+      // 金色路线折线
+      const polyline = new BMap.Polyline(points, {
+        strokeColor: '#C9A96E',
+        strokeWeight: 5,
+        strokeOpacity: 0.9,
+      })
+      customMap.addOverlay(polyline)
+      routeOverlays.push(polyline)
+
+      // 起点标记（黛绿）
+      const startMarker = new BMap.Marker(points[0])
+      const startLabel = new BMap.Label(startName, {
+        position: points[0],
+        offset: new BMap.Size(18, -30),
+      })
+      startLabel.setStyle({
+        color: '#0F0D0B',
+        background: '#7A8A7A',
+        border: 'none',
+        borderRadius: '4px',
+        padding: '2px 8px',
+        fontSize: '12px',
+        letterSpacing: '0.08em',
+        fontWeight: '600',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+      })
+      startMarker.setLabel(startLabel)
+      customMap.addOverlay(startMarker)
+      routeOverlays.push(startMarker)
+
+      // 终点标记（朱红）
+      const endMarker = new BMap.Marker(points[points.length - 1])
+      const endLabel = new BMap.Label(endName, {
+        position: points[points.length - 1],
+        offset: new BMap.Size(18, -30),
+      })
+      endLabel.setStyle({
+        color: '#0F0D0B',
+        background: '#A23B3B',
+        border: 'none',
+        borderRadius: '4px',
+        padding: '2px 8px',
+        fontSize: '12px',
+        letterSpacing: '0.08em',
+        fontWeight: '600',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+      })
+      endMarker.setLabel(endLabel)
+      customMap.addOverlay(endMarker)
+      routeOverlays.push(endMarker)
+
+      routeDistance.value = plan.getDistance(true)
+      routeDuration.value = plan.getDuration(true)
+      routePlanned.value = true
+
+      // 视野自适应
+      customMap.setViewport(points, { enableAnimation: true })
+    },
+  })
+  driving.search(startPt, endPt)
+  routeSearch = driving
+}
+
+/* 清除自定义路线覆盖物 */
+function clearCustomRouteOverlays() {
+  if (!customMap) return
+  routeOverlays.forEach(o => customMap.removeOverlay(o))
+  routeOverlays = []
+}
+
+/* ── Tab 切换时初始化对应地图 ── */
+watch(activeTab, (tab) => {
+  if (tab === 'prebuilt') initPrebuiltMap()
+  else initCustomMap()
+})
+
+/* ── 语言切换：重绘标签 ── */
+watch(() => langStore.lang, () => {
+  renderPrebuiltRoute()
+})
+
+onMounted(() => {
+  initPrebuiltMap()
+})
 </script>
 
 <template>
   <div class="routes-page">
     <!-- ──── HERO ──── -->
-    <section class="routes-hero">
+    <section class="routes-hero shu-pattern">
+      <div class="routes-hero__bg" aria-hidden="true">
+        <div class="routes-hero__gradient" />
+        <span class="routes-hero__watermark">路</span>
+      </div>
       <div class="routes-hero__content">
         <p class="routes-hero__eyebrow">
           <span>◈</span>
@@ -80,6 +442,14 @@ function planRoute() {
         </p>
         <h1 class="routes-hero__title">{{ langStore.t('routes.title') }}</h1>
         <p class="routes-hero__subtitle">{{ langStore.t('routes.subtitle') }}</p>
+
+        <!-- 页头统计 -->
+        <div class="routes-hero__stats">
+          <div v-for="stat in routeStats" :key="stat.label" class="routes-hero__stat">
+            <span class="routes-hero__stat-num">{{ stat.value }}</span>
+            <span class="routes-hero__stat-label">{{ stat.label }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -91,7 +461,7 @@ function planRoute() {
           :class="{ 'routes-tabs__btn--active': activeTab === 'prebuilt' }"
           @click="activeTab = 'prebuilt'"
         >
-          <span class="routes-tabs__icon">🗺</span>
+          <span class="routes-tabs__icon"><AppIcon name="map" :size="18" /></span>
           {{ langStore.t('routes.tabPrebuilt') }}
         </button>
         <button
@@ -99,7 +469,7 @@ function planRoute() {
           :class="{ 'routes-tabs__btn--active': activeTab === 'custom' }"
           @click="activeTab = 'custom'"
         >
-          <span class="routes-tabs__icon">✏️</span>
+          <span class="routes-tabs__icon"><AppIcon name="edit" :size="18" /></span>
           {{ langStore.t('routes.tabCustom') }}
         </button>
       </div>
@@ -138,6 +508,11 @@ function planRoute() {
             </div>
 
             <div class="route-card__badges">
+              <span class="route-card__badge route-card__badge--stops">
+                <AppIcon name="pin" :size="14" />
+                {{ route.stops.length }}
+                {{ langStore.lang === 'zh' ? '站' : 'stops' }}
+              </span>
               <span class="route-card__badge">
                 <b>{{ langStore.t('routes.duration') }}</b>
                 {{ langStore.lang === 'zh' ? route.durationZh : route.durationEn }}
@@ -156,41 +531,21 @@ function planRoute() {
 
         <!-- 右：地图 + 行程 -->
         <div class="routes-prebuilt__detail">
-          <!-- 地图占位（接入百度地图后替换为真实地图渲染） -->
+          <!-- 百度地图 -->
           <div class="route-map">
-            <div class="route-map__placeholder">
-              <!-- 虚拟站点连线示意 (静态版式) -->
-              <div class="route-map__stops">
-                <div
-                  v-for="(stop, i) in selectedStops"
-                  :key="stop.spotId"
-                  class="route-map__stop"
-                  :style="{ '--i': i }"
-                >
-                  <span class="route-map__dot" />
-                  <span class="route-map__label">
-                    {{ langStore.lang === 'zh' ? stop.spot!.nameZh : stop.spot!.nameEn }}
-                  </span>
-                  <span class="route-map__note">
-                    {{ langStore.lang === 'zh' ? stop.noteZh : stop.noteEn }}
-                  </span>
-                </div>
-              </div>
-              <!-- 连接线 -->
-              <svg class="route-map__line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <path
-                  d="M 10 88 Q 30 60 50 50 T 90 14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="0.4"
-                  stroke-dasharray="2 1.5"
-                  stroke-linecap="round"
-                />
-              </svg>
-              <span class="route-map__pin">📍</span>
-              <p class="route-map__hint">
-                {{ langStore.t('routes.mapNoKey') }}
-              </p>
+            <div ref="prebuiltMapEl" class="route-map__canvas" />
+            <!-- 加载中 / 失败覆盖层 -->
+            <div v-if="prebuiltMapStatus !== 'ready'" class="route-map__overlay">
+              <template v-if="prebuiltMapStatus === 'loading'">
+                <div class="route-map__spinner" aria-hidden="true" />
+                <p class="route-map__hint">{{ langStore.t('routes.mapLoading') }}</p>
+              </template>
+              <template v-else>
+                <span class="route-map__pin"><AppIcon name="pin" :size="40" /></span>
+                <p class="route-map__hint">
+                  {{ mapAK ? langStore.t('routes.mapError') : langStore.t('routes.mapNoKey') }}
+                </p>
+              </template>
             </div>
           </div>
 
@@ -271,13 +626,16 @@ function planRoute() {
             <button
               class="route-field__locate"
               :class="{ 'route-field__locate--on': myLocation }"
+              :disabled="locating"
               @click="toggleMyLocation"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
               </svg>
-              {{ myLocation ? langStore.t('routes.locationSuccess') : langStore.t('routes.myLocation') }}
+              {{ locating
+                ? langStore.t('routes.locating')
+                : (myLocation ? langStore.t('routes.locationSuccess') : langStore.t('routes.myLocation')) }}
             </button>
           </label>
 
@@ -324,6 +682,18 @@ function planRoute() {
             {{ langStore.t('routes.plan') }}
           </button>
 
+          <!-- 规划结果 -->
+          <div v-if="routePlanned" class="route-result">
+            <span class="route-result__item">
+              {{ langStore.t('routes.totalDistance') }}
+              <b>{{ routeDistance }}</b>
+            </span>
+            <span class="route-result__item">
+              {{ langStore.t('routes.totalDuration') }}
+              <b>{{ routeDuration }}</b>
+            </span>
+          </div>
+
           <!-- API 对接说明（占位提示） -->
           <p class="route-field__hint">{{ langStore.t('routes.hint') }}</p>
         </aside>
@@ -331,21 +701,19 @@ function planRoute() {
         <!-- 右：地图 -->
         <div class="routes-custom__map">
           <div class="route-map">
-            <div class="route-map__placeholder route-map__placeholder--custom">
-              <svg class="route-map__line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <path
-                  d="M 20 78 Q 40 55 60 45 T 82 20"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="0.4"
-                  stroke-dasharray="2 1.5"
-                  stroke-linecap="round"
-                />
-              </svg>
-              <span class="route-map__pin">📍</span>
-              <p class="route-map__hint">
-                {{ langStore.t('routes.mapNoKey') }}
-              </p>
+            <div ref="customMapEl" class="route-map__canvas route-map__canvas--custom" />
+            <!-- 加载中 / 失败覆盖层 -->
+            <div v-if="customMapStatus !== 'ready'" class="route-map__overlay">
+              <template v-if="customMapStatus === 'loading'">
+                <div class="route-map__spinner" aria-hidden="true" />
+                <p class="route-map__hint">{{ langStore.t('routes.mapLoading') }}</p>
+              </template>
+              <template v-else>
+                <span class="route-map__pin"><AppIcon name="pin" :size="40" /></span>
+                <p class="route-map__hint">
+                  {{ mapAK ? langStore.t('routes.mapError') : langStore.t('routes.mapNoKey') }}
+                </p>
+              </template>
             </div>
           </div>
         </div>
@@ -360,16 +728,48 @@ function planRoute() {
    ======================================== */
 .routes-hero {
   position: relative;
+  overflow: hidden;
   text-align: center;
-  padding: var(--space-10) 0 var(--space-8);
+  padding: var(--space-12) 0 var(--space-8);
+}
+
+.routes-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.routes-hero__gradient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 40%, rgba(201, 169, 110, 0.07) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(15, 13, 11, 0.2) 0%, var(--color-bg) 100%);
+}
+
+.routes-hero__watermark {
+  position: absolute;
+  font-family: var(--font-display);
+  font-size: clamp(180px, 30vw, 360px);
+  font-weight: 900;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(201, 169, 110, 0.1);
+  user-select: none;
+  pointer-events: none;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .routes-hero__content {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-4) var(--space-6);
 }
 
 .routes-hero__eyebrow {
@@ -397,6 +797,50 @@ function planRoute() {
   color: var(--color-text-secondary);
   font-weight: 300;
   letter-spacing: var(--tracking-wide);
+}
+
+/* 页头统计 */
+.routes-hero__stats {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-3);
+}
+
+.routes-hero__stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
+}
+
+.routes-hero__stat:hover {
+  background: var(--color-surface-hover);
+}
+
+.routes-hero__stat + .routes-hero__stat {
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-5);
+}
+
+.routes-hero__stat-num {
+  font-family: var(--font-en-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-gold);
+  line-height: 1;
+}
+
+.routes-hero__stat-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
 }
 
 /* ========================================
@@ -563,6 +1007,14 @@ function planRoute() {
   letter-spacing: var(--tracking-wide);
 }
 
+.route-card__badge--stops {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-gold);
+  border-color: color-mix(in srgb, var(--color-gold) 40%, transparent);
+}
+
 .route-card__badge b {
   font-weight: 500;
   color: var(--color-text-muted);
@@ -570,7 +1022,7 @@ function planRoute() {
 }
 
 /* ========================================
-   地图占位
+   地图
    ======================================== */
 .route-map {
   position: relative;
@@ -579,9 +1031,21 @@ function planRoute() {
   overflow: hidden;
 }
 
-.route-map__placeholder {
-  position: relative;
+.route-map__canvas {
+  width: 100%;
   aspect-ratio: 16 / 8;
+  background: var(--color-bg-alt);
+}
+
+.route-map__canvas--custom {
+  aspect-ratio: 16 / 8;
+}
+
+/* 地图覆盖层（加载中 / 未配置 AK / 加载失败） */
+.route-map__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -594,15 +1058,26 @@ function planRoute() {
     var(--color-bg-alt);
 }
 
-.route-map__placeholder--custom {
-  aspect-ratio: 16 / 8;
+.route-map__spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--color-border-light);
+  border-top-color: var(--color-gold);
+  animation: map-spin 0.9s linear infinite;
+}
+
+@keyframes map-spin {
+  to { transform: rotate(360deg); }
 }
 
 .route-map__pin {
-  font-size: var(--text-4xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gold);
   filter: drop-shadow(0 0 16px var(--color-gold-glow));
   animation: pin-float 2.6s ease-in-out infinite;
-  z-index: 2;
 }
 
 @keyframes pin-float {
@@ -611,8 +1086,6 @@ function planRoute() {
 }
 
 .route-map__hint {
-  position: relative;
-  z-index: 2;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
@@ -624,75 +1097,6 @@ function planRoute() {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   max-width: 86%;
-}
-
-.route-map__line {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  color: color-mix(in srgb, var(--color-gold) 55%, transparent);
-  z-index: 1;
-}
-
-/* 虚拟站点 (静态示意，接入地图后删除) */
-.route-map__stops {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  padding: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: calc(var(--space-8) + 12px);
-}
-
-.route-map__stop {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.route-map__dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--color-gold);
-  border: 3px solid color-mix(in srgb, var(--color-bg) 70%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-gold) 45%, transparent), 0 0 14px var(--color-gold-glow);
-  flex-shrink: 0;
-}
-
-.route-map__stop:nth-child(2n) .route-map__dot {
-  background: var(--color-cinnabar);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-cinnabar) 40%, transparent);
-}
-
-.route-map__stop:nth-child(2n) {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
-.route-map__label {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid var(--color-border);
-  padding: 2px 10px;
-  border-radius: var(--radius-full);
-  letter-spacing: var(--tracking-wide);
-  white-space: nowrap;
-}
-
-.route-map__note {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  letter-spacing: var(--tracking-wide);
-  white-space: nowrap;
 }
 
 /* ========================================
@@ -957,6 +1361,26 @@ function planRoute() {
   cursor: not-allowed;
 }
 
+/* 规划结果 */
+.route-result {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+}
+
+.route-result__item b {
+  color: var(--color-gold);
+  font-weight: 600;
+  margin-left: var(--space-2);
+}
+
 .route-field__hint {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
@@ -985,6 +1409,20 @@ function planRoute() {
   .routes-hero__title {
     font-size: var(--text-3xl);
   }
+  .routes-hero__stats {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    gap: 0;
+  }
+  .routes-hero__stat + .routes-hero__stat {
+    border-left: none;
+  }
+  .routes-hero__stat {
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-4);
+  }
   .routes-tabs__bar {
     display: flex;
     width: 100%;
@@ -1003,11 +1441,9 @@ function planRoute() {
   .routes-custom__layout {
     padding-bottom: var(--space-10);
   }
-  .route-map__placeholder {
+  .route-map__canvas,
+  .route-map__canvas--custom {
     aspect-ratio: 4 / 3;
-  }
-  .route-map__stops {
-    display: none; /* 移动端隐藏虚拟站点连线 */
   }
   .route-stop__body {
     flex-direction: column;

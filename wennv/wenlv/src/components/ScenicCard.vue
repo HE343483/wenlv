@@ -9,6 +9,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import AppIcon from '@/components/AppIcon.vue'
 import type { ScenicSpot } from '@/types'
 
 const props = defineProps<{
@@ -27,10 +28,8 @@ function goDetail() {
   router.push({ name: 'scenic-detail', params: { id: props.spot.id } })
 }
 
-function ratingStars(rating: number): string {
-  const full = Math.floor(rating)
-  const half = rating % 1 >= 0.5 ? 1 : 0
-  return '★'.repeat(full) + (half ? '☆' : '') + '☆'.repeat(5 - full - half)
+function starCount(rating: number): number {
+  return Math.round(rating)
 }
 </script>
 
@@ -68,7 +67,16 @@ function ratingStars(rating: number): string {
       <!-- 底部：评分 + 操作 -->
       <div class="scenic-card__footer">
         <div class="scenic-card__rating">
-          <span class="scenic-card__stars">{{ ratingStars(spot.rating) }}</span>
+          <span class="scenic-card__stars">
+            <AppIcon
+              v-for="i in 5"
+              :key="i"
+              name="star"
+              :size="12"
+              :filled="i <= starCount(spot.rating)"
+              :class="{ 'scenic-card__star--empty': i > starCount(spot.rating) }"
+            />
+          </span>
           <span class="scenic-card__rating-num">{{ spot.rating }}</span>
         </div>
         <button class="scenic-card__action" @click.stop="goDetail">

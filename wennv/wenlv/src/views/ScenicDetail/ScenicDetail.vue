@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useThemeStore } from '@/stores/theme'
+import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,7 +106,9 @@ const placeholderName = computed(() =>
             <div class="detail-score">
               <span class="detail-score__num">—</span>
               <div class="detail-score__meta">
-                <span class="detail-score__stars">★★★★★</span>
+                <span class="detail-score__stars">
+                  <AppIcon v-for="i in 5" :key="i" name="star" :size="16" />
+                </span>
                 <span class="detail-score__label">{{ langStore.t('scenic.rating') }}</span>
               </div>
             </div>
@@ -141,22 +144,22 @@ const placeholderName = computed(() =>
       <section class="detail-section container">
         <div class="detail-info">
           <div class="detail-info__card">
-            <span class="detail-info__icon">🕘</span>
+            <span class="detail-info__icon"><AppIcon name="clock" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.openHours') }}</h3>
             <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
           </div>
           <div class="detail-info__card">
-            <span class="detail-info__icon">🎫</span>
+            <span class="detail-info__icon"><AppIcon name="ticket" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.ticket') }}</h3>
             <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
           </div>
           <div class="detail-info__card">
-            <span class="detail-info__icon">🚌</span>
+            <span class="detail-info__icon"><AppIcon name="bus" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.transport') }}</h3>
             <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
           </div>
           <div class="detail-info__card">
-            <span class="detail-info__icon">📍</span>
+            <span class="detail-info__icon"><AppIcon name="pin" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.address') }}</h3>
             <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
           </div>
@@ -232,7 +235,7 @@ const placeholderName = computed(() =>
 
         <div class="detail-map">
           <div class="detail-map__placeholder">
-            <span class="detail-map__pin">📍</span>
+            <span class="detail-map__pin"><AppIcon name="pin" :size="40" /></span>
             <span class="detail-map__hint">{{ langStore.t('scenicDetail.mapPlaceholder') }}</span>
           </div>
         </div>
@@ -611,8 +614,9 @@ const placeholderName = computed(() =>
 }
 
 .detail-info__icon {
-  font-size: var(--text-2xl);
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  color: var(--color-gold);
   margin-bottom: var(--space-1);
 }
 
@@ -760,7 +764,10 @@ const placeholderName = computed(() =>
 }
 
 .detail-map__pin {
-  font-size: var(--text-4xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gold);
   filter: drop-shadow(0 0 16px var(--color-gold-glow));
   animation: pin-float 2.6s ease-in-out infinite;
 }

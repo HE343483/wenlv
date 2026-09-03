@@ -10,6 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useWeatherStore } from '@/stores/weather'
 import { useLanguageStore } from '@/stores/language'
 import { getDistrictOptions } from '@/data/chengdu'
+import AppIcon from '@/components/AppIcon.vue'
 
 const props = defineProps<{
   /** WeatherTrigger 暴露的定位/取值接口 */
@@ -146,7 +147,9 @@ onBeforeUnmount(() => {
         <!-- 成功：温度区间 -->
         <template v-else-if="data">
           <div class="weather-panel__current">
-            <span class="weather-panel__icon">{{ data.weather_icon }}</span>
+            <span class="weather-panel__icon">
+              <AppIcon :name="data.weather_icon" :size="28" />
+            </span>
             <span class="weather-panel__desc">{{ data.weather_desc }}</span>
           </div>
 
@@ -318,8 +321,9 @@ onBeforeUnmount(() => {
 }
 
 .weather-panel__icon {
-  font-size: 2rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  color: var(--temp-tone);
 }
 
 .weather-panel__desc {

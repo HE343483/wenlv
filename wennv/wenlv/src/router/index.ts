@@ -38,9 +38,9 @@ const router = createRouter({
           component: () => import('@/views/ExplorePage/ExplorePage.vue'),
         },
         {
-          path: 'culture',
-          name: 'internal-culture',
-          component: () => import('@/views/CulturePage/CulturePage.vue'),
+          path: 'food',
+          name: 'internal-food',
+          component: () => import('@/views/FoodPage/FoodPage.vue'),
         },
         {
           path: 'routes',

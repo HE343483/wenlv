@@ -11,7 +11,7 @@ const langStore = useLanguageStore()
 const tabs = [
   { route: '/home/index', icon: 'home', key: 'bottomNav.home' },
   { route: '/home/explore', icon: 'explore', key: 'bottomNav.explore' },
-  { route: '/home/culture', icon: 'culture', key: 'bottomNav.culture' },
+  { route: '/home/food', icon: 'food', key: 'bottomNav.food' },
   { route: '/home/routes', icon: 'routes', key: 'bottomNav.routes' },
 ] as const
 </script>
@@ -43,13 +43,14 @@ const tabs = [
             <line x1="2" y1="12" x2="4" y2="12"/>
             <line x1="20" y1="12" x2="22" y2="12"/>
           </svg>
-          <!-- 文化 — 庙宇/建筑 -->
-          <svg v-else-if="tab.icon === 'culture'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 14 L12 4 L18 14"/>
-            <path d="M6 14 Q12 11 18 14"/>
-            <rect x="8" y="14" width="8" height="8" rx="0.5"/>
-            <path d="M11 14 L11 22"/>
-            <path d="M13 14 L13 22"/>
+          <!-- 美食 — 碗筷 -->
+          <svg v-else-if="tab.icon === 'food'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 3 L4 9"/>
+            <path d="M8 3 L8 9"/>
+            <path d="M3 9 Q3 13 6 13 L6 21"/>
+            <path d="M9 9 Q9 13 6 13"/>
+            <path d="M15 3 C15 7 18 7 18 10 L18 21"/>
+            <path d="M18 3 C18 6 21 6 21 9 L21 21"/>
           </svg>
           <!-- 路线 — 路线/地图 -->
           <svg v-else-if="tab.icon === 'routes'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

@@ -7,6 +7,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useLanguageStore } from '@/stores/language'
 import NavBar from '@/components/NavBar.vue'
 import Carousel from '@/components/Carousel.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
 
 const langStore = useLanguageStore()
@@ -58,16 +59,16 @@ const carouselItems: CarouselItem[] = [
   },
 ]
 
-/* ──── 巴蜀文化内容（原 CulturePage） ──── */
+/* ──── 巴蜀文化内容 ──── */
 
 /* 文化名片 */
 const cultureCards = [
-  { key: 'brocade', icon: '🧵' },
-  { key: 'opera', icon: '🎭' },
-  { key: 'tea', icon: '🍵' },
-  { key: 'cuisine', icon: '🌶' },
-  { key: 'history', icon: '🏺' },
-  { key: 'embroidery', icon: '🪡' },
+  { key: 'brocade', icon: 'brocade' },
+  { key: 'opera', icon: 'opera' },
+  { key: 'tea', icon: 'tea' },
+  { key: 'cuisine', icon: 'cuisine' },
+  { key: 'history', icon: 'history' },
+  { key: 'embroidery', icon: 'embroidery' },
 ]
 
 /* 文明脉络 — 时间线 */
@@ -311,7 +312,9 @@ function setSectionRef(el: unknown, index: number) {
             class="culture-card"
             :style="{ '--delay': `${index * 0.08}s` }"
           >
-            <div class="culture-card__icon">{{ card.icon }}</div>
+            <div class="culture-card__icon">
+              <AppIcon :name="card.icon" :size="32" />
+            </div>
             <h3 class="culture-card__name">
               {{ langStore.t(`culture.card.${card.key}.name`) }}
             </h3>
@@ -788,8 +791,10 @@ function setSectionRef(el: unknown, index: number) {
 }
 
 .culture-card__icon {
-  font-size: 2.5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gold);
   margin-bottom: var(--space-1);
 }
 
