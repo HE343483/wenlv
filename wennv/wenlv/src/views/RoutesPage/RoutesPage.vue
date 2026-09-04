@@ -11,6 +11,7 @@ import { useLanguageStore } from '@/stores/language'
 import { travelRoutes, scenicSpots, getScenicSpotById } from '@/data/chengdu'
 import { loadBaiduMap } from '@/utils/baiduMap'
 import AppIcon from '@/components/AppIcon.vue'
+import HomeBanner from '@/components/HomeBanner.vue'
 import type { TravelRoute, ScenicSpot } from '@/types'
 
 const langStore = useLanguageStore()
@@ -429,29 +430,20 @@ onMounted(() => {
 <template>
   <div class="routes-page">
     <!-- ──── HERO ──── -->
-    <section class="routes-hero shu-pattern">
-      <div class="routes-hero__bg" aria-hidden="true">
-        <div class="routes-hero__gradient" />
-        <span class="routes-hero__watermark">路</span>
-      </div>
-      <div class="routes-hero__content">
-        <p class="routes-hero__eyebrow">
-          <span>◈</span>
-          {{ langStore.lang === 'zh' ? 'Tianfu Journey' : '天府之旅' }}
-          <span>◈</span>
-        </p>
-        <h1 class="routes-hero__title">{{ langStore.t('routes.title') }}</h1>
-        <p class="routes-hero__subtitle">{{ langStore.t('routes.subtitle') }}</p>
-
-        <!-- 页头统计 -->
-        <div class="routes-hero__stats">
-          <div v-for="stat in routeStats" :key="stat.label" class="routes-hero__stat">
-            <span class="routes-hero__stat-num">{{ stat.value }}</span>
-            <span class="routes-hero__stat-label">{{ stat.label }}</span>
-          </div>
+    <HomeBanner
+      :eyebrow="langStore.lang === 'zh' ? 'Tianfu Journey' : '天府之旅'"
+      :title="langStore.t('routes.title')"
+      :subtitle="langStore.t('routes.subtitle')"
+      watermark="路"
+    >
+      <!-- 页头统计 -->
+      <div class="routes-hero__stats">
+        <div v-for="stat in routeStats" :key="stat.label" class="routes-hero__stat">
+          <span class="routes-hero__stat-num">{{ stat.value }}</span>
+          <span class="routes-hero__stat-label">{{ stat.label }}</span>
         </div>
       </div>
-    </section>
+    </HomeBanner>
 
     <!-- ──── TAB 切换 ──── -->
     <section class="routes-tabs container">
@@ -724,86 +716,11 @@ onMounted(() => {
 
 <style scoped>
 /* ========================================
-   HERO
+   页头统计（欢迎横幅内）
    ======================================== */
-.routes-hero {
-  position: relative;
-  overflow: hidden;
-  text-align: center;
-  padding: var(--space-12) 0 var(--space-8);
-}
-
-.routes-hero__bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.routes-hero__gradient {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 70% 60% at 50% 40%, rgba(201, 169, 110, 0.07) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(15, 13, 11, 0.2) 0%, var(--color-bg) 100%);
-}
-
-.routes-hero__watermark {
-  position: absolute;
-  font-family: var(--font-display);
-  font-size: clamp(180px, 30vw, 360px);
-  font-weight: 900;
-  line-height: 1;
-  color: transparent;
-  -webkit-text-stroke: 1px rgba(201, 169, 110, 0.1);
-  user-select: none;
-  pointer-events: none;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.routes-hero__content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-8) var(--space-4) var(--space-6);
-}
-
-.routes-hero__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--color-gold-dark);
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-}
-
-.routes-hero__title {
-  font-family: var(--font-display);
-  font-size: var(--text-4xl);
-  font-weight: 900;
-  color: var(--color-text-primary);
-  letter-spacing: var(--tracking-wide);
-  line-height: 1.1;
-}
-
-.routes-hero__subtitle {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  color: var(--color-text-secondary);
-  font-weight: 300;
-  letter-spacing: var(--tracking-wide);
-}
-
-/* 页头统计 */
 .routes-hero__stats {
   display: flex;
   gap: var(--space-1);
-  margin-top: var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
@@ -1406,9 +1323,6 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .routes-hero__title {
-    font-size: var(--text-3xl);
-  }
   .routes-hero__stats {
     flex-wrap: wrap;
     justify-content: center;

@@ -184,8 +184,11 @@ onMounted(() => {
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
+          entry.target.classList.remove('is-leaving')
           entry.target.classList.add('is-visible')
-          observer?.unobserve(entry.target)
+        } else if (entry.target.classList.contains('is-visible')) {
+          entry.target.classList.remove('is-visible')
+          entry.target.classList.add('is-leaving')
         }
       })
     },
@@ -657,8 +660,8 @@ function setSectionRef(el: unknown, index: number) {
 }
 
 /* ========================================
-   文化 — 滚动显现动画
-   区块进入视口后浮现，避免一屏内突兀堆叠
+   文化 — 滚动进出动画
+   区块进入视口后浮现；滚动离开视口时平滑退场
    ======================================== */
 .reveal {
   opacity: 0;
@@ -669,6 +672,23 @@ function setSectionRef(el: unknown, index: number) {
 .reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* 离开视口：整体向上轻移并淡出 */
+.reveal.is-leaving {
+  opacity: 0;
+  transform: translateY(-18px) scale(0.985);
+  transition-duration: 0.55s;
+}
+
+/* 子元素离场时同步消散，避免内容瞬间消失 */
+.reveal.is-leaving .culture-stat,
+.reveal.is-leaving .culture-card,
+.reveal.is-leaving .culture-timeline__item,
+.reveal.is-leaving .heritage-card {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  opacity: 0;
+  transform: translateY(14px);
 }
 
 /* ========================================

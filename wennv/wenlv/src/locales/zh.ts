@@ -18,6 +18,9 @@ export default {
     allDistricts: '全部',
   },
   scenic: {
+    badge: '探索成都',
+    heroTitle: '找出成都风景',
+    searchPlaceholder: '搜索景点名称、描述或标签…',
     title: '推荐景点',
     subtitle: '精选特色景点，体验天府文化',
     loading: '加载中...',

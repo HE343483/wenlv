@@ -18,6 +18,9 @@ export default {
     allDistricts: 'All',
   },
   scenic: {
+    badge: 'Explore Chengdu',
+    heroTitle: 'Find Chengdu Scenery',
+    searchPlaceholder: 'Search spots by name, description or tag…',
     title: 'Attractions',
     subtitle: 'Curated spots to experience Tianfu culture',
     loading: 'Loading...',

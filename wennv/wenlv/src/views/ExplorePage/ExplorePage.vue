@@ -10,6 +10,7 @@ import { scenicSpots, districts } from '@/data/chengdu'
 import TagFilter from '@/components/TagFilter.vue'
 import Carousel from '@/components/Carousel.vue'
 import ScenicCard from '@/components/ScenicCard.vue'
+import HomeBanner from '@/components/HomeBanner.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
 import type { ScenicSpot } from '@/types'
 
@@ -137,29 +138,47 @@ const totalCount = computed(() => scenicSpots.length)
 <template>
   <div class="explore-page">
     <!-- ──── HERO / BANNER ──── -->
-    <section class="explore-hero">
-      <div class="explore-hero__bg">
-        <div class="explore-hero__gradient" />
+    <HomeBanner
+      :eyebrow="langStore.t('scenic.badge')"
+      :title="langStore.t('scenic.heroTitle')"
+      :subtitle="langStore.t('scenic.subtitle')"
+      watermark="游"
+    >
+      <!-- 搜索栏 -->
+      <div class="explore-search">
+        <svg
+          class="explore-search__icon"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        >
+          <circle cx="11" cy="11" r="7"/>
+          <path d="M21 21l-4.3-4.3"/>
+        </svg>
+        <input
+          v-model="searchQuery"
+          class="explore-search__input"
+          type="text"
+          :placeholder="langStore.t('scenic.searchPlaceholder')"
+          :aria-label="langStore.t('scenic.searchPlaceholder')"
+        />
+        <button
+          v-if="searchQuery"
+          class="explore-search__clear"
+          @click="clearSearch"
+          :title="langStore.lang === 'zh' ? '清空搜索' : 'Clear search'"
+          :aria-label="langStore.lang === 'zh' ? '清空搜索' : 'Clear search'"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
-      <div class="explore-hero__content">
-        <h1 class="explore-hero__title">找出成都风景</h1>
-        <p class="explore-hero__subtitle">{{ langStore.t('scenic.subtitle') }}</p>
-
-        <!-- 搜索栏 -->
-        <div class="explore-search">
-          <button
-            v-if="searchQuery"
-            class="explore-search__clear"
-            @click="clearSearch"
-            :title="langStore.lang === 'zh' ? '清空搜索' : 'Clear search'"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </section>
+    </HomeBanner>
 
     <!-- ──── 筛选面板 ──── -->
     <section class="explore-filters">
@@ -252,62 +271,12 @@ const totalCount = computed(() => scenicSpots.length)
 
 <style scoped>
 /* ========================================
-   HERO
+   搜索栏（欢迎横幅内）
    ======================================== */
-.explore-hero {
-  position: relative;
-  padding: var(--space-12) 0 var(--space-10);
-  overflow: hidden;
-}
-
-.explore-hero__bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.explore-hero__gradient {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(201, 169, 110, 0.06) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(15, 13, 11, 0.3) 0%, var(--color-bg) 100%);
-}
-
-.explore-hero__content {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  padding: var(--space-8) var(--space-8) var(--space-4);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.explore-hero__title {
-  font-family: var(--font-display);
-  font-size: var(--text-4xl);
-  font-weight: 900;
-  color: var(--color-text-primary);
-  letter-spacing: var(--tracking-wide);
-  line-height: 1.1;
-}
-
-.explore-hero__subtitle {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  color: var(--color-text-secondary);
-  font-weight: 300;
-  letter-spacing: var(--tracking-wide);
-}
-
-/* 搜索栏 */
 .explore-search {
   position: relative;
   width: 100%;
   max-width: 520px;
-  margin-top: var(--space-2);
 }
 
 .explore-search__icon {
@@ -672,12 +641,6 @@ const totalCount = computed(() => scenicSpots.length)
 }
 
 @media (max-width: 768px) {
-  .explore-hero__title {
-    font-size: var(--text-3xl);
-  }
-  .explore-hero__content {
-    padding: var(--space-6) var(--space-4);
-  }
   .explore-filters__bar {
     align-items: stretch;
     flex-direction: column;

@@ -6,6 +6,7 @@
  */
 import { useLanguageStore } from '@/stores/language'
 import AppIcon from '@/components/AppIcon.vue'
+import HomeBanner from '@/components/HomeBanner.vue'
 
 const langStore = useLanguageStore()
 
@@ -169,22 +170,13 @@ const foodStreets = [
     <!-- ============================================
          HERO
          ============================================ -->
-    <section class="food-hero shu-pattern">
-      <div class="food-hero__bg" aria-hidden="true">
-        <div class="food-hero__gradient" />
-        <span class="food-hero__watermark">味</span>
-      </div>
-      <div class="food-hero__content">
-        <p class="food-hero__eyebrow">
-          <span>◈</span>
-          {{ langStore.t('food.badge') }}
-          <span>◈</span>
-        </p>
-        <h1 class="food-hero__title">{{ langStore.t('food.title') }}</h1>
-        <p class="food-hero__en-title">{{ langStore.t('food.titleEn') }}</p>
-        <p class="food-hero__subtitle">{{ langStore.t('food.subtitle') }}</p>
-      </div>
-    </section>
+    <HomeBanner
+      :eyebrow="langStore.t('food.badge')"
+      :title="langStore.t('food.title')"
+      :en-title="langStore.t('food.titleEn')"
+      :subtitle="langStore.t('food.subtitle')"
+      watermark="味"
+    />
 
     <!-- ============================================
          简介 + 数据统计
@@ -337,98 +329,6 @@ const foodStreets = [
 </template>
 
 <style scoped>
-/* ========================================
-   HERO
-   ======================================== */
-.food-hero {
-  position: relative;
-  overflow: hidden;
-  text-align: center;
-  padding: var(--space-16) 0 var(--space-10);
-  min-height: 360px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.food-hero__bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.food-hero__gradient {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 70% 55% at 50% 40%, rgba(201, 169, 110, 0.07) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 40% at 20% 60%, rgba(162, 59, 59, 0.06) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(15, 13, 11, 0.2) 0%, var(--color-bg) 100%);
-}
-
-.food-hero__watermark {
-  position: absolute;
-  font-family: var(--font-display);
-  font-size: clamp(200px, 36vw, 440px);
-  font-weight: 900;
-  line-height: 1;
-  color: transparent;
-  -webkit-text-stroke: 1px rgba(201, 169, 110, 0.1);
-  user-select: none;
-  pointer-events: none;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.food-hero__content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-6) var(--space-4);
-}
-
-.food-hero__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--color-gold-dark);
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-}
-
-.food-hero__title {
-  font-family: var(--font-display);
-  font-size: var(--text-5xl);
-  font-weight: 900;
-  color: var(--color-text-primary);
-  letter-spacing: var(--tracking-wide);
-  line-height: 1.1;
-}
-
-.food-hero__en-title {
-  font-family: var(--font-en-display);
-  font-style: italic;
-  font-size: var(--text-lg);
-  color: var(--color-gold);
-  letter-spacing: var(--tracking-wider);
-  font-weight: 400;
-  margin-top: calc(-1 * var(--space-2));
-}
-
-.food-hero__subtitle {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  color: var(--color-text-secondary);
-  font-weight: 300;
-  letter-spacing: var(--tracking-wide);
-  margin-top: var(--space-1);
-}
-
 /* ========================================
    区块统一头部
    ======================================== */
@@ -878,9 +778,6 @@ const foodStreets = [
 }
 
 @media (max-width: 768px) {
-  .food-hero__title {
-    font-size: var(--text-4xl);
-  }
   .food-timeline::before {
     left: 24px;
   }
@@ -914,9 +811,6 @@ const foodStreets = [
   }
   .food-streets {
     grid-template-columns: 1fr;
-  }
-  .food-hero__title {
-    font-size: var(--text-3xl);
   }
 }
 </style>

@@ -8,6 +8,7 @@
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import AppIcon from '@/components/AppIcon.vue'
+import HomeBanner from '@/components/HomeBanner.vue'
 import { getRecommendedSpots, newsItems, funFacts } from '@/data/chengdu'
 
 const router = useRouter()
@@ -27,18 +28,12 @@ function goExplore() {
 <template>
   <div class="dashboard">
     <!-- ──── 欢迎横幅 ──── -->
-    <section class="welcome">
-      <div class="welcome__shu" aria-hidden="true">蜀</div>
-      <div class="welcome__content">
-        <p class="welcome__eyebrow">
-          <span>◈</span>
-          {{ langStore.lang === 'zh' ? '四川省 · 成都' : 'Chengdu · Sichuan' }}
-          <span>◈</span>
-        </p>
-        <h1 class="welcome__title">{{ langStore.t('home.welcome') }}</h1>
-        <p class="welcome__subtitle">{{ langStore.t('home.welcomeSubtitle') }}</p>
-      </div>
-    </section>
+    <HomeBanner
+      :eyebrow="langStore.lang === 'zh' ? '四川省 · 成都' : 'Chengdu · Sichuan'"
+      :title="langStore.t('home.welcome')"
+      :subtitle="langStore.t('home.welcomeSubtitle')"
+      watermark="蜀"
+    />
 
     <!-- ──── 推荐景点 ──── -->
     <section class="recommend">
@@ -147,68 +142,6 @@ function goExplore() {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-}
-
-/* ========================================
-   欢迎横幅
-   ======================================== */
-.welcome {
-  position: relative;
-  overflow: hidden;
-  text-align: center;
-  padding: var(--space-16) var(--space-6) var(--space-12);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.welcome__shu {
-  position: absolute;
-  font-family: var(--font-display);
-  font-size: clamp(160px, 28vw, 340px);
-  font-weight: 900;
-  line-height: 1;
-  color: transparent;
-  -webkit-text-stroke: 1px rgba(201, 169, 110, 0.12);
-  user-select: none;
-  pointer-events: none;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.welcome__content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.welcome__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--color-gold-dark);
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-}
-
-.welcome__title {
-  font-family: var(--font-display);
-  font-size: var(--text-4xl);
-  font-weight: 900;
-  color: var(--color-text-primary);
-  letter-spacing: var(--tracking-wide);
-  line-height: 1.1;
-}
-
-.welcome__subtitle {
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  font-weight: 300;
-  color: var(--color-text-secondary);
-  letter-spacing: var(--tracking-wide);
 }
 
 /* ========================================
@@ -520,12 +453,6 @@ function goExplore() {
 @media (max-width: 640px) {
   .dashboard {
     gap: var(--space-10);
-  }
-  .welcome {
-    padding: var(--space-10) var(--space-4) var(--space-8);
-  }
-  .welcome__title {
-    font-size: var(--text-3xl);
   }
   .recommend__grid,
   .facts__grid {
