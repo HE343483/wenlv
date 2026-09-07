@@ -285,6 +285,7 @@ export default {
     submit: 'Log In',
     noAccount: 'Don\'t have an account?',
     goRegister: 'Register Now',
+    sceneTitle: 'Cypresses at the Shrine',
   },
   register: {
     title: 'Register',
@@ -299,6 +300,7 @@ export default {
     submit: 'Register',
     hasAccount: 'Already have an account?',
     goLogin: 'Log In',
+    sceneTitle: 'Jinjiang River at Night',
   },
   profile: {
     title: 'Profile',

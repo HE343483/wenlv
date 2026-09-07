@@ -285,6 +285,7 @@ export default {
     submit: '登录',
     noAccount: '还没有账号？',
     goRegister: '立即注册',
+    sceneTitle: '锦官城外 · 柏森森',
   },
   register: {
     title: '注册',
@@ -299,6 +300,7 @@ export default {
     submit: '注册',
     hasAccount: '已有账号？',
     goLogin: '立即登录',
+    sceneTitle: '锦江夜色 · 灯如昼',
   },
   profile: {
     title: '我的',

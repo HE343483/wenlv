@@ -298,12 +298,10 @@ watch(
     <div class="home-banner__bg" aria-hidden="true">
       <div class="home-banner__gradient" />
     </div>
-    <span
-      ref="watermarkRef"
-      class="home-banner__watermark"
-      :class="{ 'home-banner__watermark--ghost': ready }"
-      aria-hidden="true"
-    >{{ watermark }}<canvas ref="canvasRef" class="home-banner__particles" aria-hidden="true"></canvas></span>
+    <span ref="watermarkRef" class="home-banner__watermark" aria-hidden="true"><span
+      class="home-banner__watermark-text"
+      :class="{ 'home-banner__watermark-text--ghost': ready }"
+    >{{ watermark }}</span><canvas ref="canvasRef" class="home-banner__particles" aria-hidden="true"></canvas></span>
     <div class="home-banner__content">
       <p class="home-banner__eyebrow">
         <span>◈</span>
@@ -354,21 +352,24 @@ watch(
   font-size: clamp(180px, 32vw, 420px);
   font-weight: 900;
   line-height: 1;
-  color: transparent;
-  -webkit-text-stroke: 1.4px var(--banner-watermark-stroke, rgba(62, 125, 138, 0.34));
-  text-shadow: 0 0 18px var(--banner-watermark-glow, rgba(62, 125, 138, 0.12));
   user-select: none;
   pointer-events: none;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  opacity: 0.95;
   z-index: 0;
+}
+
+/* 内层文字层：粒子就绪后淡出，canvas 粒子层保持常驻 */
+.home-banner__watermark-text {
+  color: transparent;
+  -webkit-text-stroke: 1.4px var(--banner-watermark-stroke, rgba(62, 125, 138, 0.34));
+  text-shadow: 0 0 18px var(--banner-watermark-glow, rgba(62, 125, 138, 0.12));
+  opacity: 0.95;
   transition: opacity 0.9s ease 0.15s;
 }
 
-/* 粒子就绪后隐藏原生描边文字，由 canvas 渲染 */
-.home-banner__watermark--ghost {
+.home-banner__watermark-text--ghost {
   opacity: 0;
 }
 
