@@ -13,6 +13,7 @@ const tabs = [
   { route: '/home/explore', icon: 'explore', key: 'bottomNav.explore' },
   { route: '/home/food', icon: 'food', key: 'bottomNav.food' },
   { route: '/home/routes', icon: 'routes', key: 'bottomNav.routes' },
+  { route: '/home/profile', icon: 'profile', key: 'bottomNav.mine' },
 ] as const
 </script>
 
@@ -59,6 +60,11 @@ const tabs = [
             <path d="M7 7 L17 17"/>
             <path d="M7 7 L9 7 L9 11 L15 17 L17 17"/>
             <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+          </svg>
+          <!-- 我的 — 人像 -->
+          <svg v-else-if="tab.icon === 'profile'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/>
           </svg>
         </span>
         <span class="bottom-nav__label">{{ langStore.t(tab.key) }}</span>

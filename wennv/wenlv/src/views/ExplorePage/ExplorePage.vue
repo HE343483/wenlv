@@ -8,11 +8,11 @@ import { ref, computed, watch } from 'vue'
 import { useLanguageStore } from '@/stores/language'
 import { scenicSpots, districts } from '@/data/chengdu'
 import TagFilter from '@/components/TagFilter.vue'
+import DistrictFilter from '@/components/DistrictFilter.vue'
 import Carousel from '@/components/Carousel.vue'
 import ScenicCard from '@/components/ScenicCard.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
-import type { ScenicSpot } from '@/types'
 
 const langStore = useLanguageStore()
 
@@ -21,9 +21,7 @@ const searchQuery = ref('')
 
 /* ── 区域筛选 ── */
 const selectedDistrict = ref('all')
-function onDistrictSelect(id: string) {
-  selectedDistrict.value = id
-}
+
 
 /* ── 标签筛选（多选）── */
 const allTags = computed(() => {
@@ -131,8 +129,6 @@ watch(filteredSpots, () => {
   gridKey.value++
 })
 
-/* ── 结果展示逻辑 ── */
-const totalCount = computed(() => scenicSpots.length)
 </script>
 
 <template>
@@ -186,6 +182,7 @@ const totalCount = computed(() => scenicSpots.length)
         <div class="explore-filters__bar">
           <!-- 左：筛选控件 -->
           <div class="explore-filters__controls">
+            <DistrictFilter v-model="selectedDistrict" />
             <TagFilter :tags="allTags" :selected="selectedTags" @update:selected="onTagsUpdate" @clear="clearAllFilters" />
           </div>
 

@@ -4,11 +4,18 @@
  * 功能：美食名片卡片网格 + 川菜脉络时间线 + 经典名菜/老字号展示
  * 数据来源：本地化 locales + 内联数据，后期可接入后端
  */
+import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 
 const langStore = useLanguageStore()
+const router = useRouter()
+
+/* 跳转美食详情页（key 作为 :id） */
+function goFoodDetail(key: string) {
+  router.push({ name: 'food-detail', params: { id: key } })
+}
 
 /* ── 美食名片 ── */
 const foodCards = [
@@ -209,6 +216,8 @@ const foodStreets = [
           :key="card.key"
           class="food-card"
           tabindex="0"
+          @click="goFoodDetail(card.key)"
+          @keyup.enter="goFoodDetail(card.key)"
         >
           <div class="food-card__icon">
             <AppIcon :name="card.icon" :size="36" />
@@ -425,7 +434,7 @@ const foodStreets = [
   text-align: center;
   gap: var(--space-3);
   transition: all var(--transition-base);
-  cursor: default;
+  cursor: pointer;
   outline: none;
   position: relative;
   overflow: hidden;

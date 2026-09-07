@@ -9,6 +9,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { useUserStore } from '@/stores/user'
 import AppIcon from '@/components/AppIcon.vue'
 import type { ScenicSpot } from '@/types'
 
@@ -19,13 +20,19 @@ const props = defineProps<{
 
 const router = useRouter()
 const langStore = useLanguageStore()
+const userStore = useUserStore()
 const { lang } = storeToRefs(langStore)
 
 const name = computed(() => lang.value === 'zh' ? props.spot.nameZh : props.spot.nameEn)
 const shortDesc = computed(() => lang.value === 'zh' ? props.spot.shortDescZh : props.spot.shortDescEn)
+const isFav = computed(() => userStore.isFavorite(props.spot.id))
 
 function goDetail() {
   router.push({ name: 'scenic-detail', params: { id: props.spot.id } })
+}
+
+function toggleFav() {
+  userStore.toggleFavorite(props.spot.id)
 }
 
 function starCount(rating: number): number {
@@ -43,6 +50,18 @@ function starCount(rating: number): number {
   >
     <!-- 图片占位区 -->
     <div class="scenic-card__image">
+      <button
+        v-if="!loading"
+        class="scenic-card__fav"
+        :class="{ 'scenic-card__fav--active': isFav }"
+        :title="isFav ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite')"
+        :aria-label="isFav ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite')"
+        @click.stop="toggleFav"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z" :fill="isFav ? 'currentColor' : 'none'"/>
+        </svg>
+      </button>
       <div class="scenic-card__placeholder">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -115,6 +134,35 @@ function starCount(rating: number): number {
   aspect-ratio: 16 / 10;
   overflow: hidden;
   background: var(--color-bg-alt);
+}
+
+.scenic-card__fav {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: all var(--transition-fast);
+}
+
+.scenic-card__fav:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.scenic-card__fav--active {
+  color: var(--color-gold);
+  border-color: color-mix(in srgb, var(--color-gold) 55%, transparent);
 }
 
 .scenic-card__placeholder {
@@ -204,9 +252,11 @@ function starCount(rating: number): number {
 }
 
 .scenic-card__stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   color: var(--color-gold);
   font-size: var(--text-sm);
-  letter-spacing: 2px;
 }
 
 .scenic-card__rating-num {

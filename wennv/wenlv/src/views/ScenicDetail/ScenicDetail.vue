@@ -7,13 +7,11 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import { useThemeStore } from '@/stores/theme'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
 const langStore = useLanguageStore()
-const themeStore = useThemeStore()
 
 /* 路由参数：景点ID（后端数据接入后据此拉取详情） */
 const scenicId = computed(() => String(route.params.id ?? ''))
@@ -50,18 +48,6 @@ const placeholderName = computed(() =>
       </div>
 
       <div class="detail-topbar__actions">
-        <button
-          class="detail-topbar__icon-btn"
-          @click="themeStore.toggle()"
-          :title="themeStore.theme === 'dark' ? '切换浅色' : '切换深色'"
-        >
-          <svg v-if="themeStore.theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-          </svg>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
-          </svg>
-        </button>
         <button class="detail-topbar__lang-btn" @click="langStore.toggle()">
           {{ langStore.t('nav.langSwitch') }}
         </button>
@@ -336,23 +322,6 @@ const placeholderName = computed(() =>
   display: flex;
   align-items: center;
   gap: var(--space-3);
-}
-
-.detail-topbar__icon-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.detail-topbar__icon-btn:hover {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
 }
 
 .detail-topbar__lang-btn {

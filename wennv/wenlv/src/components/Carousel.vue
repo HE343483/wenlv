@@ -205,11 +205,7 @@ onUnmounted(stopTimer)
 .carousel__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(15, 13, 11, 0.7) 0%, rgba(15, 13, 11, 0.3) 50%, rgba(15, 13, 11, 0.6) 100%);
-}
-
-.theme-light .carousel__overlay {
-  background: linear-gradient(135deg, rgba(244, 239, 230, 0.7) 0%, rgba(244, 239, 230, 0.2) 50%, rgba(244, 239, 230, 0.5) 100%);
+  background: linear-gradient(135deg, rgba(248, 243, 233, 0.7) 0%, rgba(248, 243, 233, 0.2) 50%, rgba(248, 243, 233, 0.5) 100%);
 }
 
 .carousel__content {

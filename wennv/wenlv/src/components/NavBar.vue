@@ -9,7 +9,6 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useWeatherStore } from '@/stores/weather'
-import { useThemeStore } from '@/stores/theme'
 import { storeToRefs } from 'pinia'
 import WeatherTrigger from './WeatherTrigger.vue'
 import WeatherPanel from './WeatherPanel.vue'
@@ -18,9 +17,7 @@ const router = useRouter()
 const route = useRoute()
 const langStore = useLanguageStore()
 const weatherStore = useWeatherStore()
-const themeStore = useThemeStore()
 const { open } = storeToRefs(weatherStore)
-const { theme } = storeToRefs(themeStore)
 
 const isScrolled = ref(false)
 
@@ -106,24 +103,6 @@ onUnmounted(() => {
         <!-- 天气：锚点按钮（含温度区间） + 下拉面板 -->
         <WeatherTrigger ref="triggerRef" />
         <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
-
-        <!-- 亮/暗色调切换 -->
-        <button
-          class="navbar__icon-btn"
-          @click="themeStore.toggle()"
-          :title="theme === 'dark' ? langStore.t('theme.switchToLight') : langStore.t('theme.switchToDark')"
-          :aria-label="theme === 'dark' ? langStore.t('theme.switchToLight') : langStore.t('theme.switchToDark')"
-        >
-          <!-- 暗色 → 点按切换亮色 -->
-          <svg v-if="theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="5"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
-          </svg>
-          <!-- 亮色 → 点按切换暗色 -->
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-          </svg>
-        </button>
 
         <!-- 语言切换 -->
         <button class="navbar__lang-btn" @click="toggleLang">
@@ -218,33 +197,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
-}
-
-.navbar__icon-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.navbar__icon-btn:hover {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
-  box-shadow: 0 0 16px var(--color-gold-glow);
-}
-
-.navbar__icon-btn--loading {
-  animation: pulse-rotate 1.2s ease-in-out infinite;
-}
-
-@keyframes pulse-rotate {
-  0%, 100% { opacity: 1; transform: rotate(0deg); }
-  50% { opacity: 0.5; transform: rotate(180deg); }
 }
 
 .navbar__lang-btn {

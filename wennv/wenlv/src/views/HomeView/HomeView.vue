@@ -250,34 +250,19 @@ function setSectionRef(el: unknown, index: number) {
         </div>
       </div>
     </section>
-
     <!-- ──── 轮播图 ──── -->
     <section id="explore" class="carousel-section">
       <div class="container">
         <Carousel :items="carouselItems" :interval="4000" />
       </div>
     </section>
-
-    <!-- ──── 文化探索过渡区 ──── -->
-    <section class="culture-bridge" aria-hidden="true">
-      <div class="culture-bridge__line" />
-      <span class="culture-bridge__ornament">◈</span>
-      <div class="culture-bridge__line" />
-    </section>
-
-    <!-- ──── 引言 ──── -->
-    <section class="culture-intro">
-      <div class="container">
-        <p class="culture-intro__text">{{ langStore.t('culture.intro') }}</p>
-      </div>
-    </section>
-
-    <!-- ──── 数据统计 ──── -->
+    <!-- ──── 引言 + 数据统计 ──── -->
     <section
       :ref="(el) => setSectionRef(el, 0)"
       class="culture-stats reveal"
     >
       <div class="container">
+        <p class="culture-intro__text">{{ langStore.t('culture.intro') }}</p>
         <div class="culture-stats__grid">
           <div
             v-for="(stat, i) in [
@@ -621,7 +606,7 @@ function setSectionRef(el: unknown, index: number) {
    ======================================== */
 .carousel-section {
   padding: var(--space-16) 0;
-  margin-bottom: var(--space-8);
+  background: var(--color-bg-alt);
 }
 
 /* ========================================
@@ -630,15 +615,16 @@ function setSectionRef(el: unknown, index: number) {
    ======================================== */
 .culture-bridge {
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: var(--space-6);
-  max-width: 480px;
-  margin: 0 auto;
   padding: var(--space-4) var(--space-8);
+  background: var(--color-bg-alt);
 }
 
 .culture-bridge__line {
-  flex: 1;
+  flex: none;
+  width: 200px;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-border-light));
 }
@@ -692,12 +678,8 @@ function setSectionRef(el: unknown, index: number) {
 }
 
 /* ========================================
-   引言
+   引言（并入数据统计区块）
    ======================================== */
-.culture-intro {
-  padding: var(--space-8) 0 var(--space-16);
-}
-
 .culture-intro__text {
   font-family: var(--font-display);
   font-size: var(--text-lg);
@@ -706,7 +688,7 @@ function setSectionRef(el: unknown, index: number) {
   letter-spacing: var(--tracking-wide);
   text-align: center;
   max-width: 720px;
-  margin: 0 auto;
+  margin: 0 auto var(--space-10);
   font-weight: 400;
 }
 
@@ -714,7 +696,8 @@ function setSectionRef(el: unknown, index: number) {
    数据统计
    ======================================== */
 .culture-stats {
-  padding: 0 0 var(--space-16);
+  padding: var(--space-16) 0;
+  background: var(--color-bg-alt);
 }
 
 .culture-stats__grid {
@@ -1054,6 +1037,7 @@ function setSectionRef(el: unknown, index: number) {
   padding: var(--space-12) 0 var(--space-8);
   border-top: 1px solid var(--color-border);
   margin-top: var(--space-8);
+  background: var(--color-bg-alt);
 }
 
 .footer__inner {

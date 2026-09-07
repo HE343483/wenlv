@@ -47,6 +47,11 @@ const router = createRouter({
           name: 'internal-routes',
           component: () => import('@/views/RoutesPage/RoutesPage.vue'),
         },
+        {
+          path: 'profile',
+          name: 'internal-profile',
+          component: () => import('@/views/ProfilePage/ProfilePage.vue'),
+        },
       ],
     },
     {
@@ -54,6 +59,12 @@ const router = createRouter({
       path: '/scenic/:id',
       name: 'scenic-detail',
       component: () => import('@/views/ScenicDetail/ScenicDetail.vue'),
+    },
+    {
+      // 美食详情页
+      path: '/food/:id',
+      name: 'food-detail',
+      component: () => import('@/views/FoodDetail/FoodDetail.vue'),
     },
   ],
 })

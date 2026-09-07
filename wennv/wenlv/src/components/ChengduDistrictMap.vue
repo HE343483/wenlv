@@ -7,9 +7,8 @@
  */
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useLanguageStore } from '@/stores/language'
-import { useThemeStore } from '@/stores/theme'
 import { loadBaiduMap } from '@/utils/baiduMap'
-import { darkMapStyle, lightMapStyle } from '@/utils/mapStyle'
+import { lightMapStyle } from '@/utils/mapStyle'
 import { districts, scenicSpots } from '@/data/chengdu'
 import AppIcon from '@/components/AppIcon.vue'
 
@@ -22,7 +21,6 @@ const emit = defineEmits<{
 }>()
 
 const langStore = useLanguageStore()
-const themeStore = useThemeStore()
 
 const mapAK = (import.meta.env.VITE_BAIDU_MAP_AK as string | undefined) ?? ''
 
@@ -43,7 +41,7 @@ let isMapReady = false
 /* 应用地图样式（按主题） */
 function applyMapStyle() {
   if (!map) return
-  const styleJson = themeStore.theme === 'dark' ? darkMapStyle : lightMapStyle
+  const styleJson = lightMapStyle
   try {
     map.setMapStyleV2({ styleJson })
   } catch {
@@ -135,9 +133,7 @@ function loadDistrictBoundaries() {
           fontWeight: '700',
           fontFamily: "'Noto Serif SC', serif",
           letterSpacing: '0.08em',
-          textShadow: themeStore.theme === 'dark'
-            ? '0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.6)'
-            : '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.6)',
+          textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.6)',
           cursor: 'pointer',
           whiteSpace: 'nowrap',
         })
@@ -233,19 +229,6 @@ function onDistrictHover(id: string | null) {
     polygon.setOptions(getPolygonStyle(d.color, isHover || isActive))
   })
 }
-
-/* 监听主题变化 → 切换地图样式 + 标签文字阴影 */
-watch(() => themeStore.theme, () => {
-  applyMapStyle()
-  districtPolygons.forEach(({ label }) => {
-    if (!label) return
-    label.setStyle({
-      textShadow: themeStore.theme === 'dark'
-        ? '0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.6)'
-        : '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.6)',
-    })
-  })
-})
 
 /* 监听语言切换 → 更新标签文字 */
 watch(() => langStore.lang, () => {

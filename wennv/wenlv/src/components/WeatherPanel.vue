@@ -32,11 +32,33 @@ const GAP = 8
 /** 区域筛选数据源 — 仅“区”级行政区划 */
 const districtOptions = getDistrictOptions()
 
-/** 区域下拉：切换即按 districtId 重新拉取天气 */
-const districtIdModel = computed({
-  get: () => weatherStore.location.districtId,
-  set: (id: string) => weatherStore.selectDistrict(id),
+/** 区域下拉（自定义单选）— 切换即按 districtId 重新拉取天气 */
+const districtOpen = ref(false)
+const districtTriggerRef = ref<HTMLButtonElement | null>(null)
+const districtListRef = ref<HTMLDivElement | null>(null)
+
+/** 触发按钮显示的当前区名 */
+const currentDistrictName = computed(() => {
+  const d = districtOptions.find(o => o.id === weatherStore.location.districtId)
+  return d?.name ?? weatherStore.location.districtName
 })
+
+function toggleDistrict() {
+  districtOpen.value = !districtOpen.value
+}
+
+function selectDistrict(id: string) {
+  weatherStore.selectDistrict(id)
+  districtOpen.value = false
+}
+
+/** 点击下拉外部时收起 */
+function onDistrictOutsideClick(e: MouseEvent) {
+  if (!districtOpen.value) return
+  const t = e.target as HTMLElement
+  if (districtTriggerRef.value?.contains(t) || districtListRef.value?.contains(t)) return
+  districtOpen.value = false
+}
 
 /** 定位：触发点下方 8px，空间不足时翻转 */
 function updatePos() {
@@ -59,9 +81,14 @@ function close() {
   weatherStore.closeDropdown()
 }
 
-/** Esc 关闭 */
+/** Esc 关闭（优先收起地区下拉，再关闭面板） */
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') close()
+  if (e.key !== 'Escape') return
+  if (districtOpen.value) {
+    districtOpen.value = false
+  } else {
+    close()
+  }
 }
 
 /** 供外部（NavBar）判定面板点击范围 */
@@ -87,12 +114,14 @@ onMounted(async () => {
   props.anchor?.getElement?.()?.addEventListener('transitionend', onAnchorTransition)
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', updatePos)
+  document.addEventListener('mousedown', onDistrictOutsideClick)
 })
 
 onBeforeUnmount(() => {
   props.anchor?.getElement?.()?.removeEventListener('transitionend', onAnchorTransition)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', updatePos)
+  document.removeEventListener('mousedown', onDistrictOutsideClick)
 })
 </script>
 
@@ -109,18 +138,52 @@ onBeforeUnmount(() => {
       >
         <!-- 头部：区域就地选择 + 刷新 -->
         <div class="weather-panel__header">
-          <span class="weather-panel__location-wrap">
-            <select
-              v-model="districtIdModel"
-              class="weather-panel__location-select"
+          <div class="weather-panel__location">
+            <button
+              ref="districtTriggerRef"
+              class="weather-panel__location-trigger"
+              @click="toggleDistrict"
+              :aria-expanded="districtOpen"
+              aria-haspopup="listbox"
               :aria-label="langStore.t('weather.region')"
             >
-              <option v-for="d in districtOptions" :key="d.id" :value="d.id">{{ d.name }}</option>
-            </select>
-            <svg class="weather-panel__location-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
-          </span>
+              <svg class="weather-panel__location-pin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/>
+                <circle cx="12" cy="9" r="3"/>
+              </svg>
+              <span class="weather-panel__location-label">{{ currentDistrictName }}</span>
+              <svg
+                class="weather-panel__location-chevron"
+                :class="{ 'weather-panel__location-chevron--flip': districtOpen }"
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+              >
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+
+            <Transition name="district-drop">
+              <div v-if="districtOpen" ref="districtListRef" class="weather-panel__location-dropdown" role="listbox">
+                <div
+                  v-for="d in districtOptions"
+                  :key="d.id"
+                  class="weather-panel__location-option"
+                  :class="{ 'weather-panel__location-option--active': d.id === weatherStore.location.districtId }"
+                  role="option"
+                  :aria-selected="d.id === weatherStore.location.districtId"
+                  @click="selectDistrict(d.id)"
+                >
+                  <span class="weather-panel__location-option-label">{{ d.name }}</span>
+                  <svg
+                    v-if="d.id === weatherStore.location.districtId"
+                    class="weather-panel__location-check"
+                    width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                </div>
+              </div>
+            </Transition>
+          </div>
           <button class="weather-panel__refresh" @click="refresh" :title="langStore.t('weather.retry')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M1 4v6h6M23 20v-6h-6"/>
@@ -215,17 +278,16 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
 }
 
-.weather-panel__location-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+.weather-panel__location {
+  position: relative;
   min-width: 0;
 }
 
-/* 区域选择 — 柔和朱砂笺标签（平和） */
-.weather-panel__location-select {
-  appearance: none;
-  -webkit-appearance: none;
+/* 触发按钮 — 柔和朱砂笺标签（平和） */
+.weather-panel__location-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-cinnabar) 28%, transparent);
   background: color-mix(in srgb, var(--color-cinnabar) 10%, var(--color-surface));
   color: color-mix(in srgb, var(--color-cinnabar) 52%, var(--color-text-primary));
@@ -239,18 +301,103 @@ onBeforeUnmount(() => {
   transition: border-color 0.3s ease, background 0.3s ease, color 0.3s ease;
 }
 
-.weather-panel__location-select:hover,
-.weather-panel__location-select:focus {
+.weather-panel__location-trigger:hover,
+.weather-panel__location-trigger:focus-visible {
   border-color: color-mix(in srgb, var(--color-cinnabar) 55%, transparent);
   background: color-mix(in srgb, var(--color-cinnabar) 16%, var(--color-surface));
   color: var(--color-cinnabar);
   outline: none;
 }
 
+.weather-panel__location-pin {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.weather-panel__location-label {
+  flex: 1;
+  text-align: left;
+}
+
 .weather-panel__location-chevron {
   color: var(--color-text-muted);
   flex-shrink: 0;
   pointer-events: none;
+  transition: transform 0.3s ease;
+}
+
+.weather-panel__location-chevron--flip {
+  transform: rotate(180deg);
+}
+
+/* 下拉列表 */
+.weather-panel__location-dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 20;
+  min-width: 200px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--color-surface-elevated);
+  border: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.weather-panel__location-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  user-select: none;
+}
+
+.weather-panel__location-option:hover {
+  background: var(--color-surface-hover);
+}
+
+.weather-panel__location-option--active {
+  color: var(--color-gold);
+}
+
+.weather-panel__location-option-label {
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-primary);
+}
+
+.weather-panel__location-option--active .weather-panel__location-option-label {
+  color: var(--color-gold);
+}
+
+.weather-panel__location-check {
+  color: var(--color-gold);
+  flex-shrink: 0;
+}
+
+/* 下拉过渡 */
+.district-drop-enter-active {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.district-drop-leave-active {
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.district-drop-enter-from {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.97);
+}
+
+.district-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
 }
 
 .weather-panel__refresh {

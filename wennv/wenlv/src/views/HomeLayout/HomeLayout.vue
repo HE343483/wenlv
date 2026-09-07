@@ -7,7 +7,6 @@ import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import { useThemeStore } from '@/stores/theme'
 import { useWeatherStore } from '@/stores/weather'
 import BottomNav from '@/components/BottomNav.vue'
 import WeatherTrigger from '@/components/WeatherTrigger.vue'
@@ -15,10 +14,8 @@ import WeatherPanel from '@/components/WeatherPanel.vue'
 
 const router = useRouter()
 const langStore = useLanguageStore()
-const themeStore = useThemeStore()
 const weatherStore = useWeatherStore()
 const { open } = storeToRefs(weatherStore)
-const { theme } = storeToRefs(themeStore)
 
 function goBack() {
   router.push('/')
@@ -48,23 +45,6 @@ const panelRef = ref<InstanceType<typeof WeatherPanel> | null>(null)
         <WeatherTrigger ref="triggerRef" />
         <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
 
-        <!-- 亮/暗色调切换 -->
-        <button
-          class="internal-topbar__icon-btn"
-          @click="themeStore.toggle()"
-          :title="theme === 'dark' ? langStore.t('theme.switchToLight') : langStore.t('theme.switchToDark')"
-          :aria-label="theme === 'dark' ? langStore.t('theme.switchToLight') : langStore.t('theme.switchToDark')"
-        >
-          <!-- 暗色 → 点按切换亮色 -->
-          <svg v-if="theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="5"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/>
-          </svg>
-          <!-- 亮色 → 点按切换暗色 -->
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-          </svg>
-        </button>
         <!-- 语言切换 -->
         <button class="internal-topbar__lang-btn" @click="langStore.toggle()">
           {{ langStore.t('nav.langSwitch') }}
@@ -140,23 +120,6 @@ const panelRef = ref<InstanceType<typeof WeatherPanel> | null>(null)
   display: flex;
   align-items: center;
   gap: var(--space-3);
-}
-
-.internal-topbar__icon-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.internal-topbar__icon-btn:hover {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
 }
 
 .internal-topbar__lang-btn {

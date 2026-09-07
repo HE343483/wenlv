@@ -15,56 +15,22 @@
 }
 
 /* ============================================================
-   DARK THEME (default)
+   THEME (default) — 凝脂 × 天水碧
+   温润米白基底 + 清透青绿强调
    ============================================================ */
-:root,
-.theme-dark {
-  /* 墨韵 — 暖调墨黑，比纯黑平和 */
-  --color-bg:            #0F0D0B;
-  --color-bg-alt:        #151210;
-  --color-surface:       #1A1714;
-  --color-surface-hover: #221E1A;
-  --color-surface-elevated: #27221D;
-
-  --color-gold:          #C9A96E;
-  --color-gold-light:    #E8D5A8;
-  --color-gold-dark:     #A8883E;
-  --color-gold-glow:     rgba(201, 169, 110, 0.15);
-
-  --color-cinnabar:      #A23B3B;
-  --color-cinnabar-dim:  rgba(162, 59, 59, 0.15);
-
-  --color-sage:          #7A8A7A;
-  --color-sage-dim:      rgba(122, 138, 122, 0.12);
-
-  --color-text-primary:  #EFE8DA;
-  --color-text-secondary:#A09786;
-  --color-text-muted:    #756A5C;
-  --color-text-inverse:  #0F0D0B;
-
-  --color-border:        #2F2923;
-  --color-border-light:  #3D362E;
-
-  --color-nav-bg:        rgba(15, 13, 11, 0.92);
-  --color-bottom-nav:    #151210;
-}
-
-/* ============================================================
-   LIGHT THEME
-   — 暖白基调，保留蜀锦金点缀，营造"宣纸+金箔"质感
-   ============================================================ */
-.theme-light {
-  /* 宣纸 — 暖白纸面，柔和不刺眼 */
-  --color-bg:            #F4EFE6;
-  --color-bg-alt:        #ECE6DA;
-  --color-surface:       #FBF8F2;
-  --color-surface-hover: #F6F0E7;
+:root {
+  /* 凝脂 — 温润米白，宣纸质感的亮色基底 */
+  --color-bg:            #F8F3E9;
+  --color-bg-alt:        #F1EADB;
+  --color-surface:       #FFFDF8;
+  --color-surface-hover: #F6F0E5;
   --color-surface-elevated: #FFFFFF;
 
-  --color-gold:          #AE8B48;
-  --color-gold-light:    #CFB274;
-  --color-gold-dark:     #856A2E;
-  --color-gold-glow:     rgba(174, 139, 72, 0.12);
+  /* 天水碧 — 清透青绿，点睛强调 */
+  --color-gold:          #5DA4B1;
+  --color-gold-light:    #8FC4CD;
+  --color-gold-dark:     #3E7D8A;
+  --color-gold-glow:     rgba(93, 164, 177, 0.15);
 
   --color-cinnabar:      #B8453E;
   --color-cinnabar-dim:  rgba(184, 69, 62, 0.10);
@@ -72,16 +38,16 @@
   --color-sage:          #6A7A6A;
   --color-sage-dim:      rgba(106, 122, 106, 0.10);
 
-  --color-text-primary:  #211D17;
-  --color-text-secondary:#6E6151;
-  --color-text-muted:    #9C8E7A;
-  --color-text-inverse:  #F4EFE6;
+  --color-text-primary:  #2E3A3D;
+  --color-text-secondary:#5E6E72;
+  --color-text-muted:    #8A9A9E;
+  --color-text-inverse:  #F8F3E9;
 
-  --color-border:        #D7CDBE;
-  --color-border-light:  #E6DED2;
+  --color-border:        #D9E2E0;
+  --color-border-light:  #E8EFED;
 
-  --color-nav-bg:        rgba(244, 239, 230, 0.92);
-  --color-bottom-nav:    #FBF8F2;
+  --color-nav-bg:        rgba(248, 243, 233, 0.92);
+  --color-bottom-nav:    #FFFDF8;
 }
 
 /* ---- 排版 tokens（主题无关） ---- */
@@ -129,9 +95,9 @@
   --radius-xl: 16px;
   --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
   --shadow-gold: 0 0 20px var(--color-gold-glow);
 
   --transition-fast: 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -147,12 +113,6 @@
   --temp-tone: #C9A96E;
   --temp-tone-soft: rgba(201, 169, 110, 0.12);
   --temp-tone-text: color-mix(in srgb, var(--temp-tone) 78%, var(--color-text-primary));
-}
-
-.theme-light {
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* ---- Base ---- */
