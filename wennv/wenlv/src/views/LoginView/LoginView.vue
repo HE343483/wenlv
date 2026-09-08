@@ -8,6 +8,7 @@
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import AuthBamboo from '@/components/AuthBamboo.vue'
 
 type Mode = 'login' | 'register'
 
@@ -69,6 +70,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="auth-page">
+    <AuthBamboo side="left" />
     <div class="auth-card">
       <div class="auth-card__brand">
         <span class="auth-card__logo">蜀韵·成都</span>
@@ -209,11 +211,13 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+    <AuthBamboo side="right" />
   </div>
 </template>
 
 <style scoped>
 .auth-page {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -224,6 +228,8 @@ onBeforeUnmount(() => {
 
 /* 2×2 舞台：上行品牌带，下行左右两块内容 */
 .auth-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 920px;
   min-height: 620px;
