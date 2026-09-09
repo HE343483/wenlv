@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    home: '首页',
+    spots: '景点',
+    culture: '文化',
+    heritage: '非遗',
+    ariaNav: '页面导航',
+    ariaLang: '切换语言',
     login: '登录',
     register: '注册',
     langSwitch: 'EN',
@@ -278,6 +284,7 @@ export default {
   },
   login: {
     title: '登录',
+    backHome: '返回首页',
     username: '用户名',
     usernamePlaceholder: '请输入用户名或邮箱',
     password: '密码',

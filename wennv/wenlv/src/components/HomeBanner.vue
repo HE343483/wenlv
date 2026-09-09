@@ -28,18 +28,21 @@ interface Particle {
   vy: number
   size: number
   alpha: number
-  color: string
+  fill: string
   cutScale: number
   heat: number
 }
 
 let particles: Particle[] = []
+let buckets: Array<[string, Particle[]]> = []
 let ctx: CanvasRenderingContext2D | null = null
 let rafId = 0
 let cssW = 0
 let cssH = 0
 let dpr = 1
 let goldColor = '#5DA4B1'
+let goldRGB = '93,164,177'
+const TEAL_RGB = '62,125,138'
 
 /* 随水印字号自适应的互动参数 */
 let radius = 140
@@ -58,7 +61,14 @@ const INNER_PUSH = 1.15 // 距光标过近时轻微外推，避免糊成一团
 const CUT_SPEED = 6 // 单帧位移超过该值判定为「挥切」而非悬停吸附
 const CUT_FORCE = 5.4 // 切割冲量
 const CUT_DRAG = 0.35 // 切割时沿挥动方向的拖拽分量
-const MAX_PARTICLES = 4200
+const MAX_PARTICLES = 11000
+
+/* 解析 CSS 颜色为 RGB 分量，供 fillStyle 字符串拼接 */
+function parseRGB(hex: string, fallback: string): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim())
+  if (!m) return fallback
+  return `${parseInt(m[1] ?? '0', 16)},${parseInt(m[2] ?? '0', 16)},${parseInt(m[3] ?? '0', 16)}`
+}
 
 function collect(
   data: Uint8ClampedArray,
@@ -70,7 +80,7 @@ function collect(
   for (let y = 0; y < h; y += step) {
     for (let x = 0; x < w; x += step) {
       const alpha = data[(y * w + x) * 4 + 3]
-      if (alpha > 60) {
+      if ((alpha ?? 0) > 60) {
         next.push({
           homeX: x,
           homeY: y,
@@ -81,7 +91,7 @@ function collect(
           vy: 0,
           size: step * 0.34 + Math.random() * step * 0.3,
           alpha: 0.3 + Math.random() * 0.5,
-          color: Math.random() < 0.12 ? goldColor : 'rgb(62, 125, 138)',
+          fill: Math.random() < 0.12 ? goldRGB : TEAL_RGB,
           cutScale: 0.7 + Math.random() * 0.6,
           heat: 0,
         })
@@ -136,18 +146,27 @@ function buildParticles() {
 
   const rootStyle = getComputedStyle(document.documentElement)
   goldColor = rootStyle.getPropertyValue('--color-gold').trim() || '#5DA4B1'
+  goldRGB = parseRGB(goldColor, '93,164,177')
 
   radius = Math.max(90, Math.min(180, fontSize * 0.36))
   inner = radius * 0.2
   cutWidth = Math.max(26, Math.min(60, fontSize * 0.12))
 
-  let step = Math.max(3, Math.round(fontSize / 110))
-  let next = collect(data, off.width, off.height, step)
-  if (next.length > MAX_PARTICLES) {
-    step = Math.max(2, Math.round(step * Math.sqrt(next.length / MAX_PARTICLES)))
-    next = collect(data, off.width, off.height, step)
+  /* 以最细网格采样，超出上限时随机抽稀：密度均匀且粒子数大幅提升 */
+  const dense = collect(data, off.width, off.height, 2)
+  particles =
+    dense.length > MAX_PARTICLES
+      ? dense.filter(() => Math.random() < MAX_PARTICLES / dense.length)
+      : dense
+
+  /* 颜色×透明度相同的粒子归入同桶，渲染时逐桶批量绘制，保证高密度下仍流畅 */
+  const groups = new Map<string, Particle[]>()
+  for (const p of particles) {
+    const list = groups.get(p.fill)
+    if (list) list.push(p)
+    else groups.set(p.fill, [p])
   }
-  particles = next
+  buckets = Array.from(groups)
   ready.value = true
 }
 
@@ -237,25 +256,29 @@ function loop() {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssW, cssH)
-    for (const p of particles) {
-      if (p.heat > 0.05) {
-        // 切口处短暂泛起金色高光，如刀锋余温
-        ctx.globalAlpha = Math.min(1, p.alpha + p.heat * 0.5)
-        ctx.fillStyle = goldColor
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size * (1 + p.heat * 0.4), 0, Math.PI * 2)
-        ctx.fill()
-        ctx.globalAlpha = p.heat * 0.16
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size * 2.6, 0, Math.PI * 2)
-        ctx.fill()
-      } else {
+    /* 同色粒子逐桶批量绘制，避免上万次 fillStyle 切换 */
+    for (const [fill, list] of buckets) {
+      ctx.fillStyle = `rgb(${fill})`
+      for (const p of list) {
+        if (p.heat > 0.05) continue
         ctx.globalAlpha = p.alpha
-        ctx.fillStyle = p.color
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
         ctx.fill()
       }
+    }
+    /* 切口余温粒子的高光尺寸与亮度动态变化，需逐个绘制 */
+    ctx.fillStyle = goldColor
+    for (const p of particles) {
+      if (p.heat <= 0.05) continue
+      ctx.globalAlpha = Math.min(1, p.alpha + p.heat * 0.5)
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, p.size * (1 + p.heat * 0.4), 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = p.heat * 0.16
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, p.size * 2.6, 0, Math.PI * 2)
+      ctx.fill()
     }
     ctx.globalAlpha = 1
   }

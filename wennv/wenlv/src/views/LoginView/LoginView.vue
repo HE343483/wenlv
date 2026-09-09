@@ -9,6 +9,7 @@ import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import AuthBamboo from '@/components/AuthBamboo.vue'
+import PandaCursor from '@/components/PandaCursor.vue'
 
 type Mode = 'login' | 'register'
 
@@ -62,6 +63,11 @@ function handleRegister() {
   router.push('/home')
 }
 
+/** 返回公开首页（HomeView） */
+function goBackHome() {
+  router.push({ name: 'home' })
+}
+
 onBeforeUnmount(() => {
   timers.forEach((id) => clearTimeout(id))
   timers = []
@@ -70,8 +76,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="auth-page">
+
     <AuthBamboo side="left" />
+    <PandaCursor />
     <div class="auth-card">
+      <button type="button" class="auth-back" @click="goBackHome">
+      <span class="auth-back__arrow" aria-hidden="true">←</span>
+      {{ langStore.t('login.backHome') }}
+    </button>
       <div class="auth-card__brand">
         <span class="auth-card__logo">蜀韵·成都</span>
         <span class="auth-card__sub">Shu·Chengdu</span>
@@ -83,6 +95,7 @@ onBeforeUnmount(() => {
         class="auth-panel auth-panel--left login-panel"
         :class="{ 'panel-exit-left': phase === 'exit', 'panel-enter-from-left': phase === 'enter' }"
       >
+
         <h1 class="auth-panel__title">{{ langStore.t('login.title') }}</h1>
         <form class="auth-form" @submit.prevent="handleLogin">
           <div class="auth-form__field">
@@ -224,6 +237,48 @@ onBeforeUnmount(() => {
   justify-content: center;
   padding: var(--space-6);
   background: var(--color-bg);
+}
+
+/* 返回首页：左上角浮动按钮 */
+.auth-back {
+  position: absolute;
+  top: var(--space-5);
+  left: var(--space-6);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(46, 58, 61, 0.08);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.auth-back:hover {
+  color: var(--color-gold);
+  border-color: var(--color-gold);
+  box-shadow: 0 0 16px var(--color-gold-glow);
+}
+
+.auth-back__arrow {
+  font-size: var(--text-base);
+  line-height: 1;
+  transition: transform var(--transition-fast);
+}
+
+.auth-back:hover .auth-back__arrow {
+  transform: translateX(-3px);
 }
 
 /* 2×2 舞台：上行品牌带，下行左右两块内容 */
@@ -511,6 +566,13 @@ onBeforeUnmount(() => {
 
 /* 窄屏：风景在上、表单在下，纵向排列 */
 @media (max-width: 860px) {
+  .auth-back {
+    top: var(--space-3);
+    left: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+  }
+
   .auth-card {
     max-width: 460px;
     min-height: 0;

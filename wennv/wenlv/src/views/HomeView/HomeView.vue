@@ -6,6 +6,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useLanguageStore } from '@/stores/language'
 import NavBar from '@/components/NavBar.vue'
+import PandaCursor from '@/components/PandaCursor.vue'
 import Carousel from '@/components/Carousel.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
@@ -211,6 +212,7 @@ function setSectionRef(el: unknown, index: number) {
 <template>
   <div class="homepage shu-pattern">
     <NavBar />
+    <PandaCursor />
 
     <!-- ──── HERO ──── -->
     <section class="hero">
@@ -284,6 +286,7 @@ function setSectionRef(el: unknown, index: number) {
 
     <!-- ──── 文化名片 ──── -->
     <section
+      id="culture-cards"
       :ref="(el) => setSectionRef(el, 1)"
       class="culture-cards reveal"
     >
@@ -359,6 +362,7 @@ function setSectionRef(el: unknown, index: number) {
 
     <!-- ──── 非遗传承 ──── -->
     <section
+      id="culture-heritage"
       :ref="(el) => setSectionRef(el, 3)"
       class="culture-heritage reveal"
     >

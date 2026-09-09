@@ -295,6 +295,9 @@ const localDetails: Record<string, { zh: FoodLocalData; en: FoodLocalData }> = {
 /* 当前详情数据：按语言返回本地 Mock；接入后端后替换为接口返回 */
 const detail = computed<FoodLocalData>(() => {
   const entry = localDetails[foodId.value] ?? localDetails.hotpot
+  if (!entry) {
+    return langStore.lang === 'zh' ? localDetails.hotpot!.zh : localDetails.hotpot!.en
+  }
   return langStore.lang === 'zh' ? entry.zh : entry.en
 })
 

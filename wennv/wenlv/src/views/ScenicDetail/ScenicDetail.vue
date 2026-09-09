@@ -48,9 +48,25 @@ const placeholderName = computed(() =>
       </div>
 
       <div class="detail-topbar__actions">
-        <button class="detail-topbar__lang-btn" @click="langStore.toggle()">
-          {{ langStore.t('nav.langSwitch') }}
-        </button>
+        <!-- 语言切换：分段式 中/EN -->
+        <div class="detail-topbar__lang" role="group" :aria-label="langStore.t('nav.ariaLang')">
+          <button
+            type="button"
+            class="detail-topbar__lang-btn"
+            :class="{ 'detail-topbar__lang-btn--active': langStore.lang === 'zh' }"
+            @click="langStore.setLang('zh')"
+          >
+            中
+          </button>
+          <button
+            type="button"
+            class="detail-topbar__lang-btn"
+            :class="{ 'detail-topbar__lang-btn--active': langStore.lang === 'en' }"
+            @click="langStore.setLang('en')"
+          >
+            EN
+          </button>
+        </div>
       </div>
     </header>
 
@@ -84,35 +100,36 @@ const placeholderName = computed(() =>
         </div>
       </section>
 
-      <!-- ──── 概要：评分 + 简介 ──── -->
+      <!-- ──── 概要：评价横条 + 简介 ──── -->
       <section class="detail-section container">
         <div class="detail-summary">
-          <!-- 左：评分面板 -->
-          <aside class="detail-summary__aside">
-            <div class="detail-score">
-              <span class="detail-score__num">—</span>
-              <div class="detail-score__meta">
-                <span class="detail-score__stars">
-                  <AppIcon v-for="i in 5" :key="i" name="star" :size="16" />
-                </span>
-                <span class="detail-score__label">{{ langStore.t('scenic.rating') }}</span>
-              </div>
+          <!-- 评价横条：分数 + 星级 + 关键信息，横向排列 -->
+          <div class="detail-scorebar">
+            <div class="detail-scorebar__rating">
+              <span class="detail-scorebar__num">—</span>
+              <span class="detail-scorebar__stars">
+                <AppIcon v-for="i in 5" :key="i" name="star" :size="16" />
+              </span>
+              <span class="detail-scorebar__label">{{ langStore.t('scenic.rating') }}</span>
             </div>
-            <div class="detail-aside__row">
-              <span class="detail-aside__key">{{ langStore.t('scenicDetail.district') }}</span>
-              <span class="detail-aside__value">—</span>
-            </div>
-            <div class="detail-aside__row">
-              <span class="detail-aside__key">{{ langStore.t('scenicDetail.visits') }}</span>
-              <span class="detail-aside__value">—</span>
-            </div>
-            <div class="detail-aside__row">
-              <span class="detail-aside__key">{{ langStore.t('scenicDetail.recommendTime') }}</span>
-              <span class="detail-aside__value">—</span>
-            </div>
-          </aside>
 
-          <!-- 右：简介 -->
+            <span class="detail-scorebar__divider" aria-hidden="true" />
+
+            <div class="detail-scorebar__fact">
+              <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.district') }}</span>
+              <span class="detail-scorebar__fact-value">—</span>
+            </div>
+            <div class="detail-scorebar__fact">
+              <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.visits') }}</span>
+              <span class="detail-scorebar__fact-value">—</span>
+            </div>
+            <div class="detail-scorebar__fact">
+              <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.recommendTime') }}</span>
+              <span class="detail-scorebar__fact-value">—</span>
+            </div>
+          </div>
+
+          <!-- 简介 -->
           <div class="detail-summary__body">
             <div class="detail-summary__eyebrow">
               <span>◈</span>
@@ -324,20 +341,34 @@ const placeholderName = computed(() =>
   gap: var(--space-3);
 }
 
-.detail-topbar__lang-btn {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  padding: var(--space-2) var(--space-3);
+/* 语言切换：胶囊分段器 中|EN */
+.detail-topbar__lang {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+}
+
+.detail-topbar__lang-btn {
+  font-family: var(--font-en-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
   letter-spacing: var(--tracking-wide);
   transition: all var(--transition-fast);
 }
 
 .detail-topbar__lang-btn:hover {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
+  color: var(--color-gold-dark);
+}
+
+.detail-topbar__lang-btn--active {
+  background: var(--color-gold);
+  color: var(--color-bg);
 }
 
 /* ========================================
@@ -456,32 +487,33 @@ const placeholderName = computed(() =>
 }
 
 /* ========================================
-   概要 — 评分 + 简介
+   概要 — 评价横条 + 简介
    ======================================== */
 .detail-summary {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: var(--space-10);
-  align-items: start;
-}
-
-.detail-summary__aside {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
-.detail-score {
+/* 评价横条：分数 + 星级 + 关键信息，一行排开 */
+.detail-scorebar {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-6);
+  flex-wrap: wrap;
+  gap: var(--space-5) var(--space-8);
+  padding: var(--space-5) var(--space-8);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
-.detail-score__num {
+.detail-scorebar__rating {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detail-scorebar__num {
   font-family: var(--font-en-display);
   font-size: var(--text-4xl);
   font-weight: 700;
@@ -489,43 +521,40 @@ const placeholderName = computed(() =>
   line-height: 1;
 }
 
-.detail-score__meta {
+.detail-scorebar__stars {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.detail-score__stars {
+  align-items: center;
+  gap: 2px;
   color: var(--color-gold);
-  font-size: var(--text-sm);
-  letter-spacing: 2px;
-  opacity: 0.55;
 }
 
-.detail-score__label {
+.detail-scorebar__label {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
 }
 
-.detail-aside__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+/* 评分与关键信息之间的竖分隔线 */
+.detail-scorebar__divider {
+  width: 1px;
+  height: 32px;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
-.detail-aside__key {
-  font-size: var(--text-sm);
+.detail-scorebar__fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.detail-scorebar__fact-key {
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
 }
 
-.detail-aside__value {
+.detail-scorebar__fact-value {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
   letter-spacing: var(--tracking-wide);
@@ -840,8 +869,14 @@ const placeholderName = computed(() =>
     padding: var(--space-8) 0;
   }
   .detail-summary {
-    grid-template-columns: 1fr;
-    gap: var(--space-6);
+    gap: var(--space-5);
+  }
+  .detail-scorebar {
+    padding: var(--space-4) var(--space-5);
+    gap: var(--space-4) var(--space-6);
+  }
+  .detail-scorebar__divider {
+    display: none;
   }
   .detail-summary__text {
     font-size: var(--text-lg);

@@ -9,10 +9,8 @@ import { useLanguageStore } from '@/stores/language'
 import { scenicSpots, districts } from '@/data/chengdu'
 import TagFilter from '@/components/TagFilter.vue'
 import DistrictFilter from '@/components/DistrictFilter.vue'
-import Carousel from '@/components/Carousel.vue'
 import ScenicCard from '@/components/ScenicCard.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
-import type { CarouselItem } from '@/components/Carousel.vue'
 
 const langStore = useLanguageStore()
 
@@ -71,22 +69,6 @@ const selectedDistrictName = computed(() => {
   if (!d) return ''
   return langStore.lang === 'zh' ? d.nameZh : d.nameEn
 })
-
-/* ── 选中区县的景点 → 轮播数据 ── */
-const carouselItems = computed<CarouselItem[]>(() => {
-  // 仅当选中了具体区县时使用轮播展示
-  if (selectedDistrict.value === 'all') return []
-  return filteredSpots.value.map(spot => ({
-    id: spot.id,
-    imageUrl: spot.imageUrl,
-    titleZh: spot.nameZh,
-    titleEn: spot.nameEn,
-    subtitleZh: spot.shortDescZh,
-    subtitleEn: spot.shortDescEn,
-  }))
-})
-
-const showCarousel = computed(() => selectedDistrict.value !== 'all' && carouselItems.value.length > 0)
 
 /* ── 活跃筛选 Chips 数据 ── */
 const activeFilters = computed(() => {
@@ -247,13 +229,14 @@ watch(filteredSpots, () => {
           </button>
         </div>
 
-        <!-- 选中具体区县 → 轮播展示 -->
-        <div v-else-if="showCarousel" class="explore-carousel">
-          <Carousel :key="`${selectedDistrict}-${langStore.lang}`" :items="carouselItems" />
-        </div>
-
-        <!-- 全部区域 → 网格 -->
-        <TransitionGroup v-else :key="gridKey" name="grid" tag="div" class="explore-grid__grid">
+        <!-- 景点卡片网格（无论选全部还是具体区县，统一用卡片展示） -->
+        <TransitionGroup
+          v-else
+          :key="gridKey"
+          name="grid"
+          tag="div"
+          class="explore-grid__grid"
+        >
           <ScenicCard
             v-for="(spot, i) in filteredSpots"
             :key="spot.id"
@@ -618,14 +601,6 @@ watch(filteredSpots, () => {
   color: var(--color-gold);
   border-color: var(--color-gold-dark);
   background: color-mix(in srgb, var(--color-gold) 8%, transparent);
-}
-
-/* ========================================
-   轮播
-   ======================================== */
-.explore-carousel {
-  max-width: 900px;
-  margin: 0 auto;
 }
 
 /* ========================================

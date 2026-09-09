@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    home: 'Home',
+    spots: 'Spots',
+    culture: 'Culture',
+    heritage: 'Heritage',
+    ariaNav: 'Page navigation',
+    ariaLang: 'Switch language',
     login: 'Login',
     register: 'Register',
     langSwitch: '中',
@@ -278,6 +284,7 @@ export default {
   },
   login: {
     title: 'Login',
+    backHome: 'Back to Home',
     username: 'Username',
     usernamePlaceholder: 'Username or email',
     password: 'Password',
