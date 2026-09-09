@@ -52,6 +52,11 @@ const router = createRouter({
           name: 'internal-profile',
           component: () => import('@/views/ProfilePage/ProfilePage.vue'),
         },
+        {
+          path: 'favorites',
+          name: 'internal-favorites',
+          component: () => import('@/views/FavoritesPage/FavoritesPage.vue'),
+        },
       ],
     },
     {
