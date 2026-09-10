@@ -356,7 +356,7 @@ export default {
     profile: 'Profile',
     favorites: 'My Favorites',
     visits: 'Check-ins',
-  },,
+  },
   footer: {
     copyright: 'Smart Digital Tourism + International Communication: Bashu Culture Going Global',
     rights: 'All Rights Reserved.',
