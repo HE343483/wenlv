@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * HomeLayout.vue — 登录后内部页面布局
- * 顶栏：左 品牌 | 中 快捷导航(首页/探索/美食/路线/收藏/我的) | 右 天气+语言+我的下拉
- * 导航加「收藏」「我的」：收藏为独立页，个人资料与打卡照片在「我的」内完成
+ * 顶栏：左 品牌 | 中 快捷导航(首页/探索/美食/路线/收藏/我的) | 右 天气+语言+我的
+ * 响应式：正常宽度导航一行展示；窄屏(<1100px)中间导航隐藏，点击“我的”展开全部路由下拉
+ * 正常大小下“我的”就是右侧普通按钮，直接进 /home/profile
  */
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -40,21 +41,46 @@ const isQuickActive = (target: string) => route.path === target || route.path.st
 const triggerRef = ref<InstanceType<typeof WeatherTrigger> | null>(null)
 const panelRef = ref<InstanceType<typeof WeatherPanel> | null>(null)
 
-/* ── 我的下拉 ── */
+/* ── 响应式：窄屏判定 ── */
+const NARROW_BP = 1100
+const isNarrow = ref(false)
+function syncNarrow() {
+  if (typeof window === 'undefined') return
+  isNarrow.value = window.innerWidth <= NARROW_BP
+}
+
+/* ── 我的：桌面=按钮 / 窄屏=全部路由下拉 ── */
 const mineOpen = ref(false)
 const mineWrapRef = ref<HTMLDivElement | null>(null)
-function toggleMine() { mineOpen.value = !mineOpen.value }
+
+function handleMineClick() {
+  if (!isNarrow.value) {
+    router.push('/home/profile')
+    return
+  }
+  mineOpen.value = !mineOpen.value
+}
 function closeMine() { mineOpen.value = false }
-function goMine(path: '/home/profile' | '/home/favorites') {
+function goNav(path: string) {
   mineOpen.value = false
   router.push(path)
 }
 function onDocClick(e: MouseEvent) {
+  if (!isNarrow.value) return
   if (!mineWrapRef.value) return
   if (!mineWrapRef.value.contains(e.target as Node)) mineOpen.value = false
 }
-onMounted(() => document.addEventListener('click', onDocClick))
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+function onResize() { syncNarrow(); if (!isNarrow.value) mineOpen.value = false }
+
+onMounted(() => {
+  syncNarrow()
+  document.addEventListener('click', onDocClick)
+  window.addEventListener('resize', onResize)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  window.removeEventListener('resize', onResize)
+})
 </script>
 
 <template>
@@ -78,6 +104,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
         </div>
       </div>
 
+      <!-- 正常宽度：一行导航 -->
       <nav class="internal-topbar__nav" :aria-label="langStore.t('nav.ariaNav')">
         <RouterLink
           v-for="item in quickNavs"
@@ -96,14 +123,18 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
         <LanguageSwitch />
         <span class="internal-topbar__divider" aria-hidden="true" />
 
-        <!-- 我的下拉 -->
+        <!-- 我的：桌面是普通按钮，窄屏是下拉触发器 -->
         <div ref="mineWrapRef" class="internal-topbar__mine-wrap">
           <button
             class="internal-topbar__profile"
-            :class="{ 'internal-topbar__profile--open': mineOpen, 'router-link-active': route.path.startsWith('/home/profile') || route.path.startsWith('/home/favorites') }"
-            aria-haspopup="menu"
-            :aria-expanded="mineOpen"
-            @click.stop="toggleMine"
+            :class="{
+              'internal-topbar__profile--open': isNarrow && mineOpen,
+              'router-link-active': route.path.startsWith('/home/profile') || route.path.startsWith('/home/favorites')
+            }"
+            :aria-haspopup="isNarrow ? 'menu' : undefined"
+            :aria-expanded="isNarrow ? mineOpen : undefined"
+            :title="isNarrow ? langStore.t('bottomNav.mine') : undefined"
+            @click.stop="handleMineClick"
           >
             <span v-if="profile.avatar" class="internal-topbar__avatar"><img :src="profile.avatar" alt="avatar" /></span>
             <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -111,19 +142,25 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
               <path d="M5 20c1.6-3.6 4.1-5 7-5s5.4 1.4 7 5" />
             </svg>
             {{ langStore.t('bottomNav.mine') }}
-            <svg class="internal-topbar__chev" :class="{ 'internal-topbar__chev--open': mineOpen }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6" /></svg>
+            <!-- 仅窄屏显示下拉箭头 -->
+            <svg v-if="isNarrow" class="internal-topbar__chev" :class="{ 'internal-topbar__chev--open': mineOpen }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6" /></svg>
           </button>
 
-          <div v-if="mineOpen" class="internal-topbar__mine-menu" role="menu">
-            <button role="menuitem" class="internal-topbar__mine-item" :class="{ 'internal-topbar__mine-item--active': route.path === '/home/profile' }" @click="goMine('/home/profile')">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.6-3.6 4.1-5 7-5s5.4 1.4 7 5"/></svg>
-              {{ langStore.t('mineMenu.profile') }}
-            </button>
-            <button role="menuitem" class="internal-topbar__mine-item" :class="{ 'internal-topbar__mine-item--active': route.path === '/home/favorites' }" @click="goMine('/home/favorites')">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z"/></svg>
-              {{ langStore.t('mineMenu.favorites') }}
-            </button>
-          </div>
+          <!-- 窄屏下拉：展示全部路由 -->
+          <Transition name="mine-drop">
+            <div v-if="isNarrow && mineOpen" class="internal-topbar__mine-menu internal-topbar__mine-menu--full" role="menu">
+              <button
+                v-for="item in quickNavs"
+                :key="item.route"
+                role="menuitem"
+                class="internal-topbar__mine-item"
+                :class="{ 'internal-topbar__mine-item--active': isQuickActive(item.route) }"
+                @click="goNav(item.route)"
+              >
+                {{ langStore.t(item.key) }}
+              </button>
+            </div>
+          </Transition>
         </div>
       </div>
     </header>
@@ -163,6 +200,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
   display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm);
   padding: var(--space-2) var(--space-3); border-radius: var(--radius-full); color: var(--color-text-secondary);
   border: 1px solid transparent; letter-spacing: var(--tracking-wide); transition: all var(--transition-fast);
+  cursor: pointer;
 }
 .internal-topbar__profile:hover, .internal-topbar__profile--open, .internal-topbar__profile.router-link-active { color: var(--color-gold-dark); border-color: var(--color-gold); background: color-mix(in srgb, var(--color-gold) 8%, transparent); }
 .internal-topbar__avatar { width: 22px; height: 22px; border-radius: var(--radius-full); overflow: hidden; border: 1px solid color-mix(in srgb, var(--color-gold) 40%, transparent); flex-shrink: 0; }
@@ -175,12 +213,17 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
   background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg), 0 8px 24px var(--color-gold-glow); display: flex; flex-direction: column; gap: 2px; z-index: 20;
 }
+.internal-topbar__mine-menu--full { min-width: 176px; }
 .internal-topbar__mine-item {
   display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--color-text-secondary); text-align: left; transition: all var(--transition-fast);
+  width: 100%;
 }
 .internal-topbar__mine-item:hover { background: color-mix(in srgb, var(--color-gold) 10%, transparent); color: var(--color-gold-dark); }
 .internal-topbar__mine-item--active { background: color-mix(in srgb, var(--color-gold) 12%, transparent); color: var(--color-gold-dark); font-weight: 600; }
+
+.mine-drop-enter-active, .mine-drop-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.mine-drop-enter-from, .mine-drop-leave-to { opacity: 0; transform: translateY(-6px) scale(0.98); }
 
 .internal-main { flex: 1; padding: var(--space-6); padding-bottom: calc(var(--space-6) + var(--bottom-nav-height)); }
 
