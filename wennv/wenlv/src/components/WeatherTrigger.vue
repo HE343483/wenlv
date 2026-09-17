@@ -10,7 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useWeatherStore } from '@/stores/weather'
 
 const weatherStore = useWeatherStore()
-const { data, open, state, location } = storeToRefs(weatherStore)
+const { data, open, state } = storeToRefs(weatherStore)
 
 const btnRef = ref<HTMLButtonElement | null>(null)
 
@@ -52,7 +52,7 @@ defineExpose({ getAnchorRect, getElement })
     <!-- 展开态：追加区名（带过渡动画） -->
     <Transition name="weather-trigger-text">
       <span v-if="open && data" class="weather-trigger__text">
-        <span class="weather-trigger__city">{{ location.districtName }}</span>
+        <span class="weather-trigger__city">{{ weatherStore.displayName }}</span>
       </span>
     </Transition>
     <!-- 温度区间：收缩版也显示（图片 + 温度） -->

@@ -10,7 +10,7 @@ import { useLanguageStore } from '@/stores/language'
 
 const weatherStore = useWeatherStore()
 const langStore = useLanguageStore()
-const { data, location, state } = storeToRefs(weatherStore)
+const { data, state } = storeToRefs(weatherStore)
 </script>
 
 <template>
@@ -18,7 +18,7 @@ const { data, location, state } = storeToRefs(weatherStore)
     <span class="weather-row-cell__swatch" style="background: var(--temp-tone)" />
 
     <div class="weather-row-cell__info">
-      <span class="weather-row-cell__district">{{ location.districtName }}</span>
+      <span class="weather-row-cell__district">{{ weatherStore.displayName }}</span>
       <span class="weather-row-cell__temp">
         <template v-if="data">{{ data.min_temp }}° ~ {{ data.max_temp }}°</template>
         <template v-else>--</template>

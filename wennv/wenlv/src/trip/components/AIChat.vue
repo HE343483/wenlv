@@ -1,5 +1,12 @@
-﻿<template>
-  <div class="ai-chat-floating">
+<template>
+  <div
+    ref="rootRef"
+    class="ai-chat-floating"
+    :class="{ dragging: isDragging }"
+    :style="{ '--chat-tx': `${offset.x}px`, '--chat-ty': `${offset.y}px` }"
+    @pointerdown="onDragStart"
+    @click.capture="onClickCapture"
+  >
     <div class="container-ai-input">
       <div v-for="index in 15" :key="`chat-area-${index}`" class="area"></div>
       <div class="container-wrap" :class="{ open: chatOpen }">
@@ -211,6 +218,84 @@ const closeChatPanel = () => {
   chatOpen.value = false
 }
 
+// ===== 悬浮助手拖拽移动(超过阈值视为拖动,否则仍按点击打开面板) =====
+const AI_CHAT_POS_KEY = 'aiChatWidgetPos'
+const DRAG_THRESHOLD = 5 // px,超过该位移判定为拖拽
+
+const rootRef = ref<HTMLElement | null>(null)
+const isDragging = ref(false)
+const offset = ref({ x: 0, y: 0 })
+
+// 恢复上次拖拽保存的位置
+try {
+  const saved = JSON.parse(localStorage.getItem(AI_CHAT_POS_KEY) || 'null')
+  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+    offset.value = { x: saved.x, y: saved.y }
+  }
+} catch {
+  /* 忽略损坏的本地缓存 */
+}
+
+let dragStart: { px: number; py: number; ox: number; oy: number; base: DOMRect } | null = null
+let dragMoved = false
+let suppressClick = false
+
+const onDragStart = (e: PointerEvent) => {
+  if (e.button !== 0 || !rootRef.value) return
+  // base 为未加位移时的可视矩形,用于拖拽中的出屏边界修正
+  const rect = rootRef.value.getBoundingClientRect()
+  dragStart = {
+    px: e.clientX,
+    py: e.clientY,
+    ox: offset.value.x,
+    oy: offset.value.y,
+    base: new DOMRect(rect.left - offset.value.x, rect.top - offset.value.y, rect.width, rect.height),
+  }
+  dragMoved = false
+  window.addEventListener('pointermove', onDragMove)
+  window.addEventListener('pointerup', onDragEnd)
+}
+
+const onDragMove = (e: PointerEvent) => {
+  if (!dragStart) return
+  const dx = e.clientX - dragStart.px
+  const dy = e.clientY - dragStart.py
+  if (!dragMoved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+  if (!dragMoved) {
+    dragMoved = true
+    isDragging.value = true
+  }
+  // 限制组件可视区域始终留在窗口内
+  let nx = dragStart.ox + dx
+  let ny = dragStart.oy + dy
+  nx = Math.min(Math.max(nx, -dragStart.base.left), window.innerWidth - dragStart.base.width - dragStart.base.left)
+  ny = Math.min(Math.max(ny, -dragStart.base.top), window.innerHeight - dragStart.base.height - dragStart.base.top)
+  offset.value = { x: nx, y: ny }
+}
+
+const onDragEnd = () => {
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', onDragEnd)
+  if (dragMoved) {
+    // 拖拽结束后拦截随后的 click,避免误触打开/关闭面板
+    suppressClick = true
+    setTimeout(() => {
+      suppressClick = false
+    }, 80)
+    localStorage.setItem(AI_CHAT_POS_KEY, JSON.stringify(offset.value))
+  }
+  dragStart = null
+  dragMoved = false
+  isDragging.value = false
+}
+
+const onClickCapture = (e: MouseEvent) => {
+  if (suppressClick) {
+    e.stopPropagation()
+    e.preventDefault()
+  }
+}
+
 const sendQuickQuestion = (q: string) => {
   chatInput.value = q
   void sendChatMessage()
@@ -254,7 +339,16 @@ const sendChatMessage = async () => {
   left: 8px;
   bottom: 8px;
   z-index: 1000;
-  transform: scale(0.3);
+  /* translate 在 scale 之前组合,位移不受缩放影响 */
+  transform: translate(var(--chat-tx, 0px), var(--chat-ty, 0px)) scale(0.3);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ai-chat-floating.dragging {
+  cursor: grabbing;
+  /* 拖拽中禁止选中文字,避免拖动时误选页面内容 */
+  user-select: none;
 }
 
 .container-ai-input {

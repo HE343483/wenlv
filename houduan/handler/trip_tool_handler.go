@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -10,12 +12,24 @@ import (
 	"wenlv-backend/service"
 )
 
+// distEntry 行政区划缓存条目。
+type distEntry struct {
+	data gin.H
+	exp  time.Time
+}
+
 // TripToolHandler 行程模块的配套工具接口(POI / 地图 / 运行时配置 / 用户记忆)。
 type TripToolHandler struct {
 	settings *service.TripSettings
 	amap     *service.AmapService
 	xhs      *service.XHSService
 	memory   *service.TripMemoryService
+	// 区名→adcode 缓存(非标准区名天气兜底用)
+	admu    sync.Mutex
+	adcache map[string]string
+	// 行政区划查询缓存(keywords|subdistrict → 响应,24h)
+	distMu    sync.Mutex
+	distCache map[string]distEntry
 }
 
 // NewTripToolHandler 构造工具处理器。
@@ -158,23 +172,85 @@ func (h *TripToolHandler) MapPOI(c *gin.Context) {
 // MapWeather 查询天气。
 func (h *TripToolHandler) MapWeather(c *gin.Context) {
 	city := c.Query("city")
-	if strings.TrimSpace(city) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"detail": "city 必填"})
+	adcode := strings.TrimSpace(c.Query("adcode"))
+	if strings.TrimSpace(city) == "" && adcode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"detail": "city 或 adcode 必填"})
 		return
 	}
 	ctx := c.Request.Context()
 	var list []model.WeatherInfo
-	if svc := h.googleService(); svc != nil {
+	// 前端传 adcode 时直接按 adcode 查(区县级最准,行政区划选择器走此路径)
+	if adcode != "" {
+		list = h.amap.GetWeather(ctx, adcode)
+	}
+	if svc := h.googleService(); svc != nil && len(list) == 0 {
 		list = svc.GetWeather(ctx, city)
 	}
 	if len(list) == 0 {
 		list = h.amap.GetWeather(ctx, city)
+	}
+	// 高新区/天府新区等非标准区名直查无结果,地理编码转 adcode 后重试(结果缓存)
+	if len(list) == 0 {
+		adcode := ""
+		h.admu.Lock()
+		if h.adcache != nil {
+			adcode = h.adcache[city]
+		}
+		h.admu.Unlock()
+		if adcode == "" {
+			adcode = h.amap.GeocodeAdcode(ctx, city, "成都市")
+			if adcode != "" {
+				h.admu.Lock()
+				if h.adcache == nil {
+					h.adcache = map[string]string{}
+				}
+				h.adcache[city] = adcode
+				h.admu.Unlock()
+			}
+		}
+		if adcode != "" {
+			list = h.amap.GetWeather(ctx, adcode)
+		}
 	}
 	message := "天气查询成功"
 	if len(list) == 0 {
 		message = "未获取到天气数据"
 	}
 	c.JSON(http.StatusOK, gin.H{"success": len(list) > 0, "message": message, "data": list})
+}
+
+// MapDistricts 行政区划逐级查询(市→区县→镇/街道),代理高德行政区划接口,结果缓存 24h。
+func (h *TripToolHandler) MapDistricts(c *gin.Context) {
+	keywords := strings.TrimSpace(c.DefaultQuery("keywords", "四川省"))
+	sub := strings.TrimSpace(c.DefaultQuery("subdistrict", "1"))
+	if sub != "1" && sub != "2" && sub != "3" {
+		sub = "1"
+	}
+	cacheKey := keywords + "|" + sub
+
+	h.distMu.Lock()
+	if h.distCache != nil {
+		if e, ok := h.distCache[cacheKey]; ok && time.Now().Before(e.exp) {
+			h.distMu.Unlock()
+			c.JSON(http.StatusOK, e.data)
+			return
+		}
+	}
+	h.distMu.Unlock()
+
+	data, err := h.amap.GetDistricts(c.Request.Context(), keywords, sub)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error(), "data": nil})
+		return
+	}
+	resp := gin.H{"success": true, "message": "行政区划查询成功", "data": data}
+	h.distMu.Lock()
+	if h.distCache == nil {
+		h.distCache = map[string]distEntry{}
+	}
+	h.distCache[cacheKey] = distEntry{data: resp, exp: time.Now().Add(24 * time.Hour)}
+	h.distMu.Unlock()
+	c.JSON(http.StatusOK, resp)
 }
 
 // MapRoute 规划路线。

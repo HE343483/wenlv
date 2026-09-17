@@ -249,7 +249,7 @@
     "chat": {
       "toggle": "AI 在线",
       "title": "行程智能问答",
-      "welcome": "您好！我是旅途星辰 AI，可以问我关于行程的任何问题，例如：",
+      "welcome": "您好！我是天府智旅 AI，可以问我关于行程的任何问题，例如：",
       "quickPriceLabel": "票价查询",
       "quickSuitabilityLabel": "适合老人？",
       "quickMealLabel": "餐饮价格",

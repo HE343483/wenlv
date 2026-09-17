@@ -138,6 +138,56 @@ func (s *AmapService) GeocodeRaw(ctx context.Context, address, city string) *mod
 	return &model.Location{Longitude: lon, Latitude: lat}
 }
 
+// GeocodeAdcode 地理编码并返回行政区域 adcode(高新区/天府新区等非标准区名
+// 直接查天气会失败,先转 adcode 再查),失败返回空串。
+func (s *AmapService) GeocodeAdcode(ctx context.Context, address, city string) string {
+	if s.apiKey() == "" || strings.TrimSpace(address) == "" {
+		return ""
+	}
+	params := url.Values{}
+	params.Set("address", address)
+	if city != "" {
+		params.Set("city", city)
+	}
+	var result struct {
+		Status   string `json:"status"`
+		Geocodes []struct {
+			Adcode string `json:"adcode"`
+		} `json:"geocodes"`
+	}
+	s.waitGeocodeSlot()
+	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/geocode/geo", params, &result); err != nil {
+		return ""
+	}
+	if result.Status != "1" || len(result.Geocodes) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(result.Geocodes[0].Adcode)
+}
+
+// GetDistricts 高德行政区划查询(逐级获取 市→区县→镇/街道),返回原始 JSON。
+// keywords 支持名称或 adcode,subdistrict 为向下级数(1-3)。
+func (s *AmapService) GetDistricts(ctx context.Context, keywords, subdistrict string) (map[string]any, error) {
+	if s.apiKey() == "" {
+		return nil, fmt.Errorf("高德 Key 未配置")
+	}
+	if strings.TrimSpace(keywords) == "" {
+		keywords = "四川省"
+	}
+	if subdistrict == "" {
+		subdistrict = "1"
+	}
+	params := url.Values{}
+	params.Set("keywords", keywords)
+	params.Set("subdistrict", subdistrict)
+
+	var out map[string]any
+	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/config/district", params, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *AmapService) warnOnce(key, msg string) {
 	s.warnMu.Lock()
 	defer s.warnMu.Unlock()

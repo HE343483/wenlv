@@ -103,6 +103,7 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 		{
 			mapGroup.GET("/poi", h.TripTool.MapPOI)
 			mapGroup.GET("/weather", h.TripTool.MapWeather)
+			mapGroup.GET("/districts", h.TripTool.MapDistricts)
 			mapGroup.POST("/route", h.TripTool.MapRoute)
 			mapGroup.GET("/health", h.TripTool.MapHealth)
 		}

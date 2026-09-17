@@ -2,14 +2,14 @@
 /**
  * WeatherPanel.vue — 天气下拉面板 (非模态浮动层，无卡片/无跳转)
  * 锚定于 WeatherTrigger 正下方，Teleport 至 body
- * 内容：温度区间 + 区域筛选（仅“区”级）
+ * 内容：温度区间 + 区域筛选(市→区县→镇/街道 三级级联,覆盖四川全省)
  * 面板内操作直接写入 weather store，全局（按钮/表行）实时同步
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWeatherStore } from '@/stores/weather'
 import { useLanguageStore } from '@/stores/language'
-import { getDistrictOptions } from '@/data/chengdu'
+import { fetchRegionChildren, type RegionNode } from '@/api/region'
 import AppIcon from '@/components/AppIcon.vue'
 
 const props = defineProps<{
@@ -29,27 +29,92 @@ const visible = ref(false)
 const PANEL_W = 280
 const GAP = 8
 
-/** 区域筛选数据源 — 仅“区”级行政区划 */
-const districtOptions = getDistrictOptions()
+/** 区域级联数据源 — 市 / 区县 / 镇街道 三级,逐级懒加载 */
+const cityList = ref<RegionNode[]>([])
+const districtList = ref<RegionNode[]>([])
+const streetList = ref<RegionNode[]>([])
+const cascadeLoading = ref(0)
+const cascadeError = ref<string | null>(null)
+const pickedCity = ref<RegionNode | null>(null)
+const pickedDistrict = ref<RegionNode | null>(null)
 
-/** 区域下拉（自定义单选）— 切换即按 districtId 重新拉取天气 */
+/** 区域下拉（自定义级联单选）— 选中区县即拉取天气,街道仅细化展示 */
 const districtOpen = ref(false)
 const districtTriggerRef = ref<HTMLButtonElement | null>(null)
 const districtListRef = ref<HTMLDivElement | null>(null)
 
-/** 触发按钮显示的当前区名 */
-const currentDistrictName = computed(() => {
-  const d = districtOptions.find(o => o.id === weatherStore.location.districtId)
-  return d?.name ?? weatherStore.location.districtName
-})
+/** 触发按钮显示的当前区域名(街道优先) */
+const currentDistrictName = computed(() => weatherStore.displayName)
+
+/** 首次展开级联时加载市级列表(sessionStorage 缓存命中则零请求) */
+async function ensureCityList() {
+  if (cityList.value.length > 0 || cascadeLoading.value > 0) return
+  cascadeLoading.value++
+  cascadeError.value = null
+  try {
+    cityList.value = await fetchRegionChildren('四川省')
+  } catch {
+    cascadeError.value = '加载行政区划失败'
+  } finally {
+    cascadeLoading.value--
+  }
+}
+
+/** 选中市 → 加载区县列 */
+async function onPickCity(node: RegionNode) {
+  pickedCity.value = node
+  pickedDistrict.value = null
+  districtList.value = []
+  streetList.value = []
+  if (node.level === 'district') {
+    // 省直辖县级行政单位兜底:无下级时直接作为区县选择
+    onPickDistrict(node)
+    return
+  }
+  cascadeLoading.value++
+  try {
+    districtList.value = await fetchRegionChildren(node.adcode)
+  } catch {
+    cascadeError.value = '加载区县失败'
+  } finally {
+    cascadeLoading.value--
+  }
+}
+
+/** 选中区县 → 加载街道列 + 按区县 adcode 查天气 */
+async function onPickDistrict(node: RegionNode) {
+  pickedDistrict.value = node
+  streetList.value = []
+  weatherStore.selectRegion({
+    cityName: pickedCity.value?.name ?? weatherStore.location.cityName,
+    districtName: node.name,
+    districtAdcode: node.adcode,
+  })
+  cascadeLoading.value++
+  try {
+    streetList.value = await fetchRegionChildren(node.adcode)
+  } catch {
+    streetList.value = [] // 街道列表加载失败不影响天气
+  } finally {
+    cascadeLoading.value--
+  }
+}
+
+/** 选中街道 — 展示细化,天气仍按区县 adcode(命中缓存,零请求);选完即收起下拉 */
+function onPickStreet(node: RegionNode) {
+  if (!pickedDistrict.value) return
+  weatherStore.selectRegion({
+    cityName: pickedCity.value?.name ?? weatherStore.location.cityName,
+    districtName: pickedDistrict.value.name,
+    districtAdcode: pickedDistrict.value.adcode,
+    streetName: node.name,
+  })
+  districtOpen.value = false
+}
 
 function toggleDistrict() {
   districtOpen.value = !districtOpen.value
-}
-
-function selectDistrict(id: string) {
-  weatherStore.selectDistrict(id)
-  districtOpen.value = false
+  if (districtOpen.value) void ensureCityList()
 }
 
 /** 点击下拉外部时收起 */
@@ -74,7 +139,7 @@ function updatePos() {
 }
 
 function refresh() {
-  weatherStore.fetchWeather()
+  weatherStore.fetchWeather(true)
 }
 
 function close() {
@@ -163,23 +228,60 @@ onBeforeUnmount(() => {
 
             <Transition name="district-drop">
               <div v-if="districtOpen" ref="districtListRef" class="weather-panel__location-dropdown" role="listbox">
-                <div
-                  v-for="d in districtOptions"
-                  :key="d.id"
-                  class="weather-panel__location-option"
-                  :class="{ 'weather-panel__location-option--active': d.id === weatherStore.location.districtId }"
-                  role="option"
-                  :aria-selected="d.id === weatherStore.location.districtId"
-                  @click="selectDistrict(d.id)"
-                >
-                  <span class="weather-panel__location-option-label">{{ d.name }}</span>
-                  <svg
-                    v-if="d.id === weatherStore.location.districtId"
-                    class="weather-panel__location-check"
-                    width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
+                <div v-if="cascadeError" class="weather-panel__cascade-error">{{ cascadeError }}</div>
+                <div v-else class="weather-panel__cascade">
+                  <div class="weather-panel__cascade-col">
+                    <div class="weather-panel__cascade-title">市</div>
+                    <div class="weather-panel__cascade-scroll">
+                      <div
+                        v-for="c in cityList"
+                        :key="c.adcode"
+                        class="weather-panel__location-option"
+                        :class="{ 'weather-panel__location-option--active': pickedCity?.adcode === c.adcode }"
+                        role="option"
+                        :aria-selected="pickedCity?.adcode === c.adcode"
+                        @click="onPickCity(c)"
+                      >
+                        <span class="weather-panel__location-option-label">{{ c.name }}</span>
+                      </div>
+                      <div v-if="cascadeLoading > 0 && cityList.length === 0" class="weather-panel__cascade-hint">加载中…</div>
+                    </div>
+                  </div>
+                  <div class="weather-panel__cascade-col">
+                    <div class="weather-panel__cascade-title">区/县</div>
+                    <div class="weather-panel__cascade-scroll">
+                      <div
+                        v-for="d in districtList"
+                        :key="d.adcode"
+                        class="weather-panel__location-option"
+                        :class="{ 'weather-panel__location-option--active': pickedDistrict?.adcode === d.adcode }"
+                        role="option"
+                        :aria-selected="pickedDistrict?.adcode === d.adcode"
+                        @click="onPickDistrict(d)"
+                      >
+                        <span class="weather-panel__location-option-label">{{ d.name }}</span>
+                      </div>
+                      <div v-if="!pickedCity" class="weather-panel__cascade-hint">请先选择市</div>
+                      <div v-else-if="cascadeLoading > 0 && districtList.length === 0" class="weather-panel__cascade-hint">加载中…</div>
+                    </div>
+                  </div>
+                  <div class="weather-panel__cascade-col">
+                    <div class="weather-panel__cascade-title">镇/街道</div>
+                    <div class="weather-panel__cascade-scroll">
+                      <div
+                        v-for="s in streetList"
+                        :key="s.adcode + s.name"
+                        class="weather-panel__location-option"
+                        :class="{ 'weather-panel__location-option--active': weatherStore.location.streetName === s.name }"
+                        role="option"
+                        :aria-selected="weatherStore.location.streetName === s.name"
+                        @click="onPickStreet(s)"
+                      >
+                        <span class="weather-panel__location-option-label">{{ s.name }}</span>
+                      </div>
+                      <div v-if="!pickedDistrict" class="weather-panel__cascade-hint">--</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </Transition>
@@ -223,11 +325,17 @@ onBeforeUnmount(() => {
           <div class="weather-panel__details">
             <div class="weather-panel__detail">
               <span class="weather-panel__label">{{ langStore.t('weather.humidity') }}</span>
-              <span class="weather-panel__value">{{ data.humidity }}%</span>
+              <span class="weather-panel__value">{{ data.humidity != null ? `${data.humidity}%` : '--' }}</span>
             </div>
             <div class="weather-panel__detail">
               <span class="weather-panel__label">{{ langStore.t('weather.wind') }}</span>
-              <span class="weather-panel__value">{{ data.wind_speed.toFixed(2) }} m/s</span>
+              <span class="weather-panel__value">{{
+                data.wind_power
+                  ? `${data.wind_power}级`
+                  : data.wind_speed != null
+                    ? `${data.wind_speed.toFixed(2)} m/s`
+                    : '--'
+              }}</span>
             </div>
           </div>
         </template>
@@ -336,14 +444,51 @@ onBeforeUnmount(() => {
   top: calc(100% + var(--space-2));
   left: 0;
   z-index: 20;
-  min-width: 200px;
-  max-height: 240px;
-  overflow-y: auto;
+  min-width: 260px;
   padding: var(--space-1);
   background: var(--color-surface-elevated);
   border: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
   border-radius: var(--radius-md);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+/* 三列级联 */
+.weather-panel__cascade {
+  display: flex;
+  gap: 2px;
+}
+
+.weather-panel__cascade-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.weather-panel__cascade-title {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wider);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-gold) 15%, transparent);
+  margin-bottom: var(--space-1);
+}
+
+.weather-panel__cascade-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.weather-panel__cascade-hint {
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.weather-panel__cascade-error {
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-cinnabar);
+  text-align: center;
 }
 
 .weather-panel__location-option {

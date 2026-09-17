@@ -83,8 +83,8 @@
             <span v-if="planId" class="overview-meta-item">
               Plan ID: {{ planId }}
             </span>
-            <span v-if="tripPlan.overall_suggestions" class="overview-meta-item">
-              {{ tripPlan.overall_suggestions }}
+            <span v-if="tripPlan.overall_suggestions" class="overview-meta-item" style="white-space: pre-line;">
+              {{ formattedSuggestions }}
             </span>
           </div>
         </a-card>
@@ -829,6 +829,19 @@ watch(
   },
   { immediate: true }
 )
+
+// 将整体建议按编号拆分为多行显示（兼容单行分号分隔与已有换行两种情况）
+const formattedSuggestions = computed(() => {
+  const raw = tripPlan.value?.overall_suggestions || ''
+  if (!raw) return ''
+  return raw
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .flatMap(line => line.split(/(?<=[；;。])\s*(?=[1-9][0-9]?[.、])/))
+    .map(s => s.replace(/[；;]\s*$/, '').trim())
+    .filter(Boolean)
+    .join('\n')
+})
 
 const overviewAttractions = computed<OverviewAttractionItem[]>(() => {
   if (!tripPlan.value) return []
@@ -2071,7 +2084,7 @@ const buildExportHTML = (mapDataUrl: string = ''): string => {
           end: tp.end_date || '',
           days: tp.days?.length || 0,
         })}</p>
-        ${tp.overall_suggestions ? `<p style="margin:8px auto 0;max-width:600px;font-size:13px;color:#666;line-height:1.6;">${tp.overall_suggestions}</p>` : ''}
+        ${tp.overall_suggestions ? `<p style="margin:8px auto 0;max-width:600px;font-size:13px;color:#666;line-height:1.6;white-space:pre-line;">${formattedSuggestions.value}</p>` : ''}
       </div>
       ${budgetHTML}
       ${mapHTML}
@@ -3863,6 +3876,7 @@ const drawRoutes = async (AMap: any, attractions: any[]): Promise<any[]> => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  margin-top: 12px;
   margin-bottom: 18px;
 }
 
@@ -3885,7 +3899,7 @@ const drawRoutes = async (AMap: any, attractions: any[]): Promise<any[]> => {
 .overview-swiper .swiper {
   padding: 0 0 0.6rem;
   margin-top: -2rem;
-  margin-bottom: -2rem;
+  margin-bottom: 0;
   overflow: hidden;
   border-radius: 12px;
 }
