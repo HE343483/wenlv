@@ -7,20 +7,46 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { useUserStore } from '@/stores/user'
+import { register as apiRegister, login as apiLogin } from '@/api/auth'
 import AuthBamboo from '@/components/AuthBamboo.vue'
 
 const router = useRouter()
 const langStore = useLanguageStore()
+const userStore = useUserStore()
 
 const username = ref('')
-const email = ref('')
 const password = ref('')
 const confirm = ref('')
+const submitting = ref(false)
+const errorMsg = ref('')
 
-function handleSubmit() {
-  // TODO: 对接后端注册API
-  // POST /api/auth/register { username, email, password }
-  router.push('/home')
+async function handleSubmit() {
+  if (submitting.value) return
+  if (password.value !== confirm.value) {
+    errorMsg.value = '两次输入的密码不一致'
+    return
+  }
+  errorMsg.value = ''
+  submitting.value = true
+  try {
+    await apiRegister(username.value.trim(), password.value)
+    const res = await apiLogin(username.value.trim(), password.value)
+    if (res.user?.username) {
+      userStore.updateProfile({
+        nickname: res.user.username,
+        email: '',
+        phone: '',
+        avatar: res.user.avatar_url || '',
+      })
+    }
+    router.push('/home')
+  } catch (err) {
+    const msg = (err as Error)?.message || '注册失败'
+    errorMsg.value = msg.includes('已存在') ? '用户名已存在' : msg
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -50,18 +76,6 @@ function handleSubmit() {
             />
           </div>
           <div class="auth-form__field">
-            <label class="auth-form__label" for="reg-email">{{ langStore.t('register.email') }}</label>
-            <input
-              id="reg-email"
-              v-model="email"
-              class="auth-form__input"
-              :placeholder="langStore.t('register.emailPlaceholder')"
-              type="email"
-              autocomplete="email"
-              required
-            />
-          </div>
-          <div class="auth-form__field">
             <label class="auth-form__label" for="reg-password">{{ langStore.t('register.password') }}</label>
             <input
               id="reg-password"
@@ -85,7 +99,10 @@ function handleSubmit() {
               required
             />
           </div>
-          <button type="submit" class="auth-form__submit">{{ langStore.t('register.submit') }}</button>
+          <p v-if="errorMsg" class="auth-form__error" role="alert">{{ errorMsg }}</p>
+          <button type="submit" class="auth-form__submit" :disabled="submitting">
+            {{ submitting ? (langStore.t('register.loading') || '提交中…') : langStore.t('register.submit') }}
+          </button>
         </form>
       </div>
 
@@ -258,6 +275,17 @@ function handleSubmit() {
 .auth-form__submit:hover {
   background: var(--color-gold-light);
   box-shadow: 0 0 20px var(--color-gold-glow);
+}
+
+.auth-form__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-form__error {
+  font-size: var(--text-sm);
+  color: var(--color-danger, #b8453e);
+  letter-spacing: var(--tracking-wide);
 }
 
 /* 风景卡：锦江夜色（与 LoginView 的注册面一致） */

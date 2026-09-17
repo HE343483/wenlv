@@ -6,11 +6,12 @@ export default {
     spots: 'Spots',
     culture: 'Culture',
     heritage: 'Heritage',
+    trip: 'AI Trip',
     ariaNav: 'Page navigation',
     ariaLang: 'Switch language',
     login: 'Login',
     register: 'Register',
-    langSwitch: '中',
+    langSwitch: '日本語',
     weather: 'Weather',
   },
   hero: {
@@ -356,6 +357,7 @@ export default {
     profile: 'Profile',
     favorites: 'My Favorites',
     visits: 'Check-ins',
+    logout: 'Log Out',
   },
   footer: {
     copyright: 'Smart Digital Tourism + International Communication: Bashu Culture Going Global',

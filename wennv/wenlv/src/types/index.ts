@@ -61,7 +61,7 @@ export interface WeatherData {
 export type WeatherState = 'idle' | 'loading' | 'success' | 'error'
 
 /** 语言 */
-export type Language = 'zh' | 'en'
+export type Language = 'zh' | 'en' | 'ja'
 
 /** 新闻热点 */
 export interface NewsItem {

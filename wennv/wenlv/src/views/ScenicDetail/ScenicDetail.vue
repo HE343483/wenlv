@@ -66,6 +66,14 @@ const placeholderName = computed(() =>
           >
             EN
           </button>
+          <button
+            type="button"
+            class="detail-topbar__lang-btn"
+            :class="{ 'detail-topbar__lang-btn--active': langStore.lang === 'ja' }"
+            @click="langStore.setLang('ja')"
+          >
+            日
+          </button>
         </div>
       </div>
     </header>
