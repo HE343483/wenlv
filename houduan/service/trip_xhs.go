@@ -26,13 +26,13 @@ import (
 // 失败时降级到网页 SSR 抓取;景点图片走"关键词磁盘缓存 + 后端代理"方案。
 
 const (
-	xhsBaseURL           = "https://edith.xiaohongshu.com"
-	xhsSearchAPI         = "/api/sns/web/v1/search/notes"
-	xhsFeedAPI           = "/api/sns/web/v1/feed"
-	xhsImageCacheTTL     = 24 * time.Hour
-	xhsImageMaxBytes     = 10 * 1024 * 1024
-	xhsUserAgent         = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
-	xhsBrowserUA         = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	xhsBaseURL       = "https://edith.xiaohongshu.com"
+	xhsSearchAPI     = "/api/sns/web/v1/search/notes"
+	xhsFeedAPI       = "/api/sns/web/v1/feed"
+	xhsImageCacheTTL = 24 * time.Hour
+	xhsImageMaxBytes = 10 * 1024 * 1024
+	xhsUserAgent     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
+	xhsBrowserUA     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
 // XHSCookieExpiredError 小红书 Cookie 过期/被风控,需要向前端明确提示。
@@ -182,27 +182,27 @@ func (s *XHSService) signedRequest(ctx context.Context, cookie, api string, payl
 		return nil, err
 	}
 	headers := map[string]string{
-		"authority":           "edith.xiaohongshu.com",
-		"accept":              "application/json, text/plain, */*",
-		"accept-language":     "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-		"cache-control":       "no-cache",
-		"content-type":        "application/json;charset=UTF-8",
-		"origin":              "https://www.xiaohongshu.com",
-		"pragma":              "no-cache",
-		"referer":             "https://www.xiaohongshu.com/",
-		"sec-ch-ua":           `"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"`,
-		"sec-ch-ua-mobile":    "?0",
-		"sec-ch-ua-platform":  `"Windows"`,
-		"sec-fetch-dest":      "empty",
-		"sec-fetch-mode":      "cors",
-		"sec-fetch-site":      "same-site",
-		"user-agent":          xhsUserAgent,
-		"x-b3-traceid":        randomHex(16),
-		"x-mns":               "unload",
-		"x-s":                 xs,
-		"x-s-common":          xsCommon,
-		"x-t":                 fmt.Sprintf("%d", xt),
-		"x-xray-traceid":      traceID,
+		"authority":          "edith.xiaohongshu.com",
+		"accept":             "application/json, text/plain, */*",
+		"accept-language":    "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+		"cache-control":      "no-cache",
+		"content-type":       "application/json;charset=UTF-8",
+		"origin":             "https://www.xiaohongshu.com",
+		"pragma":             "no-cache",
+		"referer":            "https://www.xiaohongshu.com/",
+		"sec-ch-ua":          `"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"`,
+		"sec-ch-ua-mobile":   "?0",
+		"sec-ch-ua-platform": `"Windows"`,
+		"sec-fetch-dest":     "empty",
+		"sec-fetch-mode":     "cors",
+		"sec-fetch-site":     "same-site",
+		"user-agent":         xhsUserAgent,
+		"x-b3-traceid":       randomHex(16),
+		"x-mns":              "unload",
+		"x-s":                xs,
+		"x-s-common":         xsCommon,
+		"x-t":                fmt.Sprintf("%d", xt),
+		"x-xray-traceid":     traceID,
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -244,13 +244,13 @@ func (s *XHSService) searchNotes(ctx context.Context, cookie, keyword string, so
 		sort = "general"
 	}
 	payload := map[string]any{
-		"keyword":    keyword,
-		"page":       1,
-		"page_size":  20,
-		"search_id":  randomHex(21),
-		"sort":       "general",
-		"note_type":  0,
-		"ext_flags":  []any{},
+		"keyword":   keyword,
+		"page":      1,
+		"page_size": 20,
+		"search_id": randomHex(21),
+		"sort":      "general",
+		"note_type": 0,
+		"ext_flags": []any{},
 		"filters": []map[string]any{
 			{"tags": []string{sort}, "type": "sort_type"},
 			{"tags": []string{"不限"}, "type": "filter_note_type"},
@@ -258,8 +258,8 @@ func (s *XHSService) searchNotes(ctx context.Context, cookie, keyword string, so
 			{"tags": []string{"不限"}, "type": "filter_note_range"},
 			{"tags": []string{"不限"}, "type": "filter_pos_distance"},
 		},
-		"geo":            "",
-		"image_formats":  []string{"jpg", "webp", "avif"},
+		"geo":           "",
+		"image_formats": []string{"jpg", "webp", "avif"},
 	}
 	return s.signedRequest(ctx, cookie, xhsSearchAPI, payload)
 }
@@ -547,54 +547,70 @@ func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
 		return ""
 	}
 	items := extractItems(resJSON)
-	targetID, targetToken := "", ""
+	// 诊断日志:便于排查某关键词为何搜不到图(返回条数与类型分布)
+	diagTypes := map[string]int{}
+	for _, note := range items {
+		mt, _ := note["model_type"].(string)
+		diagTypes[mt]++
+	}
+	fmt.Printf("🔍 搜图诊断 (%s): items=%d types=%v\n", keyword, len(items), diagTypes)
+	// 收集前若干条笔记候选:"最新"流里视频笔记没有图片列表,只看第一条经常空手而归
+	type noteCand struct{ id, token string }
+	var cands []noteCand
 	for _, note := range items {
 		if modelType, _ := note["model_type"].(string); modelType == "note" {
-			targetID = stringValue(note["id"])
-			targetToken = stringValue(note["xsec_token"])
-			break
+			id := stringValue(note["id"])
+			if id == "" {
+				continue
+			}
+			cands = append(cands, noteCand{id: id, token: stringValue(note["xsec_token"])})
+			if len(cands) >= 8 {
+				break
+			}
 		}
 	}
-	if targetID == "" {
+	if len(cands) == 0 {
 		return ""
 	}
+	for _, cand := range cands {
 
-	// 方案 A: 原生 API 获取笔记图片
-	if detail, derr := s.getNoteDetail(ctx, cookie, targetID, targetToken); derr == nil {
-		detailItems := extractItems(detail)
-		if len(detailItems) > 0 {
-			card, _ := detailItems[0]["note_card"].(map[string]any)
-			if imageList, ok := card["image_list"].([]any); ok && len(imageList) > 0 {
-				first, _ := imageList[0].(map[string]any)
-				if first != nil {
-					if infoList, ok := first["info_list"].([]any); ok && len(infoList) > 0 {
-						pick := infoList[0]
-						if len(infoList) > 1 {
-							pick = infoList[1]
-						}
-						if m, ok := pick.(map[string]any); ok {
-							if u := stringValue(m["url"]); u != "" {
-								return u
+		// 方案 A: 原生 API 获取笔记图片
+		if detail, derr := s.getNoteDetail(ctx, cookie, cand.id, cand.token); derr == nil {
+			detailItems := extractItems(detail)
+			if len(detailItems) > 0 {
+				card, _ := detailItems[0]["note_card"].(map[string]any)
+				if imageList, ok := card["image_list"].([]any); ok && len(imageList) > 0 {
+					first, _ := imageList[0].(map[string]any)
+					if first != nil {
+						if infoList, ok := first["info_list"].([]any); ok && len(infoList) > 0 {
+							pick := infoList[0]
+							if len(infoList) > 1 {
+								pick = infoList[1]
+							}
+							if m, ok := pick.(map[string]any); ok {
+								if u := stringValue(m["url"]); u != "" {
+									return u
+								}
 							}
 						}
-					}
-					for _, key := range []string{"url_default", "url_pre", "url"} {
-						if u := stringValue(first[key]); u != "" {
-							return u
+						for _, key := range []string{"url_default", "url_pre", "url"} {
+							if u := stringValue(first[key]); u != "" {
+								return u
+							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	// 方案 B: SSR 抓取
-	if ssr := s.getNoteDetailSSR(ctx, targetID); ssr != nil {
-		if imgList, ok := ssr["imageList"].([]any); ok && len(imgList) > 0 {
-			if first, ok := imgList[0].(map[string]any); ok {
-				for _, key := range []string{"urlDefault", "urlPattern", "url"} {
-					if u := stringValue(first[key]); u != "" {
-						return u
+		// 方案 B: SSR 抓取
+		if ssr := s.getNoteDetailSSR(ctx, cand.id); ssr != nil {
+			if imgList, ok := ssr["imageList"].([]any); ok && len(imgList) > 0 {
+				if first, ok := imgList[0].(map[string]any); ok {
+					for _, key := range []string{"urlDefault", "urlPattern", "url"} {
+						if u := stringValue(first[key]); u != "" {
+							return u
+						}
 					}
 				}
 			}
@@ -701,32 +717,42 @@ func (s *XHSService) writeImageCache(cacheKey string, content []byte, contentTyp
 }
 
 // PhotoURL 返回景点图片直链(前端仅作兜底展示,推荐直接用 PhotoBytes 代理)。
+// 与 PhotoBytes 相同的多级关键词回退:"最新"流下单词条经常搜不到带封面的笔记。
 func (s *XHSService) PhotoURL(ctx context.Context, name, city string) string {
-	keyword := name + " 风景"
-	return s.photoURLFromXHS(ctx, keyword)
+	for _, kw := range []string{name + " 风景", name + " 旅游", name, name + " 攻略"} {
+		if u := s.photoURLFromXHS(ctx, kw); u != "" {
+			return u
+		}
+	}
+	return ""
 }
 
 // PhotoBytes 获取景点图片字节;缓存 miss 时自动重搜新直链并立即下载。
 func (s *XHSService) PhotoBytes(ctx context.Context, name, city string) ([]byte, string, error) {
-	keyword := name + " 风景"
-	if content, contentType, ok := s.readImageCache("kw:" + keyword); ok {
-		return content, contentType, nil
+	// 多级关键词回退:"最新"流下单个词条经常搜不到带封面图的笔记,依次换词提高命中
+	keywords := []string{name + " 风景", name + " 旅游", name, name + " 攻略"}
+	kwCacheKey := func(kw string) string { return "kw:" + kw }
+	for _, kw := range keywords {
+		if content, contentType, ok := s.readImageCache(kwCacheKey(kw)); ok {
+			return content, contentType, nil
+		}
 	}
-	for attempt := 0; attempt < 2; attempt++ {
-		rawURL := s.fetchPhotoURL(ctx, keyword)
+	for attempt, kw := range keywords {
+		rawURL := s.fetchPhotoURL(ctx, kw)
 		if rawURL == "" {
-			return nil, "", errors.New("未能获取景点图片")
+			fmt.Printf("⚠️  景点图片搜索无结果(%d/%d): %s\n", attempt+1, len(keywords), kw)
+			continue
 		}
 		if err := validateImageURL(rawURL); err != nil {
-			return nil, "", err
+			continue
 		}
 		content, contentType, err := s.downloadImage(ctx, rawURL)
 		if err == nil {
-			s.writeImageCache("kw:"+keyword, content, contentType)
+			s.writeImageCache(kwCacheKey(kw), content, contentType)
 			return content, contentType, nil
 		}
-		// 直链多为限时签名,失败后重搜一条全新直链再试一次
-		fmt.Printf("⚠️  图片下载失败(第%d次,将重取新直链): %v\n", attempt+1, err)
+		// 直链多为限时签名,失败后换下一个关键词重搜全新直链
+		fmt.Printf("⚠️  图片下载失败(%s,第%d次,将换词重取): %v\n", kw, attempt+1, err)
 	}
 	return nil, "", errors.New("未能获取景点图片")
 }
