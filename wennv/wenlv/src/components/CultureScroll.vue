@@ -13,6 +13,10 @@ const WORLD_VW = 6
 const AXIS_LOCK_PX = 5
 const WALK_EPSILON = 0.0008
 const WALK_IDLE_MS = 120
+/** 黑线简笔（透明底）叠在黄蓝山水插画之上（非实景照片） */
+const SCENERY_SRC = '/images/culture-scroll/era-scenery-shanshui-v1.jpg'
+const LINEART_SRC = '/images/culture-scroll/era-scroll-lineart-transparent-v1.png'
+const LINEART_TILES = 4
 
 const langStore = useLanguageStore()
 const segments = CULTURE_SCROLL_SEGMENTS
@@ -302,7 +306,26 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="culture-scroll__layer culture-scroll__layer--mid" :style="layerStyle(1)">
-          <ScrollArtwork layer="mid" />
+          <div class="culture-scroll__scenery-track" data-scroll-art="mid-scenery" aria-hidden="true">
+            <img
+              v-for="n in LINEART_TILES"
+              :key="`scenery-${n}`"
+              class="culture-scroll__scenery"
+              :src="SCENERY_SRC"
+              alt=""
+              draggable="false"
+            />
+          </div>
+          <div class="culture-scroll__lineart-track" data-scroll-art="mid-lineart" aria-hidden="true">
+            <img
+              v-for="n in LINEART_TILES"
+              :key="`line-${n}`"
+              class="culture-scroll__lineart"
+              :src="LINEART_SRC"
+              alt=""
+              draggable="false"
+            />
+          </div>
           <button
             v-for="hotspot in hotspots"
             :key="hotspot.segmentId"
@@ -316,26 +339,6 @@ onBeforeUnmount(() => {
             @pointerdown="onHotspotPointerDown"
             @click.stop="openHotspot(hotspot.segmentId)"
           />
-        </div>
-
-        <div class="culture-scroll__layer culture-scroll__layer--near" :style="layerStyle(1.25)">
-          <ScrollArtwork layer="near" />
-        </div>
-      </div>
-
-      <div
-        class="culture-scroll__walker"
-        aria-hidden="true"
-        :data-walking="!reducedMotion && walking ? 'true' : 'false'"
-        :data-dir="walkDir"
-      >
-        <div class="culture-scroll__walker-figure">
-          <svg viewBox="0 0 40 64" width="28" height="44">
-            <circle cx="20" cy="10" r="6" />
-            <path d="M20 16 L20 38 M20 24 L10 32 M20 24 L30 32" />
-            <path class="culture-scroll__leg culture-scroll__leg--l" d="M20 38 L12 56" />
-            <path class="culture-scroll__leg culture-scroll__leg--r" d="M20 38 L28 56" />
-          </svg>
         </div>
       </div>
 
@@ -423,7 +426,52 @@ onBeforeUnmount(() => {
 }
 
 .culture-scroll__layer--mid {
+  z-index: 1;
   color: var(--color-text-primary);
+}
+
+.culture-scroll__scenery-track,
+.culture-scroll__lineart-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.culture-scroll__scenery-track {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.culture-scroll__lineart-track {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.culture-scroll__scenery,
+.culture-scroll__lineart {
+  flex: 1 0 0;
+  width: 0;
+  height: 92%;
+  object-fit: cover;
+  object-position: center bottom;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.culture-scroll__scenery {
+  opacity: 0.92;
+  filter: saturate(1.05) contrast(1.02);
+}
+
+.culture-scroll__lineart {
+  mix-blend-mode: normal;
+  /* 整体略下移，贴近地平线 */
+  transform: translateY(6%);
+  object-position: center 62%;
 }
 
 .culture-scroll__layer--near {

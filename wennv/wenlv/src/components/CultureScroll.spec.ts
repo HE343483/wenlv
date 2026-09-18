@@ -29,13 +29,13 @@ describe('CultureScroll', () => {
     expect(wrapper.find('.culture-scroll').classes()).toContain('culture-scroll--static')
   })
 
-  it('reduced-motion: no scrub rail height, world scroller, walker idle', () => {
+  it('reduced-motion: no scrub rail height, world scroller', () => {
     const wrapper = mount(CultureScroll)
     const root = wrapper.find('.culture-scroll')
 
     expect(root.attributes('style')).toBeUndefined()
     expect(wrapper.find('.culture-scroll__world').exists()).toBe(true)
-    expect(wrapper.find('.culture-scroll__walker').attributes('data-walking')).toBe('false')
+    expect(wrapper.find('.culture-scroll__walker').exists()).toBe(false)
   })
 
   it('reduced-motion: pointerdown does not enable scrub drag', async () => {
@@ -54,31 +54,25 @@ describe('CultureScroll', () => {
     wrapper.unmount()
   })
 
-  it('renders walker', () => {
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn().mockImplementation(() => ({
-        matches: false,
-        media: '',
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-        onchange: null,
-      })),
-    )
+  it('has no foreground road or walker', () => {
     const wrapper = mount(CultureScroll)
-    expect(wrapper.find('.culture-scroll__walker').exists()).toBe(true)
+    expect(wrapper.find('.culture-scroll__walker').exists()).toBe(false)
+    expect(wrapper.find('[data-scroll-art="near"]').exists()).toBe(false)
   })
 
-  it('renders continuous far/mid/near line-art with six eras', () => {
+  it('renders far SVG with mid shanshui scenery + transparent lineart', () => {
     const wrapper = mount(CultureScroll)
     expect(wrapper.find('[data-scroll-art="far"]').exists()).toBe(true)
-    expect(wrapper.find('[data-scroll-art="mid"]').attributes('viewBox')).toBe('0 0 7200 900')
-    expect(wrapper.find('[data-scroll-art="near"]').exists()).toBe(true)
-    const eras = wrapper.findAll('[data-era]').map((node) => node.attributes('data-era'))
-    expect(eras).toEqual(['ancient-shu', 'qin', 'shu-han', 'tang-song', 'ming-qing', 'modern'])
+    expect(wrapper.find('[data-scroll-art="mid-scenery"]').exists()).toBe(true)
+    expect(wrapper.find('[data-scroll-art="mid-lineart"]').exists()).toBe(true)
+    expect(wrapper.findAll('.culture-scroll__scenery')).toHaveLength(4)
+    expect(wrapper.findAll('.culture-scroll__lineart')).toHaveLength(4)
+    expect(wrapper.find('.culture-scroll__scenery').attributes('src')).toContain(
+      'era-scenery-shanshui-v1.jpg',
+    )
+    expect(wrapper.find('.culture-scroll__lineart').attributes('src')).toContain(
+      'era-scroll-lineart-transparent-v1.png',
+    )
     expect(wrapper.find('canvas').exists()).toBe(false)
   })
 
