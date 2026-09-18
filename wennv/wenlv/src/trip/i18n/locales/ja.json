@@ -1,17 +1,17 @@
 {
   "app": {
-    "title": "TripStar",
-    "brand": "TripStar",
-    "subBrand": "TripStar · AI 旅行エンジン",
-    "badge": "AI 旅行アシスタント",
+    "title": "蜀韻スマート旅",
+    "brand": "蜀韻スマート旅",
+    "subBrand": "蜀韻·成都 · AI 文化旅",
+    "badge": "巴蜀文旅エージェント",
     "language": {
       "label": "言語",
       "zh": "中文",
       "ja": "日本語",
       "en": "English"
     },
-    "footerBrand": "TripStar",
-    "footerCopy": "{year} All rights reserved.",
+    "footerBrand": "蜀韻スマート旅",
+    "footerCopy": "{year} 蜀韻·成都",
     "footerTech": "Powered by HelloAgents + AMap MCP"
   },
   "common": {
@@ -66,12 +66,12 @@
     }
   },
   "home": {
-    "heroBadge": "AI 旅行プランニングエンジン",
-    "titleLine": "世界を巡るあらゆる可能性へ",
-    "heroDesc": "目的地と好みを教えてください。AI があなた専用の旅程を作成します",
+    "heroBadge": "AI 成都旅程プラン",
+    "titleLine": "巴适な一日を、天府の道に",
+    "heroDesc": "日数・同行・好みを伝えてください。リアルな旅の口コミと地図データから、歩ける・計算できる・共有できる成都の旅程をつくります",
     "nav": {
       "cta": "プランを始める",
-      "backHome": "ホームへ戻る",
+      "backHome": "ホームに戻る",
       "fogOn": "霧オン",
       "fogOff": "霧オフ"
     },
@@ -81,11 +81,11 @@
     "cityNLabel": "都市 {n}",
     "atLeastOneCity": "少なくとも1つの都市を追加してください",
     "totalDays": "合計 {n} 日",
-    "step1": "目的地と日程",
-    "step2": "希望設定",
-    "step3": "特別な要望",
+    "step1": "どこへ行く",
+    "step2": "移動と宿",
+    "step3": "そのほかの希望",
     "cityLabel": "目的地の都市",
-    "cityPlaceholder": "都市名を入力（例：中国-杭州）",
+    "cityPlaceholder": "例：中国-成都",
     "cityRequired": "目的地の都市を入力してください",
     "startDateLabel": "出発日",
     "startDatePlaceholder": "出発日を選択",
@@ -130,9 +130,9 @@
       "label": "パーソナライズ設定の記憶",
       "desc": "オンにすると、AI があなたの旅行の好み（好きな観光タイプや宿泊の習慣など）を記憶し、旅程のおすすめに活かします。設定はアカウントに紐付き、いつでもオフにできます。"
     },
-    "specialNeedsPlaceholder": "特別な要望を入力してください（例：高齢者同行、日の出を見たい、花粉アレルギーなど）",
-    "submit": "旅程を作成する",
-    "submitting": "AI がプランを作成中…",
+    "specialNeedsPlaceholder": "例：ご高齢の同行、寛窄巷子、山椒アレルギーなど",
+    "submit": "私の成都旅をつくる",
+    "submitting": "天府の日程を組んでいます…",
     "history": {
       "eyebrow": "最近保存",
       "title": "履歴プラン",
@@ -160,8 +160,8 @@
       "generatingPlan": "旅程を生成中...",
       "planCode": "プラン番号 {code}",
       "preparing": "少々お待ちください。準備中です...",
-      "workingTogether": "AIエージェントが協力して旅程を作成しています...",
-      "donePrepare": "完了！出発の準備をしてください...",
+      "workingTogether": "AIが巴适な一日のリズムを編んでいます…",
+      "donePrepare": "準備完了、天府が待っています",
       "done": "完了！"
     },
     "messages": {
@@ -317,7 +317,7 @@
     },
     "export": {
       "filePrefix": "旅行プラン",
-      "footer": "TripStar · AI 旅行エンジンで生成",
+      "footer": "蜀韻スマート旅 · AI 文化旅で生成",
       "title": "{city} 旅行プラン",
       "subtitle": "{start} 〜 {end} · {days} 日間",
       "perNight": "/泊",

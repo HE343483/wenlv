@@ -1,17 +1,17 @@
 {
   "app": {
-    "title": "旅途星辰",
-    "brand": "旅途星辰",
-    "subBrand": "TripStar · AI 旅行引擎",
-    "badge": "AI 文旅智能体",
+    "title": "蜀韵智游",
+    "brand": "蜀韵智游",
+    "subBrand": "蜀韵·成都 · AI 文旅行程",
+    "badge": "巴蜀文旅智能体",
     "language": {
       "label": "语言",
       "zh": "中文",
       "ja": "日本語",
       "en": "English"
     },
-    "footerBrand": "旅途星辰",
-    "footerCopy": "{year} All rights reserved.",
+    "footerBrand": "蜀韵智游",
+    "footerCopy": "{year} 蜀韵·成都",
     "footerTech": "Powered by HelloAgents + 高德 MCP"
   },
   "common": {
@@ -66,11 +66,11 @@
     }
   },
   "home": {
-    "heroBadge": "AI 智能行程规划引擎",
-    "titleLine": "探索世界的每一种可能",
-    "heroDesc": "告诉我你的目的地与偏好，AI 将为你定制一份独一无二的旅程方案",
+    "heroBadge": "AI 成都行程规划",
+    "titleLine": "把巴适日子，排成一条天府路",
+    "heroDesc": "告诉我天数、同行与喜好，结合真实游客口碑与地图数据，生成可走、可算、可分享的成都行程",
     "nav": {
-      "cta": "开始定制",
+      "cta": "开始规划",
       "backHome": "返回首页",
       "fogOn": "雾气开启",
       "fogOff": "雾气关闭"
@@ -81,11 +81,11 @@
     "cityNLabel": "城市 {n}",
     "atLeastOneCity": "请至少添加一个城市",
     "totalDays": "总计 {n} 天",
-    "step1": "目的地与行程",
-    "step2": "偏好设置",
-    "step3": "特殊需求",
+    "step1": "去哪儿玩",
+    "step2": "怎么走与住",
+    "step3": "还有什么想说的",
     "cityLabel": "目的地城市",
-    "cityPlaceholder": "输入城市名称，例如：中国-杭州",
+    "cityPlaceholder": "输入城市，例如：中国-成都",
     "cityRequired": "请输入目的地城市",
     "startDateLabel": "出发日期",
     "startDatePlaceholder": "选择出发日",
@@ -130,9 +130,9 @@
       "label": "个性化偏好记忆",
       "desc": "开启后，AI 会记住你的旅行偏好（如喜欢的景点类型、住宿习惯），在为你推荐行程时更懂你。偏好与你的账号绑定，可随时关闭。"
     },
-    "specialNeedsPlaceholder": "告诉我你的特殊需求，比如：带老人出行、想看日出、对花粉过敏……",
-    "submit": "开始规划旅程",
-    "submitting": "AI 正在规划中…",
+    "specialNeedsPlaceholder": "比如：带老人出行、想逛宽窄、对花椒过敏……",
+    "submit": "生成我的成都行程",
+    "submitting": "正在为你排天府日程…",
     "history": {
       "eyebrow": "最近保存",
       "title": "历史计划",
@@ -160,8 +160,8 @@
       "generatingPlan": "正在生成行程...",
       "planCode": "计划编号 {code}",
       "preparing": "请稍等，正在为您准备...",
-      "workingTogether": "AI 正在齐心协力为您定制旅程...",
-      "donePrepare": "完成！准备出发...",
+      "workingTogether": "AI 正在为你串起一天的巴适节奏…",
+      "donePrepare": "好了，天府等你",
       "done": "完成！"
     },
     "messages": {
@@ -317,7 +317,7 @@
     },
     "export": {
       "filePrefix": "旅行计划",
-      "footer": "由 旅途星辰 TripStar · AI 旅行引擎 生成",
+      "footer": "由 蜀韵智游 · AI 文旅行程 生成",
       "title": "{city} 旅行计划",
       "subtitle": "{start} 至 {end} · {days} 天行程",
       "perNight": "/晚",

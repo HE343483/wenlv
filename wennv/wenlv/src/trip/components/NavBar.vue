@@ -11,7 +11,9 @@
           <span class="navbar-toggler-bar"></span>
           <span class="navbar-toggler-bar"></span>
         </button>
-        <button class="navbar-brand landing-brand" type="button" @click="handleBrandClick">TripStar</button>
+        <button class="navbar-brand landing-brand" type="button" @click="handleBrandClick">
+          {{ t('app.brand') }}
+        </button>
         <button class="landing-back-home" type="button" :title="t('home.nav.backHome')" @click="goHome">
           <svg width="14px" height="14px" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M641.024 89.344l-402.688 380.032a63.616 63.616 0 0 0-20.224 46.848c0.128 17.92 7.168 34.944 20.224 46.784l402.688 371.648a21.312 21.312 0 0 0 36.224-15.296V104.64a21.312 21.312 0 0 0-36.224-15.296z"/></svg>
           <span>{{ t('home.nav.backHome') }}</span>

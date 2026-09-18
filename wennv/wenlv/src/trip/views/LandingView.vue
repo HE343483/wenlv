@@ -1,7 +1,7 @@
 <template>
   <div class="landing-page">
     <div class="lower-shade" :style="lowerShadeStyle"></div>
-    <NavBar @brand-click="scrollToTop" @cta-click="scrollToForm" />
+    <NavBar />
 
     <div class="wrapper">
       <div class="page-header section-dark landing-header" :style="pageHeaderStyle">
@@ -11,7 +11,7 @@
             <!-- <p class="landing-hero-badge text-center">{{ t('home.heroBadge') }}</p> -->
             <div class="title-brand">
               <h1 class="presentation-title">
-                TRIPSTAR
+                {{ t('app.brand') }}
               </h1>
             </div>
             <h2 class="presentation-subtitle text-center">{{ t('home.titleLine') }}</h2>
@@ -349,7 +349,7 @@ import { message } from 'ant-design-vue'
 import { getTripHistory, deleteTripPlan, isMemoryEnabled, setMemoryEnabled } from '@/trip/services/api'
 import { getCurrentLocale } from '@/trip/i18n'
 import { useTripTaskStore } from '@/trip/stores/tripTask'
-import NavBar from '@/trip/components/NavBar.vue'
+import NavBar from '@/components/NavBar.vue'
 import type { TripHistoryItem, CityStay } from '@/trip/types'
 import type { Dayjs } from 'dayjs'
 
@@ -478,13 +478,6 @@ const togglePreference = (value: string) => {
 const onScroll = () => {
   scrollY.value = window.scrollY || 0
 }
-const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
-const scrollToForm = () => {
-  if (formRef.value) {
-    const y = formRef.value.getBoundingClientRect().top + window.scrollY - 65
-    window.scrollTo({ top: y, behavior: 'smooth' })
-  }
-}
 
 const formatHistoryTime = (value: string) => {
   const date = new Date(value)
@@ -592,6 +585,11 @@ const handleSubmit = async () => {
   overflow-x: hidden; /* 防止水平溢出导致的出界感 */
 }
 
+/* 使用主站 NavBar：压过行程页 Paper Kit 全局 .navbar 样式干扰 */
+.landing-page :deep(header.navbar) {
+  z-index: 1100;
+}
+
 .lower-shade {
   position: fixed;
   inset: 0% 0 -1px 0;
@@ -659,7 +657,8 @@ const handleSubmit = async () => {
 
 .history-title {
   margin: 0;
-  color: #2E3A3D;
+  font-family: var(--font-display);
+  color: var(--color-text-primary, #2E3A3D);
   font-size: 24px;
   font-weight: 700;
 }
@@ -840,17 +839,26 @@ const handleSubmit = async () => {
 }
 
 .landing-header .presentation-title {
+  font-family: var(--font-display);
   font-size: clamp(44px, 7vw, 90px);
   font-weight: 800;
+  letter-spacing: var(--tracking-wide, 0.04em);
+  color: #fffdf8;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: #fffdf8;
+  text-shadow: 0 2px 24px rgba(15, 13, 11, 0.55);
 }
 
 .landing-header .presentation-subtitle {
   max-width: 620px;
-  /* margin: 22px auto 0; */
-  color: rgba(224, 233, 242, 0.78);
+  font-family: var(--font-display);
+  color: color-mix(in srgb, var(--color-gold-light) 72%, #fffdf8);
   font-size: clamp(15px, 1.8vw, 19px);
   line-height: 1.75;
-  /* font-weight: 500; */
+  letter-spacing: var(--tracking-wide, 0.04em);
+  text-shadow: 0 1px 14px rgba(15, 13, 11, 0.4);
   justify-self: center;
 }
 
@@ -907,18 +915,19 @@ const handleSubmit = async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(184, 69, 62, 0.10);
-  border: 1.2px solid rgba(184, 69, 62, 0.35);
-  color: #B8453E;
+  background: var(--color-gold-glow, rgba(93, 164, 177, 0.15));
+  border: 1.2px solid color-mix(in srgb, var(--color-gold) 42%, transparent);
+  color: var(--color-gold-dark, #3E7D8A);
   font-size: 12px;
   font-weight: 700;
 }
 
 .step-head h3 {
   margin: 0;
+  font-family: var(--font-display);
   font-size: 16px;
   font-weight: 600;
-  color: #2E3A3D;
+  color: var(--color-text-primary, #2E3A3D);
 }
 
 .grid {
