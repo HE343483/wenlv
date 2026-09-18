@@ -4,8 +4,11 @@
  * 功能：美食名片卡片网格 + 川菜脉络时间线 + 经典名菜/老字号展示
  * 数据来源：本地化 locales + 内联数据，后期可接入后端
  */
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { listFoods } from '@/api/content'
+import type { FoodItem } from '@/api/content'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 
@@ -15,6 +18,44 @@ const router = useRouter()
 /* 跳转美食详情页（key 作为 :id） */
 function goFoodDetail(key: string) {
   router.push({ name: 'food-detail', params: { id: key } })
+}
+
+/* ── 成都味道图鉴(后端接口数据,爬虫自动维护) ── */
+const foods = ref<FoodItem[]>([])
+const foodsLoading = ref(false)
+
+async function loadFoods() {
+  foodsLoading.value = true
+  try {
+    const res = await listFoods({ page_size: 50 })
+    foods.value = res.items
+  } finally {
+    foodsLoading.value = false
+  }
+}
+onMounted(loadFoods)
+
+const foodSectionTitle = computed(() => {
+  const map: Record<string, string> = { zh: '成都味道图鉴', en: 'Taste of Chengdu', ja: '成都グルメ図鑑' }
+  return map[langStore.lang] || map.zh
+})
+const foodSectionSub = computed(() => {
+  const map: Record<string, string> = {
+    zh: '经典川味与街头小吃,点击查看详细介绍',
+    en: 'Classic Sichuan flavors & street snacks — tap for details',
+    ja: '四川の定番味と街角グルメ、タップで詳細を見る',
+  }
+  return map[langStore.lang] || map.zh
+})
+const foodsLoadingText = computed(() => {
+  const map: Record<string, string> = { zh: '正在加载美食数据…', en: 'Loading dishes…', ja: 'グルメデータを読み込み中…' }
+  return map[langStore.lang] || map.zh
+})
+
+/** 简介截断为卡片一行文案 */
+function foodBrief(desc: string | undefined): string {
+  const d = desc || ''
+  return d.length > 42 ? d.slice(0, 42) + '…' : d
 }
 
 /* ── 美食名片 ── */
@@ -236,6 +277,51 @@ const foodStreets = [
               {{ langStore.t('food.exploreBtn') }}
               <span class="food-card__arrow">→</span>
             </span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============================================
+         成都味道图鉴 — 接口数据照片卡片
+         ============================================ -->
+    <section class="food-grid-section container">
+      <header class="food-section-head">
+        <h2 class="section-title">{{ foodSectionTitle }}</h2>
+        <p class="section-subtitle">{{ foodSectionSub }}</p>
+      </header>
+
+      <div v-if="foodsLoading" class="food-grid__status">{{ foodsLoadingText }}</div>
+      <div v-else-if="foods.length === 0" class="food-grid__status">
+        {{ langStore.lang === 'zh' ? '暂无美食数据' : 'No dishes yet' }}
+      </div>
+      <div v-else class="food-grid">
+        <article
+          v-for="f in foods"
+          :key="f.id"
+          class="food-grid__card"
+          tabindex="0"
+          @click="goFoodDetail(String(f.id))"
+          @keyup.enter="goFoodDetail(String(f.id))"
+        >
+          <div class="food-grid__media">
+            <img
+              v-if="f.images"
+              class="food-grid__photo"
+              :src="f.images"
+              :alt="langStore.lang === 'zh' ? f.name_zh : (f.name_en || f.name_zh)"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+              @error="($event.target as HTMLImageElement).style.display = 'none'"
+            />
+            <span v-if="f.tags" class="food-grid__tag">{{ (f.tags || '').split(',')[0] }}</span>
+          </div>
+          <div class="food-grid__body">
+            <h3 class="food-grid__name">
+              {{ langStore.lang === 'zh' ? f.name_zh : (f.name_en || f.name_zh) }}
+            </h3>
+            <p v-if="langStore.lang !== 'zh' && f.name_zh" class="food-grid__en">{{ f.name_zh }}</p>
+            <p class="food-grid__desc">{{ foodBrief(f.desc) }}</p>
           </div>
         </article>
       </div>
@@ -821,5 +907,94 @@ const foodStreets = [
   .food-streets {
     grid-template-columns: 1fr;
   }
+}
+/* ── 成都味道图鉴(接口数据网格) ── */
+.food-grid-section {
+  padding: var(--space-10) 0;
+}
+
+.food-grid__status {
+  text-align: center;
+  padding: var(--space-8) 0;
+  color: var(--color-text-2);
+  font-size: 0.95rem;
+}
+
+.food-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-5);
+}
+
+.food-grid__card {
+  background: var(--color-bg, #fff);
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.06));
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.food-grid__card:hover,
+.food-grid__card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
+
+.food-grid__media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--color-bg-alt, #f5f2ec);
+  overflow: hidden;
+}
+
+.food-grid__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s ease;
+}
+
+.food-grid__card:hover .food-grid__photo {
+  transform: scale(1.05);
+}
+
+.food-grid__tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: #fff;
+  background: rgba(196, 62, 29, 0.88);
+  backdrop-filter: blur(4px);
+}
+
+.food-grid__body {
+  padding: 14px 16px 16px;
+}
+
+.food-grid__name {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text, #2b2118);
+}
+
+.food-grid__en {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  color: var(--color-text-2, #8a7f74);
+}
+
+.food-grid__desc {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--color-text-2, #6f6459);
 }
 </style>

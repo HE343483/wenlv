@@ -202,22 +202,33 @@ function endDrag(event: PointerEvent) {
   }
 }
 
+/** 滚动事件 rAF 节流:避免每次 scroll 都同步触发 getBoundingClientRect */
+let progressRaf = 0
+
+function scheduleProgressUpdate() {
+  if (progressRaf) return
+  progressRaf = requestAnimationFrame(() => {
+    progressRaf = 0
+    updateProgress()
+  })
+}
+
 function onWindowScroll() {
   if (reducedMotion.value) return
-  updateProgress()
+  scheduleProgressUpdate()
 }
 
 function onStageScroll() {
-  updateProgress()
+  scheduleProgressUpdate()
 }
 
 function syncScrollListeners() {
   window.removeEventListener('scroll', onWindowScroll)
-  window.removeEventListener('scroll', updateProgress)
+  window.removeEventListener('scroll', scheduleProgressUpdate)
   if (reducedMotion.value) {
     window.addEventListener('scroll', onWindowScroll, { passive: true })
   } else {
-    window.addEventListener('scroll', updateProgress, { passive: true })
+    window.addEventListener('scroll', scheduleProgressUpdate, { passive: true })
   }
 }
 
@@ -258,9 +269,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (walkIdleTimer) clearTimeout(walkIdleTimer)
+  if (progressRaf) {
+    cancelAnimationFrame(progressRaf)
+    progressRaf = 0
+  }
   motionQuery?.removeEventListener('change', onMotionChange)
   window.removeEventListener('scroll', onWindowScroll)
-  window.removeEventListener('scroll', updateProgress)
+  window.removeEventListener('scroll', scheduleProgressUpdate)
   window.removeEventListener('resize', measure)
   const stage = stageRef.value
   worldRef.value?.removeEventListener('scroll', onStageScroll)

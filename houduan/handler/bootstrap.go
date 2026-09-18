@@ -12,6 +12,7 @@ type Bootstrap struct {
 	Photo    *PhotoHandler
 	Article  *ArticleHandler
 	Upload   *UploadHandler
+	HotTopic *HotTopicHandler
 
 	// AI 行程规划模块(移植自 TripStar)
 	Trip     *TripHandler

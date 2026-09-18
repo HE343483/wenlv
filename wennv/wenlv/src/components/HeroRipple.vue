@@ -9,14 +9,16 @@ import {
   type RippleState,
 } from '@/utils/waterRipple'
 
-const MAX_EDGE = 1280
-const DPR_CAP = 1.5
+const MAX_EDGE = 896
+const DPR_CAP = 1.25
 const RESIZE_DEBOUNCE_MS = 150
 const AUTO_MIN_MS = 2500
 const AUTO_MAX_MS = 4000
 const AUTO_INSET = 0.15
 const AUTO_SPAN = 0.7
 const AUTO_STRENGTH = DEFAULT_STRENGTH * 0.75
+/** 连续 N 帧无涟漪能量后停止模拟循环,避免空转占用主线程 */
+const IDLE_STOP_FRAMES = 2
 
 const props = withDefaults(defineProps<{ src?: string }>(), {
   src: '/images/home/hero-chengdu.jpg',
@@ -37,6 +39,7 @@ let rafId = 0
 let autoTimer = 0
 let resizeTimer = 0
 let intersecting = true
+let idleFrames = 0
 let pendingPointer: { x: number; y: number } | null = null
 let io: IntersectionObserver | null = null
 let ro: ResizeObserver | null = null
@@ -132,8 +135,14 @@ function tick(): void {
     disturb(state, pendingPointer.x, pendingPointer.y, DEFAULT_RADIUS, DEFAULT_STRENGTH)
     pendingPointer = null
   }
-  stepRipple(state, texture.data, output.data)
+  const energetic = stepRipple(state, texture.data, output.data)
   ctx.putImageData(output, 0, 0)
+  if (energetic) {
+    idleFrames = 0
+  } else {
+    idleFrames++
+    if (idleFrames >= IDLE_STOP_FRAMES) return // 涟漪已耗尽,停帧等待下一次扰动
+  }
   rafId = requestAnimationFrame(tick)
 }
 
@@ -151,6 +160,8 @@ function dropAutoRipple(): void {
   const x = state.width * (AUTO_INSET + Math.random() * AUTO_SPAN)
   const y = state.height * (AUTO_INSET + Math.random() * AUTO_SPAN)
   disturb(state, x, y, DEFAULT_RADIUS, AUTO_STRENGTH)
+  idleFrames = 0
+  startLoop()
 }
 
 function stopAuto(): void {
@@ -201,6 +212,8 @@ function queueRippleAtClient(clientX: number, clientY: number): void {
     x: ((clientX - rect.left) / rect.width) * state.width,
     y: ((clientY - rect.top) / rect.height) * state.height,
   }
+  idleFrames = 0
+  startLoop() // 停帧状态下收到新扰动,恢复模拟循环
 }
 
 function bindPointer(): void {
@@ -265,6 +278,7 @@ function teardown(): void {
   unbindPointer()
   unbindObservers()
   pendingPointer = null
+  idleFrames = 0
   state = null
   texture = null
   output = null

@@ -2,6 +2,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
+import { listFavorites, addFavorite, removeFavorite as apiRemoveFavorite } from '@/api/favorite'
+import { hasToken } from '@/utils/token'
 
 export interface UserProfile {
   nickname: string
@@ -94,14 +96,64 @@ export const useUserStore = defineStore('user', () => {
     return favorites.value.includes(spotId)
   }
 
-  function toggleFavorite(spotId: string) {
-    const idx = favorites.value.indexOf(spotId)
-    if (idx >= 0) favorites.value.splice(idx, 1)
-    else favorites.value.push(spotId)
+  /** 后端景点ID（scenic-{数字}）→ 数字ID；非该格式返回 null */
+  function scenicNumericId(spotId: string): number | null {
+    const m = /^scenic-(\d+)$/.exec(spotId)
+    return m ? Number(m[1]) : null
   }
 
-  function removeFavorite(spotId: string) {
-    favorites.value = favorites.value.filter(id => id !== spotId)
+  /** 登录后从后端同步收藏列表（target_type=scenic），覆盖本地缓存 */
+  async function syncFavorites() {
+    if (!hasToken()) return
+    try {
+      const items = await listFavorites('scenic')
+      favorites.value = items.map(i => `scenic-${i.target_id}`)
+    } catch {
+      /* 同步失败时保留本地缓存 */
+    }
+  }
+
+  /** 切换收藏：乐观更新本地，再调后端接口；失败回滚 */
+  async function toggleFavorite(spotId: string) {
+    const exists = favorites.value.includes(spotId)
+    const nid = scenicNumericId(spotId)
+    if (!hasToken() || nid === null) {
+      // 未登录或非后端景点ID：保持本地行为
+      if (exists) favorites.value = favorites.value.filter(id => id !== spotId)
+      else favorites.value.push(spotId)
+      return
+    }
+    try {
+      if (exists) {
+        favorites.value = favorites.value.filter(id => id !== spotId)
+        await apiRemoveFavorite('scenic', nid)
+      } else {
+        favorites.value.push(spotId)
+        await addFavorite('scenic', nid)
+      }
+    } catch (err) {
+      // 接口失败回滚本地状态
+      if (exists) favorites.value.push(spotId)
+      else favorites.value = favorites.value.filter(id => id !== spotId)
+      throw err
+    }
+  }
+
+  /** 取消收藏：乐观更新本地，再调后端接口；失败回滚 */
+  async function removeFavorite(spotId: string) {
+    const exists = favorites.value.includes(spotId)
+    const nid = scenicNumericId(spotId)
+    if (!hasToken() || nid === null) {
+      favorites.value = favorites.value.filter(id => id !== spotId)
+      return
+    }
+    try {
+      favorites.value = favorites.value.filter(id => id !== spotId)
+      await apiRemoveFavorite('scenic', nid)
+    } catch (err) {
+      if (exists) favorites.value.push(spotId)
+      throw err
+    }
   }
 
   function isVisited(spotId: string): boolean {
@@ -145,6 +197,7 @@ export const useUserStore = defineStore('user', () => {
     updateProfile,
     updateAvatar,
     isFavorite,
+    syncFavorites,
     toggleFavorite,
     removeFavorite,
     isVisited,

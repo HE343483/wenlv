@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: env.VITE_API_BASE_URL || 'http://ra9a3c94.natappfree.cc', // natapp / 本地联调; 可用 VITE_API_BASE_URL 覆盖
+          target: env.VITE_API_BASE_URL || 'http://localhost:8081', // 本地联调(8080 被系统程序占用);可用 VITE_API_BASE_URL 覆盖为 natapp/远程地址
           changeOrigin: true,
           ws: true, // AI 行程规划通过 WebSocket 推送任务进度
         },
