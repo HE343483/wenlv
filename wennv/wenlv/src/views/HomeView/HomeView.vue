@@ -20,7 +20,7 @@ function scrollToExplore() {
 const carouselItems: CarouselItem[] = [
   {
     id: 'panda',
-    imageUrl: '',
+    imageUrl: '/images/home/carousel-panda.jpg',
     titleZh: '大熊猫繁育研究基地',
     titleEn: 'Giant Panda Base',
     subtitleZh: '近距离观察国宝大熊猫，感受自然之美',
@@ -28,15 +28,15 @@ const carouselItems: CarouselItem[] = [
   },
   {
     id: 'kuanzhai',
-    imageUrl: '',
+    imageUrl: '/images/home/carousel-kuanzhai.jpg',
     titleZh: '宽窄巷子',
     titleEn: 'Kuanzhai Alleys',
     subtitleZh: '漫步清朝古街，品茗听戏，感受成都慢生活',
-    subtitleEn: 'Stroll Qing Dynasty alleys, sip tea, and feel Chengdu\'s slow pace',
+    subtitleEn: "Stroll Qing Dynasty alleys, sip tea, and feel Chengdu's slow pace",
   },
   {
     id: 'dujiangyan',
-    imageUrl: '',
+    imageUrl: '/images/home/carousel-dujiangyan.jpg',
     titleZh: '都江堰 · 青城山',
     titleEn: 'Dujiangyan & Mt. Qingcheng',
     subtitleZh: '千年水利工程与道教发源地的完美融合',
@@ -44,15 +44,15 @@ const carouselItems: CarouselItem[] = [
   },
   {
     id: 'jinli',
-    imageUrl: '',
+    imageUrl: '/images/home/carousel-jinli.jpg',
     titleZh: '锦里 · 武侯祠',
     titleEn: 'Jinli & Wuhou Shrine',
     subtitleZh: '三国文化圣地，西蜀最古老的商业街',
-    subtitleEn: 'Three Kingdoms heritage on western Sichuan\'s oldest street',
+    subtitleEn: "Three Kingdoms heritage on western Sichuan's oldest street",
   },
   {
     id: 'xiling',
-    imageUrl: '',
+    imageUrl: '/images/home/carousel-xiling.jpg',
     titleZh: '西岭雪山',
     titleEn: 'Xiling Snow Mountain',
     subtitleZh: '"窗含西岭千秋雪"——诗圣杜甫笔下的雪山胜景',
@@ -217,6 +217,11 @@ function setSectionRef(el: unknown, index: number) {
     <!-- ──── HERO ──── -->
     <section class="hero">
       <div class="hero__bg">
+        <div
+          class="hero__photo"
+          role="img"
+          aria-label="成都风景"
+        />
         <div class="hero__gradient" />
         <div class="hero__pattern" />
       </div>
@@ -421,11 +426,21 @@ function setSectionRef(el: unknown, index: number) {
    ======================================== */
 .hero {
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.hero__photo {
+  position: absolute;
+  inset: 0;
+  background-image: url('/images/home/hero-chengdu.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: scale(1.02);
 }
 
 .hero__bg {
@@ -438,10 +453,12 @@ function setSectionRef(el: unknown, index: number) {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(201, 169, 110, 0.06) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 50% at 30% 80%, rgba(162, 59, 59, 0.03) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 70% 20%, rgba(122, 138, 122, 0.03) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(15, 13, 11, 0.7) 0%, var(--color-bg) 100%);
+    linear-gradient(
+      180deg,
+      rgba(15, 13, 11, 0.55) 0%,
+      rgba(15, 13, 11, 0.35) 45%,
+      var(--color-bg) 100%
+    );
 }
 
 .hero__pattern {
@@ -455,7 +472,7 @@ function setSectionRef(el: unknown, index: number) {
       rgba(201, 169, 110, 0.02) 180deg 181deg
     );
   background-size: 80px 80px;
-  opacity: 0.5;
+  opacity: 0.25;
 }
 
 .hero__content {
@@ -503,9 +520,10 @@ function setSectionRef(el: unknown, index: number) {
 .hero__badge-text {
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: var(--color-gold-dark);
+  color: #fffdf8;
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
+  text-shadow: 0 1px 12px rgba(15, 13, 11, 0.55);
 }
 
 .hero__title {
@@ -519,9 +537,10 @@ function setSectionRef(el: unknown, index: number) {
   font-family: var(--font-display);
   font-size: var(--text-6xl);
   font-weight: 900;
-  color: var(--color-text-primary);
+  color: #fffdf8;
   letter-spacing: var(--tracking-wide);
   line-height: 1.1;
+  text-shadow: 0 2px 24px rgba(15, 13, 11, 0.65);
 }
 
 .hero__title-en {
@@ -529,8 +548,9 @@ function setSectionRef(el: unknown, index: number) {
   font-size: var(--text-3xl);
   font-weight: 400;
   font-style: italic;
-  color: var(--color-gold);
+  color: #fffdf8;
   letter-spacing: var(--tracking-wider);
+  text-shadow: 0 2px 20px rgba(15, 13, 11, 0.6);
 }
 
 .hero__title-en-row {
@@ -558,11 +578,12 @@ function setSectionRef(el: unknown, index: number) {
 .hero__subtitle {
   font-family: var(--font-body);
   font-size: var(--text-lg);
-  color: var(--color-text-secondary);
+  color: rgba(255, 253, 248, 0.92);
   font-weight: 300;
   letter-spacing: var(--tracking-wide);
   max-width: 520px;
   line-height: var(--leading-relaxed);
+  text-shadow: 0 1px 16px rgba(15, 13, 11, 0.55);
 }
 
 .hero__cta-group {

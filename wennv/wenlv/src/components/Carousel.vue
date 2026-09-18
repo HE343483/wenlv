@@ -115,7 +115,15 @@ onUnmounted(stopTimer)
       >
         <!-- 图片占位 -->
         <div class="carousel__image-placeholder">
-          <div class="carousel__pattern" />
+          <img
+            v-if="item.imageUrl"
+            class="carousel__image"
+            :src="item.imageUrl"
+            :alt="langStore.lang === 'zh' ? item.titleZh : item.titleEn"
+            loading="lazy"
+            decoding="async"
+          />
+          <div v-if="!item.imageUrl" class="carousel__pattern" />
           <div class="carousel__overlay" />
           <div class="carousel__content">
             <h2 class="carousel__title">
@@ -205,7 +213,21 @@ onUnmounted(stopTimer)
 .carousel__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(248, 243, 233, 0.7) 0%, rgba(248, 243, 233, 0.2) 50%, rgba(248, 243, 233, 0.5) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(15, 13, 11, 0.15) 0%,
+    rgba(15, 13, 11, 0.35) 45%,
+    rgba(15, 13, 11, 0.72) 100%
+  );
+}
+
+.carousel__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .carousel__content {
@@ -220,17 +242,17 @@ onUnmounted(stopTimer)
   font-family: var(--font-display);
   font-size: var(--text-4xl);
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: #fffdf8;
   letter-spacing: var(--tracking-wide);
   line-height: 1.2;
   margin-bottom: var(--space-4);
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
 }
 
 .carousel__subtitle {
   font-family: var(--font-body);
   font-size: var(--text-base);
-  color: var(--color-text-secondary);
+  color: rgba(255, 253, 248, 0.88);
   letter-spacing: var(--tracking-wider);
   max-width: 480px;
   margin: 0 auto;
@@ -246,7 +268,7 @@ onUnmounted(stopTimer)
   border-radius: var(--radius-full);
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
-  color: var(--color-text-primary);
+  color: #fffdf8;
   display: flex;
   align-items: center;
   justify-content: center;

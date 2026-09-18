@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: 'http://localhost:8081', // 本地联调(8080 被系统程序占用);部署时改回远程地址 http://124.220.23.108:8080
+          target: 'http://ra9a3c94.natappfree.cc', // natapp 穿透后端; dev 时 /api 转发至此
           changeOrigin: true,
           ws: true, // AI 行程规划通过 WebSocket 推送任务进度
         },
