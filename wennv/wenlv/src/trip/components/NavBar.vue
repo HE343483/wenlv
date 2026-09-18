@@ -417,9 +417,9 @@ const saveSettingsNow = async () => {
 }
 
 .landing-nav-btn {
-  border: 1.2px solid rgba(236, 243, 250, 0.24);
-  background: rgba(12, 23, 32, 0.56);
-  color: #ecf3fa;
+  border: 1.2px solid #e8efed;
+  background: rgba(255, 253, 248, 0.92);
+  color: #2e3a3d;
   border-radius: 999px;
   padding: 0 12px;
   min-height: 34px;
@@ -433,6 +433,11 @@ const saveSettingsNow = async () => {
   text-transform: uppercase;
 }
 
+.landing-nav-btn:hover {
+  border-color: #5da4b1;
+  color: #3e7d8a;
+}
+
 .settings-btn {
   text-transform: none;
   border: none !important;
@@ -440,9 +445,9 @@ const saveSettingsNow = async () => {
 }
 
 .fog-toggle[aria-pressed='true'] {
-  border-color: rgba(215, 110, 66, 0.55);
-  background: rgba(215, 110, 66, 0.2);
-  color: #ffe3d6;
+  border-color: rgba(184, 69, 62, 0.55);
+  background: rgba(184, 69, 62, 0.2);
+  color: #ffffff;
 }
 
 .landing-lang-item {
@@ -457,8 +462,8 @@ const saveSettingsNow = async () => {
 .lang-select-nav :deep(.ant-select-selector) {
   height: 34px !important;
   padding: 0 12px !important;
-  border: 1.2px solid rgba(236, 243, 250, 0.24) !important;
-  background: rgba(12, 23, 32, 0.56) !important;
+  border: 1.2px solid #e8efed !important;
+  background: rgba(255, 253, 248, 0.92) !important;
   border-radius: 999px !important;
   display: flex !important;
   align-items: center !important;
@@ -471,7 +476,7 @@ const saveSettingsNow = async () => {
 
 .lang-select-nav :deep(.ant-select-selection-item),
 .lang-select-nav :deep(.ant-select-arrow) {
-  color: #ecf3fa !important;
+  color: #2e3a3d !important;
 }
 
 .landing-cta {
