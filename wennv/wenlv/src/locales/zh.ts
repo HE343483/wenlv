@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    languageChinese: '中文',
+    languageEnglish: 'English',
+    languageJapanese: '日本語',
+    switchToChinese: '切换到中文',
+    switchToEnglish: '切换到英文',
+    switchToJapanese: '切换到日语',
     home: '首页',
     explore: '探索',
     food: '美食',
@@ -91,7 +97,7 @@ export default {
     home: '首页',
     explore: '探索',
     food: '美食',
-    routes: '路线',
+    routes: 'AI 行程',
     favorites: '收藏',
     mine: '我的',
   },
@@ -99,11 +105,14 @@ export default {
     title: '巴蜀文化探索',
     exploreDesc: '探索成都各区的独特景点与文化',
     foodDesc: '品味世界美食之都的麻辣鲜香',
-    routesDesc: '精品旅游路线，深度体验天府之美',
+    routesDesc: 'AI 智能规划专属行程，深度体验天府之美',
   },
   routes: {
-    title: '路线规划',
-    subtitle: '规划专属旅程，用百度地图丈量天府之美',
+    title: 'AI 智能行程',
+    subtitle: 'AI 智能规划专属旅程，路线、预算、地图一站搞定',
+    entryTitle: 'AI 智能行程规划',
+    entryDesc: '输入目的地与出行偏好，AI 为你智能生成多日行程：景点推荐、路线规划、预算明细与地图导航一步到位。',
+    cta: '开始规划 AI 行程',
     tabPrebuilt: '精品路线',
     tabCustom: '自定义路线',
     prebuiltTitle: '精选旅游路线',
@@ -354,6 +363,32 @@ export default {
     goExplore: '去探索',
     unfavorite: '取消收藏',
     viewDetail: '查看详情',
+  },
+  trip: {
+    badge: 'AI 智能规划',
+    title: 'AI 智能行程',
+    subtitle: '一句话，生成属于你的成都行程',
+    intro: '告诉我们出行天数、同行伙伴与喜好，AI 将结合小红书、抖音的真实游客分享与高德地图数据，为你排好每天的路线、算清预算，并生成可分享的行程图。',
+    features: {
+      route: {
+        name: '智能路线规划',
+        desc: '按天合理安排景点顺序，减少绕路与折返。',
+      },
+      reviews: {
+        name: '真实口碑推荐',
+        desc: '参考小红书笔记与抖音短视频里的真实游客分享，拒绝千篇一律。',
+      },
+      budget: {
+        name: '预算一目了然',
+        desc: '门票、住宿、餐饮、交通逐项列出，花钱心里有数。',
+      },
+      map: {
+        name: '地图可视化',
+        desc: '景点、酒店与路线落在地图上，行程一屏掌握。',
+      },
+    },
+    cta: '体验 AI 智能规划',
+    ctaHint: '登录后即可免费生成专属行程',
   },
   mineMenu: {
     profile: '个人资料',

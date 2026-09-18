@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -129,6 +131,98 @@ func (l *TripLLM) ChatWithTimeout(ctx context.Context, timeoutSeconds int, messa
 		return "", errors.New("LLM 未返回任何内容")
 	}
 	return parsed.Choices[0].Message.Content, nil
+}
+
+// llmStreamChunk OpenAI 兼容流式响应的单个 SSE 分片。
+type llmStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// ChatStream 以 stream 模式调用对话补全接口,每收到一段增量文本回调一次 onDelta。
+// 用于 AI 问答等需要低首字延迟的场景。
+func (l *TripLLM) ChatStream(ctx context.Context, messages []llmMessage, temperature float64, maxTokens int, onDelta func(string)) error {
+	cfg := l.settings.Snapshot()
+	if cfg.OpenAIAPIKey == "" {
+		return errors.New("LLM API Key 未配置,请先在设置页完成配置")
+	}
+	base := cfg.OpenAIBaseURL
+	if base == "" {
+		base = "https://api.openai.com/v1"
+	}
+	model := cfg.OpenAIModel
+	if model == "" {
+		model = "gpt-4"
+	}
+
+	body, err := json.Marshal(llmRequest{
+		Model:       model,
+		Messages:    messages,
+		Temperature: temperature,
+		MaxTokens:   maxTokens,
+		Stream:      true,
+	})
+	if err != nil {
+		return err
+	}
+
+	timeout := time.Duration(l.settings.LLMTimeoutSeconds()) * time.Second
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, base+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.OpenAIAPIKey)
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	resp, err := l.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("LLM 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("LLM 返回错误(HTTP %d): %s", resp.StatusCode, truncateText(string(raw), 300))
+	}
+
+	// 逐行解析 SSE:data: {...} / data: [DONE]
+	reader := bufio.NewReader(resp.Body)
+	for {
+		line, readErr := reader.ReadString('\n')
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "data:") {
+			data := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
+			if data == "[DONE]" {
+				return nil
+			}
+			var chunk llmStreamChunk
+			if json.Unmarshal([]byte(data), &chunk) == nil && len(chunk.Choices) > 0 {
+				if delta := chunk.Choices[0].Delta.Content; delta != "" {
+					onDelta(delta)
+				}
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				return nil
+			}
+			return fmt.Errorf("读取 LLM 流式响应失败: %w", readErr)
+		}
+	}
 }
 
 // NewLLMMessages 构造一条 system + 一条 user 的消息列表(便捷方法)。

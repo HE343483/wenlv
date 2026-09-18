@@ -92,15 +92,15 @@ export default router
 // 全局前置守卫：内部页面需登录
 router.beforeEach((to) => {
   const meta = to.meta as { guest?: boolean } | undefined
+  // 登录/注册页无条件放行(未登录时的唯一去处,放行判断必须在 token 检查之前,否则死循环白屏)
+  if (to.name === 'login' || to.name === 'register') {
+    return hasToken() ? { name: 'home' } : true
+  }
   if (to.name === 'home') return true
   if (to.path.startsWith('/scenic/') || to.path.startsWith('/food/')) return true
-  // AI 行程规划模块为公开页面(使用匿名 user_id 做偏好记忆)
-  if (to.path.startsWith('/trip')) return true
-  if (to.name === 'login' || to.name === 'register')
-    return hasToken() ? { name: 'home' } : true
-  if (meta?.guest) return hasToken() ? { name: 'home' } : true
   if (!hasToken()) {
     return { name: 'login' }
   }
+  if (meta?.guest) return { name: 'home' }
   return true
 })

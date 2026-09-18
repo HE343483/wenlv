@@ -67,7 +67,7 @@ const selectedDistrictName = computed(() => {
   if (selectedDistrict.value === 'all') return langStore.t('district.allDistricts')
   const d = districts.find(d => d.id === selectedDistrict.value)
   if (!d) return ''
-  return langStore.lang === 'zh' ? d.nameZh : d.nameEn
+  return langStore.lang === 'zh' ? d.nameZh : langStore.lang === 'ja' ? d.nameZh : d.nameEn
 })
 
 /* ── 活跃筛选 Chips 数据 ── */

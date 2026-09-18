@@ -30,7 +30,7 @@ const options = computed(() => [
   { id: 'all', name: langStore.t('district.allDistricts') },
   ...districts.map(d => ({
     id: d.id,
-    name: langStore.lang === 'zh' ? d.nameZh : d.nameEn,
+    name: langStore.lang === 'zh' || langStore.lang === 'ja' ? d.nameZh : d.nameEn,
   })),
 ])
 

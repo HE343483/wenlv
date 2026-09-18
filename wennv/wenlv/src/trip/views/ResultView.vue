@@ -83,6 +83,9 @@
             <span v-if="planId" class="overview-meta-item">
               Plan ID: {{ planId }}
             </span>
+            <span v-if="imageSourceLabel" class="overview-meta-item" style="color: #8A9A9E; font-size: 12px;">
+              {{ imageSourceLabel }}
+            </span>
             <span v-if="tripPlan.overall_suggestions" class="overview-meta-item" style="white-space: pre-line;">
               {{ formattedSuggestions }}
             </span>
@@ -843,6 +846,15 @@ const formattedSuggestions = computed(() => {
     .join('\n')
 })
 
+// 图片来源标注:按行程的景点数据来源展示(xhs=小红书 / douyin=抖音 / map=高德;旧数据缺省时展示通用文案)
+const imageSourceLabel = computed(() => {
+  const source = tripPlan.value?.attraction_source
+  if (source === 'map') return t('result.imageSourceMap')
+  if (source === 'douyin') return t('result.imageSourceDouyin')
+  if (source === 'xhs') return t('result.imageSourceXhs')
+  return t('result.imageSourceDefault')
+})
+
 const overviewAttractions = computed<OverviewAttractionItem[]>(() => {
   if (!tripPlan.value) return []
 
@@ -930,12 +942,25 @@ const graphCategories = ref<GraphCategory[]>([])
 let kgChart: echarts.ECharts | null = null
 let kgResizeHandler: (() => void) | null = null
 
+// 规范化行程数据:LLM 生成的多城市行程末尾常有空日程(如返程日),其 attractions/meals
+// 以及 weather_info 可能为 null,直接使用会导致渲染与图片加载对 null 调用 .map/.forEach 崩溃
+const normalizeTripPlan = (plan: TripPlan): TripPlan => ({
+  ...plan,
+  days: (Array.isArray(plan.days) ? plan.days : []).map((day) => ({
+    ...day,
+    attractions: Array.isArray(day?.attractions) ? day.attractions : [],
+    meals: Array.isArray(day?.meals) ? day.meals : [],
+  })),
+  weather_info: Array.isArray(plan.weather_info) ? plan.weather_info : [],
+  overall_suggestions: plan.overall_suggestions || '',
+})
+
 const applyTripPlanPayload = async (payload: {
   plan: TripPlan
   graph?: KnowledgeGraphData | null
   planId?: string
 }) => {
-  tripPlan.value = payload.plan
+  tripPlan.value = normalizeTripPlan(payload.plan)
   pendingBudgetItems.value = []
 
   if (payload.planId) {
@@ -1276,7 +1301,23 @@ onMounted(async () => {
 
   const cachedPlanId = storedPlanId
   const data = sessionStorage.getItem('tripPlan')
-  const canUseCachedData = Boolean(data) && (!planId.value || !cachedPlanId || cachedPlanId === planId.value)
+  // 缓存的计划若缺失 overall_suggestions / weather_info(旧版 LLM 遗漏),则不使用缓存,
+  // 回源数据库/任务快照让后端兜底补全
+  let cachedStale = false
+  try {
+    if (data) {
+      const cachedPlan = JSON.parse(data)
+      const noSuggestions = !String(cachedPlan?.overall_suggestions ?? '').trim()
+      const noWeather = !Array.isArray(cachedPlan?.weather_info) || cachedPlan.weather_info.length === 0
+      cachedStale = noSuggestions || noWeather
+    }
+  } catch {
+    // 缓存解析失败时按无缓存处理
+  }
+  const canUseCachedData =
+    Boolean(data) &&
+    (!planId.value || !cachedPlanId || cachedPlanId === planId.value) &&
+    !cachedStale
 
   if (data && canUseCachedData) {
     const gd = sessionStorage.getItem('graphData')
@@ -1840,6 +1881,8 @@ const loadAttractionPhotos = async () => {
 
   const apiBase = getRuntimeApiBaseUrl()
   const city = tripPlan.value.city
+  // 图片来源跟随行程的景点数据来源(抖音行程取抖音封面,其余仍按小红书/高德兜底)
+  const source = tripPlan.value.attraction_source || 'xhs'
   const uniqueNames = Array.from(
     new Set(
       tripPlan.value.days.flatMap((day) => day.attractions.map((attraction) => attraction.name))
@@ -1849,7 +1892,7 @@ const loadAttractionPhotos = async () => {
   if (uniqueNames.length === 0) return
 
   // 统一走后端 name 键图片代理(磁盘缓存;miss 时后端多关键词重搜)。
-  // 不再预先调 /api/poi/photo 试探——那会多消耗一次小红书搜索,双倍触发风控
+  // 不再预先调 /api/poi/photo 试探——那会多消耗一次内容平台搜索,双倍触发风控
   const concurrencyLimit = 4
   let currentIndex = 0
 
@@ -1858,7 +1901,7 @@ const loadAttractionPhotos = async () => {
       const index = currentIndex
       currentIndex += 1
       const name = uniqueNames[index]
-      attractionPhotos.value[name] = `${apiBase}/api/poi/image?name=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}`
+      attractionPhotos.value[name] = `${apiBase}/api/poi/image?name=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}&source=${encodeURIComponent(source)}`
     }
   }
 

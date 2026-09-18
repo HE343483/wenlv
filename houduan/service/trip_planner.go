@@ -108,7 +108,7 @@ const tripPlannerPrompt = `你是行程规划专家。你的任务是根据景�
    - 酒店预估费用(estimated_cost)
    - 预算汇总(budget)包含各项总费用
 8. **预约信息透传**: 如果景点搜索数据中包含 reservation_required 和 reservation_tips 字段,请务必将它们完整保留在对应景点的JSON中。需要预约的景点请在 description 中也提醒游客提前预约
-9. **景点图片**: 不需要在JSON中填写 image_url 字段,图片由前端根据景点名称自动从小红书获取。
+9. **景点图片**: 不需要在JSON中填写 image_url 字段,图片由前端根据景点名称自动从所选景点来源获取。
 10. **多城市行程要求**:
     - 每个 day 对象中必须包含 "city" 字段标明当天所在城市
     - 城市切换当天设置 "is_transfer_day": true,并在 "transfer_info" 中**仅给出交通方式建议和大致时长**(如"建议乘坐高铁,约2-3小时"),**禁止编造具体车次、班次号、出发时间、到达时间等不可验证的信息**
@@ -123,14 +123,15 @@ type TripPlanner struct {
 	llm      *TripLLM
 	amap     *AmapService
 	xhs      *XHSService
+	douyin   *DouyinService
 	memory   *TripMemoryService
 	tasks    *TripTaskStore
 }
 
 // NewTripPlanner 构造行程规划服务。
 func NewTripPlanner(settings *TripSettings, llm *TripLLM, amap *AmapService, xhs *XHSService,
-	memory *TripMemoryService, tasks *TripTaskStore) *TripPlanner {
-	return &TripPlanner{settings: settings, llm: llm, amap: amap, xhs: xhs, memory: memory, tasks: tasks}
+	douyin *DouyinService, memory *TripMemoryService, tasks *TripTaskStore) *TripPlanner {
+	return &TripPlanner{settings: settings, llm: llm, amap: amap, xhs: xhs, douyin: douyin, memory: memory, tasks: tasks}
 }
 
 // RunPlanning 后台执行旅行规划并推送进度(由 handler 以 goroutine 方式调用)。
@@ -191,7 +192,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 			cityLabel = fmt.Sprintf(" (%d/%d)", idx+1, totalCities)
 		}
 
-		// [1] 景点搜索(用户选择小红书真人推荐或高德地图检索)
+		// [1] 景点搜索(用户选择小红书/抖音真人分享或高德地图检索)
 		p.updateTask(taskID, func(t *TripTask) {
 			t.Stage = "attraction_search"
 			t.Progress = progressBase
@@ -199,10 +200,25 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 		})
 		fmt.Printf("  [%d/%d] 正在搜索 %s 的景点...\n", idx+1, totalCities, city)
 		var attractionText string
-		if req.AttractionSource == "map" {
+		switch req.AttractionSource {
+		case "map":
 			// 用户明确选择地图检索,直接走高德/Google POI
 			attractionText = p.attractionsFromMap(ctx, city, keywords)
-		} else {
+		case "douyin":
+			// 抖音真人分享(LLM 提纯)
+			text, err := p.douyin.SearchAttractionsText(ctx, city, keywords, lang)
+			if err != nil {
+				if isDouyinCookieExpired(err) {
+					// 风控/Cookie 失效属于致命问题,直接失败并提示更换 Cookie
+					p.failTask(taskID, "【认证失败】"+err.Error())
+					return
+				}
+				// 抖音不可用(未配置 Cookie / 抓取失败)时降级为地图 POI 兜底,保证行程仍能生成
+				fmt.Printf("  ⚠️ %s 抖音景点获取失败,降级使用地图 POI 兜底: %v\n", city, err)
+				text = p.attractionsFromMap(ctx, city, keywords)
+			}
+			attractionText = text
+		default:
 			// 小红书真人推荐(LLM 提纯)
 			text, err := p.xhs.SearchAttractionsText(ctx, city, keywords, lang)
 			if err != nil {
@@ -253,7 +269,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 	})
 
 	memorySnippet := ""
-	if p.memory.Enabled() && strings.TrimSpace(req.UserID) != "" {
+	if p.memory.Enabled() && req.MemoryEnabledFor() && strings.TrimSpace(req.UserID) != "" {
 		memorySnippet = p.memory.BuildPromptSnippet(ctx, req.UserID)
 	}
 
@@ -281,6 +297,16 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 	if plan.Budget == nil {
 		plan.Budget = budgetFromDays(plan.Days)
 	}
+	// 补全整体建议(LLM 偶尔遗漏 overall_suggestions 字段,按行程要素本地兜底)
+	if strings.TrimSpace(plan.OverallSuggestions) == "" {
+		plan.OverallSuggestions = FallbackSuggestions(plan, cityNames, lang)
+	}
+	// 补全天气(LLM 偶尔遗漏 weather_info 字段,按日期匹配高德/Google 实时预报兜底;预报仅覆盖未来数日,超出范围不虚构)
+	if len(plan.WeatherInfo) == 0 {
+		plan.WeatherInfo = p.weatherFromForecast(ctx, cityNames, plan, provider)
+	}
+	// 记录景点数据来源,供前端展示图片来源标注
+	plan.AttractionSource = req.AttractionSource
 	if totalCities == 1 {
 		for i := range plan.Days {
 			if plan.Days[i].City == "" {
@@ -289,8 +315,8 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 		}
 	}
 
-	// 异步提取用户偏好到记忆库(不阻塞主流程)
-	if p.memory.Enabled() && strings.TrimSpace(req.UserID) != "" {
+	// 异步提取用户偏好到记忆库(不阻塞主流程;用户关闭记忆开关时跳过)
+	if p.memory.Enabled() && req.MemoryEnabledFor() && strings.TrimSpace(req.UserID) != "" {
 		userID := req.UserID
 		go p.memory.SavePreferencesAfterTrip(context.Background(), userID, req, plan)
 	}
@@ -340,7 +366,7 @@ func (p *TripPlanner) attractionsFromMap(ctx context.Context, city, keywords str
 	}
 
 	var out strings.Builder
-	out.WriteString("这是地图服务检索到的景点候选(小红书未启用,数据来源为地图 POI):\n")
+	out.WriteString("这是地图服务检索到的景点候选(真人内容源未启用,数据来源为地图 POI):\n")
 	for _, poi := range pois {
 		item := map[string]any{
 			"name":                 poi.Name,
@@ -392,6 +418,105 @@ func budgetFromDays(days []model.DayPlan) *model.Budget {
 	}
 }
 
+// FallbackSuggestions overall_suggestions 缺失时按行程要素本地生成兜底建议。
+// LLM 偶尔会遗漏该字段(尤其多城市任务),这里用确定性文案兜底,保证结果页与导出不为空。
+func FallbackSuggestions(plan *model.TripPlan, cities []string, lang string) string {
+	if plan == nil {
+		return ""
+	}
+	if len(cities) == 0 && len(plan.Cities) > 0 {
+		cities = plan.Cities
+	}
+	if len(cities) == 0 && plan.City != "" {
+		cities = []string{plan.City}
+	}
+
+	// 统计行程要素:需预约景点 / 城际移动日 / 雨天
+	reservations := make([]string, 0, 4)
+	transferDays := 0
+	rainDays := 0
+	for _, day := range plan.Days {
+		if day.IsTransferDay && strings.TrimSpace(day.TransferInfo) != "" {
+			transferDays++
+		}
+		for _, a := range day.Attractions {
+			if a.ReservationRequired {
+				reservations = append(reservations, a.Name)
+			}
+		}
+	}
+	for _, w := range plan.WeatherInfo {
+		if strings.Contains(w.DayWeather, "雨") || strings.Contains(w.NightWeather, "雨") {
+			rainDays++
+		}
+	}
+
+	// 预算概览(无 budget 时按明细汇总)
+	budget := plan.Budget
+	if budget == nil {
+		budget = budgetFromDays(plan.Days)
+	}
+
+	// 按语言生成文案片段(条件项可能缺失,最后统一连续编号)
+	var parts []string
+	switch lang {
+	case "en":
+		parts = append(parts,
+			fmt.Sprintf("This %d-day itinerary covers %s. Follow the daily schedule and allow extra time for popular attractions.", len(plan.Days), strings.Join(cities, " → ")))
+		if len(reservations) > 0 {
+			parts = append(parts, fmt.Sprintf("Reservation required: %s. Book tickets in advance, especially on holidays.", strings.Join(reservations, ", ")))
+		} else {
+			parts = append(parts, "Check opening hours and ticket policies of each attraction before departure.")
+		}
+		if transferDays > 0 {
+			parts = append(parts, fmt.Sprintf("The itinerary includes %d inter-city transfer day(s). Refer to the daily transfer notes and avoid rush hours.", transferDays))
+		}
+		if rainDays > 0 {
+			parts = append(parts, fmt.Sprintf("Rain is expected on %d day(s). Bring an umbrella and consider indoor alternatives.", rainDays))
+		}
+		parts = append(parts, fmt.Sprintf("Estimated total budget: CNY %d (attractions %d / hotels %d / meals %d / transport %d). Adjust by your own spending habits.",
+			budget.Total.Int(), budget.TotalAttractions.Int(), budget.TotalHotels.Int(), budget.TotalMeals.Int(), budget.TotalTransportation.Int()))
+	case "ja":
+		parts = append(parts,
+			fmt.Sprintf("この%d日間の旅程は%sをカバーします。人気スポットは時間に余裕を持って訪れてください。", len(plan.Days), strings.Join(cities, " → ")))
+		if len(reservations) > 0 {
+			parts = append(parts, fmt.Sprintf("事前予約が必要なスポット: %s。連休・祝日は早めの予約をおすすめします。", strings.Join(reservations, "、")))
+		} else {
+			parts = append(parts, "出発前に各スポットの営業時間とチケットポリシーをご確認ください。")
+		}
+		if transferDays > 0 {
+			parts = append(parts, fmt.Sprintf("都市間移動日が%d日含まれます。各日の移動メモを参照し、ラッシュ時を避けてください。", transferDays))
+		}
+		if rainDays > 0 {
+			parts = append(parts, fmt.Sprintf("%d日間は雨の予報です。傘をお持ちください。", rainDays))
+		}
+		parts = append(parts, fmt.Sprintf("概算総予算: %d元(観光%d/ホテル%d/食事%d/交通%d)。ご自身の支出に合わせて調整してください。",
+			budget.Total.Int(), budget.TotalAttractions.Int(), budget.TotalHotels.Int(), budget.TotalMeals.Int(), budget.TotalTransportation.Int()))
+	default: // 中文
+		parts = append(parts,
+			fmt.Sprintf("本次行程共%d天,途经 %s,建议按每日行程顺序游览,热门景点请预留充足排队与游览时间。", len(plan.Days), strings.Join(cities, " → ")))
+		if len(reservations) > 0 {
+			parts = append(parts, fmt.Sprintf("以下景点需要提前预约: %s。建议出行前在官方渠道预约门票,节假尤其要提早。", strings.Join(reservations, "、")))
+		} else {
+			parts = append(parts, "出行前请确认各景点开放时间与门票政策,避免现场闭馆或限流。")
+		}
+		if transferDays > 0 {
+			parts = append(parts, fmt.Sprintf("行程包含%d个城际移动日,请参考当日交通建议,错峰出行并预留候车时间。", transferDays))
+		}
+		if rainDays > 0 {
+			parts = append(parts, fmt.Sprintf("行程期间有%d天预报降雨,请随身携带雨具,并可为当天准备室内备选景点。", rainDays))
+		}
+		parts = append(parts, fmt.Sprintf("预估总预算约 %d 元(门票 %d / 住宿 %d / 餐饮 %d / 交通 %d),请结合个人消费习惯适当调整。",
+			budget.Total.Int(), budget.TotalAttractions.Int(), budget.TotalHotels.Int(), budget.TotalMeals.Int(), budget.TotalTransportation.Int()))
+	}
+	// 统一连续编号
+	lines := make([]string, len(parts))
+	for i, text := range parts {
+		lines[i] = fmt.Sprintf("%d. %s", i+1, text)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (p *TripPlanner) failTask(taskID, msg string) {
 	fmt.Printf("❌ 任务 %s 失败: %s\n", taskID, msg)
 	p.updateTask(taskID, func(t *TripTask) {
@@ -401,6 +526,62 @@ func (p *TripPlanner) failTask(taskID, msg string) {
 		t.Message = msg
 		t.Error = msg
 	})
+}
+
+// WeatherFallback 供 handler 在返回历史/快照数据时补全缺失的天气(旧版生成遗漏 weather_info 的记录)。
+func (p *TripPlanner) WeatherFallback(ctx context.Context, plan *model.TripPlan) {
+	if plan == nil || len(plan.WeatherInfo) > 0 {
+		return
+	}
+	cities := plan.Cities
+	if len(cities) == 0 && plan.City != "" {
+		cities = []string{plan.City}
+	}
+	plan.WeatherInfo = p.weatherFromForecast(ctx, cities, plan, CurrentMapProvider(p.settings))
+}
+
+// weatherFromForecast LLM 遗漏 weather_info 时的天气兜底:逐城市查询实时预报,
+// 按日期匹配填充到对应行程日(预报仅覆盖未来 3~4 天,更远的日期不做虚构)。
+func (p *TripPlanner) weatherFromForecast(ctx context.Context, cities []string, plan *model.TripPlan, provider string) []model.WeatherInfo {
+	fc := map[string]map[string]model.WeatherInfo{}
+	for _, city := range cities {
+		var forecasts []model.WeatherInfo
+		if provider == "google" {
+			if svc := NewGoogleMapService(p.settings); svc != nil {
+				forecasts = svc.GetWeather(ctx, city)
+			}
+		}
+		if len(forecasts) == 0 {
+			forecasts = p.amap.GetWeather(ctx, city)
+		}
+		if len(forecasts) == 0 {
+			continue
+		}
+		byDate := map[string]model.WeatherInfo{}
+		for _, f := range forecasts {
+			byDate[f.Date] = f
+		}
+		fc[city] = byDate
+	}
+	if len(fc) == 0 {
+		return nil
+	}
+
+	out := make([]model.WeatherInfo, 0, len(plan.Days))
+	for _, day := range plan.Days {
+		for _, city := range cities {
+			if day.City != "" && day.City != city {
+				continue
+			}
+			if f, ok := fc[city][day.Date]; ok {
+				item := f
+				item.City = firstNonEmpty(day.City, city)
+				out = append(out, item)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // queryWeatherText 查询天气文本:优先 Google(配置时),失败自动降级高德。
@@ -577,6 +758,21 @@ func asCookieExpired(err error, target **XHSCookieExpiredError) bool {
 	for err != nil {
 		if e, ok := err.(*XHSCookieExpiredError); ok {
 			*target = e
+			return true
+		}
+		unwrapper, ok := err.(interface{ Unwrap() error })
+		if !ok {
+			return false
+		}
+		err = unwrapper.Unwrap()
+	}
+	return false
+}
+
+// isDouyinCookieExpired 判断错误链中是否包含抖音 Cookie 过期异常。
+func isDouyinCookieExpired(err error) bool {
+	for err != nil {
+		if _, ok := err.(*DouyinCookieExpiredError); ok {
 			return true
 		}
 		unwrapper, ok := err.(interface{ Unwrap() error })

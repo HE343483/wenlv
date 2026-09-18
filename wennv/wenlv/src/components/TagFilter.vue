@@ -147,7 +147,7 @@ watch(filteredTags, () => {
         <line x1="7" y1="7" x2="7.01" y2="7"/>
       </svg>
       <span class="tag-filter__trigger-label">
-        {{ langStore.lang === 'zh' ? '标签筛选' : 'Tags' }}
+        {{ langStore.lang === 'zh' ? '标签筛选' : langStore.lang === 'ja' ? 'タグで絞り込む' : 'Tags' }}
       </span>
       <span v-if="selected.length > 0" class="tag-filter__trigger-badge">{{ selected.length }}</span>
       <svg
@@ -171,7 +171,7 @@ watch(filteredTags, () => {
             ref="searchInputRef"
             v-model="search"
             class="tag-filter__search-input"
-            :placeholder="langStore.lang === 'zh' ? '搜索标签...' : 'Search tags...'"
+            :placeholder="langStore.lang === 'zh' ? '搜索标签...' : langStore.lang === 'ja' ? 'タグを検索...' : 'Search tags...'"
             @keydown.stop="onKeydown"
           />
         </div>
@@ -199,7 +199,7 @@ watch(filteredTags, () => {
             <span class="tag-filter__option-label">{{ tag }}</span>
           </div>
           <div v-if="filteredTags.length === 0" class="tag-filter__empty">
-            {{ langStore.lang === 'zh' ? '无匹配标签' : 'No matching tags' }}
+            {{ langStore.lang === 'zh' ? '无匹配标签' : langStore.lang === 'ja' ? '一致するタグがありません' : 'No matching tags' }}
           </div>
         </div>
       </div>

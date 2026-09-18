@@ -47,7 +47,8 @@
       "openaiBaseUrl": "OpenAI 兼容格式 Base URL",
       "openaiModel": "OpenAI 兼容格式 Model",
       "openaiApiKey": "OpenAI 兼容格式 API Key",
-      "xhsCookie": "小红书 Cookie"
+      "xhsCookie": "小红书 Cookie（支持多个）",
+      "douyinCookie": "抖音 Cookie"
     },
     "placeholders": {
       "apiBaseUrl": "例如：http://localhost:8000",
@@ -55,7 +56,8 @@
       "googleMapsProxy": "例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
       "openaiBaseUrl": "例如：https://api.openai.com/v1",
       "openaiModel": "例如：gpt-4o-mini",
-      "xhsCookie": "粘贴完整 Cookie 字符串"
+      "xhsCookie": "每行一个完整 Cookie 字符串；填多个时后端会自动轮换，某个被风控自动切换下一个。重新填写时请粘贴完整内容（掩码内容不会被保存）",
+      "douyinCookie": "粘贴完整 Cookie 字符串（需包含 msToken 等登录态字段）"
     },
     "messages": {
       "loadFailed": "读取设置失败",
@@ -119,9 +121,15 @@
     "attractionSourceLabel": "景点推荐来源",
     "attractionSource": {
       "xhs": "小红书真人推荐",
+      "douyin": "抖音真人分享",
       "map": "地图检索"
     },
-    "attractionSourceHint": "小红书真人推荐来自真实游客游记，更贴近实际体验；地图检索由高德地图直接提供，稳定快速，无需额外配置。",
+    "attractionSourceHint": "小红书/抖音推荐来自真实游客的游记与短视频，更贴近实际体验；地图检索由高德地图直接提供，稳定快速，无需额外配置。",
+    "douyinComingSoon": "抖音真人分享功能正在开发中，敬请期待",
+    "memoryToggle": {
+      "label": "个性化偏好记忆",
+      "desc": "开启后，AI 会记住你的旅行偏好（如喜欢的景点类型、住宿习惯），在为你推荐行程时更懂你。偏好与你的账号绑定，可随时关闭。"
+    },
     "specialNeedsPlaceholder": "告诉我你的特殊需求，比如：带老人出行、想看日出、对花粉过敏……",
     "submit": "开始规划旅程",
     "submitting": "AI 正在规划中…",
@@ -137,7 +145,9 @@
       "deleteConfirm": "确定要删除这条历史计划吗？",
       "deleteSuccess": "已删除",
       "deleteFailed": "删除失败",
-      "cancel": "取消"
+      "cancel": "取消",
+      "failedTag": "生成失败",
+      "failedHint": "该行程生成失败,无法查看"
     },
     "loading": {
       "initializing": "正在初始化...",
@@ -191,6 +201,10 @@
     "dateLabel": "日期:",
     "suggestionLabel": "建议:",
     "dateRange": "{start} 至 {end}",
+    "imageSourceXhs": "景点图片来自小红书真实游记",
+    "imageSourceDouyin": "景点图片来自抖音真实分享",
+    "imageSourceMap": "景点图片来自高德地图",
+    "imageSourceDefault": "景点图片来自小红书 / 抖音 / 高德地图",
     "budget": {
       "title": "预算明细",
       "attraction": "景点门票",

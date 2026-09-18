@@ -22,7 +22,7 @@ function goBack() {
 
 /* 占位名称 — 复用 i18n 本地文案，后期替换为接口返回的名称 */
 const placeholderName = computed(() => {
-  if (langStore.lang === 'zh') {
+  if (langStore.lang === 'zh' || langStore.lang === 'ja') {
     return langStore.t(`food.card.${foodId.value}.name`)
   }
   return langStore.t(`food.card.${foodId.value}.en`)

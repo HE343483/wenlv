@@ -47,7 +47,8 @@
       "openaiBaseUrl": "OpenAI 格式 Base URL",
       "openaiModel": "OpenAI 格式 Model",
       "openaiApiKey": "OpenAI 格式 API Key",
-      "xhsCookie": "小紅書 Cookie"
+      "xhsCookie": "小紅書 Cookie（複数対応）",
+      "douyinCookie": "抖音（Douyin）Cookie"
     },
     "placeholders": {
       "apiBaseUrl": "例: http://localhost:8000",
@@ -55,7 +56,8 @@
       "googleMapsProxy": "例: http://127.0.0.1:7890 または socks5://127.0.0.1:1080",
       "openaiBaseUrl": "例: https://api.openai.com/v1",
       "openaiModel": "例: gpt-4o-mini",
-      "xhsCookie": "Cookie 文字列を貼り付け"
+      "xhsCookie": "1 行に完全な Cookie を 1 つ。複数設定すると自動でローテーションし、規制されたものは自動で切り替わります。編集時は全体を貼り付け直してください（マスク表示は保存されません）。",
+      "douyinCookie": "Cookie 文字列を貼り付け（msToken などログイン状態の項目が必要）"
     },
     "messages": {
       "loadFailed": "設定の読み込みに失敗しました",
@@ -119,9 +121,15 @@
     "attractionSourceLabel": "スポット情報ソース",
     "attractionSource": {
       "xhs": "REDリアル口コミ",
+      "douyin": "抖音リアル投稿",
       "map": "地図検索"
     },
-    "attractionSourceHint": "RED（小紅書）のおすすめは実際の旅行者の投稿から抽出し、リアルな体験に近いです。地図検索は高德マップ（AMap）から直接取得し、安定して高速です。",
+    "attractionSourceHint": "RED（小紅書）と抖音（Douyin）のおすすめは実際の旅行者の投稿・ショート動画から抽出し、リアルな体験に近いです。地図検索は高德マップ（AMap）から直接取得し、安定して高速です。",
+    "douyinComingSoon": "抖音のリアル投稿機能は開発中です。お楽しみに",
+    "memoryToggle": {
+      "label": "パーソナライズ設定の記憶",
+      "desc": "オンにすると、AI があなたの旅行の好み（好きな観光タイプや宿泊の習慣など）を記憶し、旅程のおすすめに活かします。設定はアカウントに紐付き、いつでもオフにできます。"
+    },
     "specialNeedsPlaceholder": "特別な要望を入力してください（例：高齢者同行、日の出を見たい、花粉アレルギーなど）",
     "submit": "旅程を作成する",
     "submitting": "AI がプランを作成中…",
@@ -137,7 +145,9 @@
       "deleteConfirm": "この履歴プランを削除しますか？",
       "deleteSuccess": "削除しました",
       "deleteFailed": "削除に失敗しました",
-      "cancel": "キャンセル"
+      "cancel": "キャンセル",
+      "failedTag": "生成失敗",
+      "failedHint": "このプランは生成に失敗したため閲覧できません"
     },
     "loading": {
       "initializing": "初期化中...",
@@ -191,6 +201,10 @@
     "dateLabel": "日付:",
     "suggestionLabel": "提案:",
     "dateRange": "{start} 〜 {end}",
+    "imageSourceXhs": "観光写真は小紅書(RED)の旅行ノートより",
+    "imageSourceDouyin": "観光写真は抖音(Douyin)の投稿より",
+    "imageSourceMap": "観光写真は高徳地図(AMap)より",
+    "imageSourceDefault": "観光写真は小紅書(RED)/抖音(Douyin)/高徳地図より",
     "budget": {
       "title": "予算内訳",
       "attraction": "観光スポット",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -94,6 +95,13 @@ func (h *TripHandler) Status(c *gin.Context) {
 	}
 	switch event.Status {
 	case service.TripTaskCompleted:
+		// 持久化任务快照可能来自旧版生成(缺失 overall_suggestions/weather_info),返回前本地兜底补全
+		if event.Result != nil && event.Result.Data != nil {
+			if strings.TrimSpace(event.Result.Data.OverallSuggestions) == "" {
+				event.Result.Data.OverallSuggestions = service.FallbackSuggestions(event.Result.Data, nil, c.Query("lang"))
+			}
+			h.planner.WeatherFallback(c.Request.Context(), event.Result.Data)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"task_id": taskID,
 			"plan_id": event.PlanID,
@@ -138,6 +146,11 @@ func (h *TripHandler) PlanDetail(c *gin.Context) {
 	if record.PlanJSON != "" {
 		var plan model.TripPlan
 		if err := json.Unmarshal([]byte(record.PlanJSON), &plan); err == nil {
+			// 早期落库的 plan_json 可能缺失 overall_suggestions/weather_info(LLM 遗漏),返回前本地兜底补全
+			if strings.TrimSpace(plan.OverallSuggestions) == "" {
+				plan.OverallSuggestions = service.FallbackSuggestions(&plan, nil, c.Query("lang"))
+			}
+			h.planner.WeatherFallback(c.Request.Context(), &plan)
 			result.Data = &plan
 		}
 	}
@@ -249,6 +262,37 @@ func (h *TripHandler) Ask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, model.TripChatResponse{Success: true, Reply: reply})
+}
+
+// AskStream 行程智能问答(SSE 流式输出):边生成边推送,显著降低首字延迟。
+// 事件格式:data: {"delta":"..."} / data: {"error":"..."} / data: [DONE]
+func (h *TripHandler) AskStream(c *gin.Context) {
+	var req model.TripChatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"detail": "参数错误:message 与 trip_plan 必填"})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream; charset=utf-8")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // 避免 Nginx 反向代理缓冲 SSE
+
+	writeEvent := func(payload string) {
+		fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+		c.Writer.Flush()
+	}
+
+	err := h.chat.ChatWithTripContextStream(c.Request.Context(), req.Message, req.TripPlan, req.History, func(delta string) {
+		data, _ := json.Marshal(map[string]string{"delta": delta})
+		writeEvent(string(data))
+	})
+	if err != nil {
+		data, _ := json.Marshal(map[string]string{"error": err.Error()})
+		writeEvent(string(data))
+		return
+	}
+	writeEvent("[DONE]")
 }
 
 func joinArrow(items []string) string {

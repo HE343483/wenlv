@@ -21,6 +21,7 @@ type TripRuntimeSettings struct {
 	GoogleMapsAPIKey string `json:"google_maps_api_key"`
 	GoogleMapsProxy  string `json:"google_maps_proxy"`
 	XHSCookie        string `json:"xhs_cookie"`
+	DouyinCookie     string `json:"douyin_cookie"`
 	OpenAIAPIKey     string `json:"openai_api_key"`
 	OpenAIBaseURL    string `json:"openai_base_url"`
 	OpenAIModel      string `json:"openai_model"`
@@ -32,6 +33,7 @@ const tripMaskChar = "\u2022"
 var tripSecretFields = map[string]bool{
 	"openai_api_key":    true,
 	"xhs_cookie":        true,
+	"douyin_cookie":     true,
 	"vite_amap_web_key": true,
 }
 
@@ -41,6 +43,7 @@ var tripSettingKeys = []string{
 	"google_maps_api_key",
 	"google_maps_proxy",
 	"xhs_cookie",
+	"douyin_cookie",
 	"openai_api_key",
 	"openai_base_url",
 	"openai_model",
@@ -68,6 +71,9 @@ type TripSettings struct {
 	llmTimeout       int
 	enableUserMemory bool
 	memory           TripMemoryParams
+	// 图片磁盘缓存(景点图片字节)的有效期与容量上限
+	imageCacheTTL      time.Duration
+	imageCacheMaxBytes int64
 }
 
 // TripSettingsOptions 构造运行时配置管理器所需的参数。
@@ -78,6 +84,10 @@ type TripSettingsOptions struct {
 	LLMTimeout       int // 秒
 	EnableUserMemory bool
 	Memory           TripMemoryParams
+	// ImageCacheTTLHours 图片缓存有效期(小时);<=0 时用默认值
+	ImageCacheTTLHours int
+	// ImageCacheMaxMB 图片缓存容量上限(MB);<=0 时用默认值
+	ImageCacheMaxMB int
 }
 
 // NewTripSettings 构造运行时配置管理器,并加载磁盘上已有的覆盖项。
@@ -112,6 +122,12 @@ func NewTripSettings(opt TripSettingsOptions) *TripSettings {
 		enableUserMemory: opt.EnableUserMemory,
 		memory:           memory,
 	}
+	if opt.ImageCacheTTLHours > 0 {
+		s.imageCacheTTL = time.Duration(opt.ImageCacheTTLHours) * time.Hour
+	}
+	if opt.ImageCacheMaxMB > 0 {
+		s.imageCacheMaxBytes = int64(opt.ImageCacheMaxMB) << 20
+	}
 	s.load()
 	return s
 }
@@ -140,6 +156,12 @@ func (s *TripSettings) MemoryParams() TripMemoryParams { return s.memory }
 
 // DataDir 返回行程模块数据目录(任务持久化、图片缓存等)。
 func (s *TripSettings) DataDir() string { return s.dataDir }
+
+// ImageCacheTTL 图片磁盘缓存有效期(<=0 时由缓存自身回退默认值)。
+func (s *TripSettings) ImageCacheTTL() time.Duration { return s.imageCacheTTL }
+
+// ImageCacheMaxBytes 图片磁盘缓存容量上限(<=0 时由缓存自身回退默认值)。
+func (s *TripSettings) ImageCacheMaxBytes() int64 { return s.imageCacheMaxBytes }
 
 // PlannerTimeoutSeconds 规划阶段 LLM 超时(秒)。
 func (s *TripSettings) PlannerTimeoutSeconds() int {
@@ -193,6 +215,8 @@ func (s *TripSettings) apply(updates map[string]string) {
 			s.values.GoogleMapsProxy = v
 		case "xhs_cookie":
 			s.values.XHSCookie = v
+		case "douyin_cookie":
+			s.values.DouyinCookie = v
 		case "openai_api_key":
 			s.values.OpenAIAPIKey = v
 		case "openai_base_url":
@@ -230,14 +254,15 @@ func (s *TripSettings) Snapshot() TripRuntimeSettings {
 func (s *TripSettings) Masked() map[string]string {
 	cur := s.Snapshot()
 	raw := map[string]string{
-		"vite_amap_web_key":   cur.ViteAmapWebKey,
+		"vite_amap_web_key":    cur.ViteAmapWebKey,
 		"vite_amap_web_js_key": cur.ViteAmapWebJSKey,
-		"google_maps_api_key": cur.GoogleMapsAPIKey,
-		"google_maps_proxy":   cur.GoogleMapsProxy,
-		"xhs_cookie":          cur.XHSCookie,
-		"openai_api_key":      cur.OpenAIAPIKey,
-		"openai_base_url":     cur.OpenAIBaseURL,
-		"openai_model":        cur.OpenAIModel,
+		"google_maps_api_key":  cur.GoogleMapsAPIKey,
+		"google_maps_proxy":    cur.GoogleMapsProxy,
+		"xhs_cookie":           cur.XHSCookie,
+		"douyin_cookie":        cur.DouyinCookie,
+		"openai_api_key":       cur.OpenAIAPIKey,
+		"openai_base_url":      cur.OpenAIBaseURL,
+		"openai_model":         cur.OpenAIModel,
 	}
 	for k := range raw {
 		if tripSecretFields[k] {
@@ -252,14 +277,15 @@ func (s *TripSettings) Update(updates map[string]string) map[string]string {
 	s.mu.Lock()
 	s.apply(updates)
 	persist := map[string]string{
-		"vite_amap_web_key":   s.values.ViteAmapWebKey,
+		"vite_amap_web_key":    s.values.ViteAmapWebKey,
 		"vite_amap_web_js_key": s.values.ViteAmapWebJSKey,
-		"google_maps_api_key": s.values.GoogleMapsAPIKey,
-		"google_maps_proxy":   s.values.GoogleMapsProxy,
-		"xhs_cookie":          s.values.XHSCookie,
-		"openai_api_key":      s.values.OpenAIAPIKey,
-		"openai_base_url":     s.values.OpenAIBaseURL,
-		"openai_model":        s.values.OpenAIModel,
+		"google_maps_api_key":  s.values.GoogleMapsAPIKey,
+		"google_maps_proxy":    s.values.GoogleMapsProxy,
+		"xhs_cookie":           s.values.XHSCookie,
+		"douyin_cookie":        s.values.DouyinCookie,
+		"openai_api_key":       s.values.OpenAIAPIKey,
+		"openai_base_url":      s.values.OpenAIBaseURL,
+		"openai_model":         s.values.OpenAIModel,
 	}
 	_ = os.MkdirAll(filepath.Dir(s.file), 0o755)
 	if data, err := json.MarshalIndent(persist, "", "  "); err == nil {
@@ -281,7 +307,23 @@ func (s *TripSettings) Update(updates map[string]string) map[string]string {
 	return s.Masked()
 }
 
+// maskSecret 掩码机密值;多行配置(如多个小红书 Cookie,每行一个)逐行掩码,
+// 便于前端确认已配置了几条,而不是糊成一团。
 func maskSecret(value string) string {
+	if value == "" {
+		return ""
+	}
+	if strings.ContainsAny(value, "\n") {
+		lines := strings.Split(strings.ReplaceAll(value, "\r\n", "\n"), "\n")
+		for i, line := range lines {
+			lines[i] = maskSecretLine(line)
+		}
+		return strings.Join(lines, "\n")
+	}
+	return maskSecretLine(value)
+}
+
+func maskSecretLine(value string) string {
 	if value == "" {
 		return ""
 	}

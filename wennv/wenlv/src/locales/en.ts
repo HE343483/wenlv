@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    languageChinese: 'Chinese',
+    languageEnglish: 'English',
+    languageJapanese: 'Japanese',
+    switchToChinese: 'Switch to Chinese',
+    switchToEnglish: 'Switch to English',
+    switchToJapanese: 'Switch to Japanese',
     home: 'Home',
     explore: 'Explore',
     food: 'Food',
@@ -91,7 +97,7 @@ export default {
     home: 'Home',
     explore: 'Explore',
     food: 'Food',
-    routes: 'Routes',
+    routes: 'AI Trip',
     favorites: 'Saves',
     mine: 'Profile',
   },
@@ -99,11 +105,14 @@ export default {
     title: 'Bashu Culture Explorer',
     exploreDesc: 'Discover unique attractions across Chengdu\'s districts',
     foodDesc: 'Savor the numbing, spicy flavors of a world gastronomy capital',
-    routesDesc: 'Curated tours for an in-depth Tianfu experience',
+    routesDesc: 'AI-powered itinerary planning for an in-depth Tianfu experience',
   },
   routes: {
-    title: 'Route Planner',
-    subtitle: 'Plan your own journey, measure Tianfu\'s beauty with Baidu Maps',
+    title: 'AI Smart Itinerary',
+    subtitle: 'AI plans your personalized journey — routes, budget and maps in one place',
+    entryTitle: 'AI Itinerary Planner',
+    entryDesc: 'Enter your destination and travel preferences, and AI generates a multi-day itinerary: attraction recommendations, route planning, budget breakdown and map navigation.',
+    cta: 'Start Planning with AI',
     tabPrebuilt: 'Curated Routes',
     tabCustom: 'Custom Route',
     prebuiltTitle: 'Featured Itineraries',
@@ -354,6 +363,32 @@ export default {
     goExplore: 'Go Explore',
     unfavorite: 'Unfavorite',
     viewDetail: 'View Details',
+  },
+  trip: {
+    badge: 'AI Planning',
+    title: 'AI Trip Planner',
+    subtitle: 'One sentence, a Chengdu itinerary made for you',
+    intro: 'Tell us your travel days, companions and preferences. Our AI combines real traveler stories from Xiaohongshu and Douyin with Amap data to arrange each day, estimate the budget, and generate a shareable itinerary.',
+    features: {
+      route: {
+        name: 'Smart Routing',
+        desc: 'Sights are ordered day by day to cut detours and backtracking.',
+      },
+      reviews: {
+        name: 'Real Reviews',
+        desc: 'Based on real traveler notes and short videos from Xiaohongshu and Douyin.',
+      },
+      budget: {
+        name: 'Clear Budget',
+        desc: 'Tickets, hotels, dining and transport listed item by item.',
+      },
+      map: {
+        name: 'Map View',
+        desc: 'Sights, hotels and routes on one map at a glance.',
+      },
+    },
+    cta: 'Try AI Planning',
+    ctaHint: 'Log in to generate your itinerary for free',
   },
   mineMenu: {
     profile: 'Profile',

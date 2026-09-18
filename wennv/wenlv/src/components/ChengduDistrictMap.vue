@@ -122,7 +122,7 @@ function loadDistrictBoundaries() {
         // 区名标签
         const center = getPolygonCenter(points)
         const label = new BMap.Label(
-          langStore.lang === 'zh' ? d.nameZh : d.nameEn,
+          langStore.lang === 'zh' || langStore.lang === 'ja' ? d.nameZh : d.nameEn,
           { position: center, offset: new BMap.Size(0, 0) }
         )
         label.setStyle({
@@ -236,7 +236,7 @@ watch(() => langStore.lang, () => {
     if (!label) return
     const d = districts.find(dd => dd.id === id)
     if (!d) return
-    label.setContent(langStore.lang === 'zh' ? d.nameZh : d.nameEn)
+    label.setContent(langStore.lang === 'zh' || langStore.lang === 'ja' ? d.nameZh : d.nameEn)
   })
 })
 

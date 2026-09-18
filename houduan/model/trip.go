@@ -81,8 +81,15 @@ type TripRequest struct {
 	FreeTextInput  string     `json:"free_text_input"`
 	Language       string     `json:"language"`
 	UserID         string     `json:"user_id"`
-	// AttractionSource 景点数据来源:xhs=小红书真人推荐(默认) / map=高德地图检索
+	// AttractionSource 景点数据来源:xhs=小红书真人推荐 / douyin=抖音真人分享 / map=高德地图检索
 	AttractionSource string `json:"attraction_source"`
+	// MemoryEnabled 用户偏好记忆开关(前端用户自主选择):nil 视为开启,保持向后兼容
+	MemoryEnabled *bool `json:"memory_enabled,omitempty"`
+}
+
+// MemoryEnabledFor 用户是否同意使用偏好记忆:未传字段默认开启(兼容旧客户端)。
+func (r *TripRequest) MemoryEnabledFor() bool {
+	return r.MemoryEnabled == nil || *r.MemoryEnabled
 }
 
 // Normalize 兼容处理:只填 city 未填 cities 时自动转换,并统一语言代码。
@@ -103,9 +110,11 @@ func (r *TripRequest) Normalize() {
 	if r.Language == "" {
 		r.Language = "zh"
 	}
-	// 景点来源归一化:仅接受 map,其余一律按 xhs(默认)处理
+	// 景点来源归一化:xhs/douyin 为真人内容平台(map 为地图检索),其余一律按 xhs(默认)处理
 	r.AttractionSource = strings.ToLower(strings.TrimSpace(r.AttractionSource))
-	if r.AttractionSource != "map" {
+	switch r.AttractionSource {
+	case "douyin", "map":
+	default:
 		r.AttractionSource = "xhs"
 	}
 }
@@ -237,6 +246,8 @@ type TripPlan struct {
 	WeatherInfo        []WeatherInfo `json:"weather_info"`
 	OverallSuggestions string        `json:"overall_suggestions"`
 	Budget             *Budget       `json:"budget,omitempty"`
+	// AttractionSource 景点数据来源:xhs=小红书真人推荐 / douyin=抖音真人分享 / map=高德地图检索,用于前端展示图片来源标注
+	AttractionSource string `json:"attraction_source,omitempty"`
 }
 
 // ============ 知识图谱模型 ============
@@ -346,6 +357,8 @@ type TripHistoryItem struct {
 	TravelDays         int      `json:"travel_days"`
 	UpdatedAt          string   `json:"updated_at"`
 	OverallSuggestions string   `json:"overall_suggestions,omitempty"`
+	Status             string   `json:"status,omitempty"`        // completed/failed
+	ErrorMessage       string   `json:"error_message,omitempty"` // 失败原因
 }
 
 // UserMemory 用户偏好记忆(持久化到 MySQL)。
@@ -377,6 +390,8 @@ type TripPlanRecord struct {
 	PlanJSON           string    `gorm:"type:longtext;comment:行程计划完整JSON" json:"-"`
 	GraphJSON          string    `gorm:"type:longtext;comment:知识图谱JSON" json:"-"`
 	RequestJSON        string    `gorm:"type:longtext;comment:原始规划请求JSON" json:"-"`
+	Status             string    `gorm:"size:16;index;default:completed;comment:状态(completed/failed)" json:"status"`
+	ErrorMessage       string    `gorm:"type:text;comment:失败原因" json:"error_message"`
 	CreatedAt          time.Time `gorm:"comment:创建时间" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"comment:更新时间" json:"updated_at"`
 }

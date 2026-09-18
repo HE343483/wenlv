@@ -83,14 +83,17 @@ func main() {
 			GoogleMapsAPIKey: cfg.Trip.GoogleMapsAPIKey,
 			GoogleMapsProxy:  cfg.Trip.GoogleMapsProxy,
 			XHSCookie:        cfg.Trip.XHSCookie,
+			DouyinCookie:     cfg.Trip.DouyinCookie,
 			OpenAIAPIKey:     cfg.Trip.LLMAPIKey,
 			OpenAIBaseURL:    cfg.Trip.LLMBaseURL,
 			OpenAIModel:      cfg.Trip.LLMModel,
 		},
-		DataDir:          cfg.Trip.DataDir,
-		PlannerTimeout:   cfg.Trip.PlannerTimeout,
-		LLMTimeout:       cfg.Trip.LLMTimeout,
-		EnableUserMemory: cfg.Trip.EnableUserMemory,
+		DataDir:            cfg.Trip.DataDir,
+		PlannerTimeout:     cfg.Trip.PlannerTimeout,
+		LLMTimeout:         cfg.Trip.LLMTimeout,
+		EnableUserMemory:   cfg.Trip.EnableUserMemory,
+		ImageCacheTTLHours: cfg.Trip.ImageCacheTTLHours,
+		ImageCacheMaxMB:    cfg.Trip.ImageCacheMaxMB,
 		Memory: service.TripMemoryParams{
 			DecayFactor:      cfg.Trip.MemoryDecayFactor,
 			WeightThreshold:  cfg.Trip.MemoryWeightThreshold,
@@ -103,11 +106,14 @@ func main() {
 	tripAmap := service.NewAmapService(tripSettings)
 	tripSigner := service.NewXHSSigner(getEnvOr("TRIP_XHS_SIGN_DIR", "xhs_sign"))
 	tripXHS := service.NewXHSService(tripSettings, tripLLM, tripAmap, tripSigner)
+	// 抖音 a_bogus 签名与数据源(签名 JS 需放置到 douyin_sign/douyin.js)
+	tripDouyinSigner := service.NewDouyinSigner(getEnvOr("TRIP_DOUYIN_SIGN_DIR", "douyin_sign"))
+	tripDouyin := service.NewDouyinService(tripSettings, tripLLM, tripAmap, tripDouyinSigner)
 	tripMemory := service.NewTripMemoryService(tripSettings, userMemoryRepo, tripLLM)
 	tripTasks := service.NewTripTaskStore(cfg.Trip.DataDir)
-	tripTasks.AttachDB(db) // 行程完成后落库 trip_plans,历史/回看走数据库
+	tripTasks.AttachDB(db)    // 行程完成后落库 trip_plans,历史/回看走数据库
 	tripSettings.AttachDB(db) // 设置页配置落库 trip_settings,重启不丢失
-	tripPlanner := service.NewTripPlanner(tripSettings, tripLLM, tripAmap, tripXHS, tripMemory, tripTasks)
+	tripPlanner := service.NewTripPlanner(tripSettings, tripLLM, tripAmap, tripXHS, tripDouyin, tripMemory, tripTasks)
 	tripChat := service.NewTripChatService(tripLLM)
 	// 小红书 Cookie 保活:定时访问首页续期并持久化
 	service.NewXHSKeepalive(tripSettings).Start()
@@ -125,7 +131,7 @@ func main() {
 		Article:  handler.NewArticleHandler(articleSvc),
 		Upload:   handler.NewUploadHandler(uploadSvc),
 		Trip:     handler.NewTripHandler(tripPlanner, tripChat, tripTasks, tripSettings),
-		TripTool: handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripMemory),
+		TripTool: handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripDouyin, tripMemory),
 	}
 
 	engine := router.Setup(h, authSvc.ValidateAccess)

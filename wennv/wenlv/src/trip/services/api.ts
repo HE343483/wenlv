@@ -20,6 +20,7 @@ const DEFAULT_RUNTIME_BACKEND_SETTINGS: BackendRuntimeSettings = {
   google_maps_api_key: '',
   google_maps_proxy: '',
   xhs_cookie: '',
+  douyin_cookie: '',
   openai_api_key: '',
   openai_base_url: '',
   openai_model: '',
@@ -119,11 +120,33 @@ export const setRuntimeGoogleMapsApiKey = (value: string): string => {
 
 const getWsBaseUrl = (): string => getRuntimeApiBaseUrl().replace(/^http/i, 'ws').replace(/\/+$/, '')
 
-// ========== 用户记忆：本地生成并持久化匿名 user_id ==========
+// ========== 用户记忆：user_id 与偏好记忆开关 ==========
 const USER_ID_STORAGE_KEY = 'tripstar.user_id'
+const MEMORY_ENABLED_STORAGE_KEY = 'tripstar.memory_enabled'
 
+/** 登录用户的 user_id 前缀:优先使用登录用户名,保证跨浏览器/清缓存后偏好仍关联同一账号 */
+const AUTH_USER_STORAGE_KEY = 'shuyun-chengdu-user'
+
+function getLoggedInUsername(): string {
+  try {
+    const raw = window.localStorage.getItem(AUTH_USER_STORAGE_KEY)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { profile?: { nickname?: string } }
+    return parsed.profile?.nickname?.trim() || ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * 获取或创建 user_id:
+ * - 已登录:使用 `user-{用户名}`,偏好记忆跟随账号,清缓存/换设备后重新登录即可找回
+ * - 未登录:使用本地持久化的匿名 UUID
+ */
 export const getOrCreateUserId = (): string => {
   if (typeof window === 'undefined') return ''
+  const username = getLoggedInUsername()
+  if (username) return `user-${username}`
   let uid = window.localStorage.getItem(USER_ID_STORAGE_KEY)
   if (!uid) {
     const cryptoObj = window.crypto as Crypto | undefined
@@ -134,6 +157,17 @@ export const getOrCreateUserId = (): string => {
     window.localStorage.setItem(USER_ID_STORAGE_KEY, uid)
   }
   return uid
+}
+
+/** 用户偏好记忆开关(默认关闭,需用户主动开启) */
+export const isMemoryEnabled = (): boolean => {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(MEMORY_ENABLED_STORAGE_KEY) === 'true'
+}
+
+export const setMemoryEnabled = (enabled: boolean): void => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(MEMORY_ENABLED_STORAGE_KEY, enabled ? 'true' : 'false')
 }
 
 const normalizeBackendRuntimeSettings = (
@@ -150,6 +184,9 @@ const normalizeBackendRuntimeSettings = (
     data?.google_maps_proxy ?? DEFAULT_RUNTIME_BACKEND_SETTINGS.google_maps_proxy
   ),
   xhs_cookie: normalizeText(data?.xhs_cookie ?? DEFAULT_RUNTIME_BACKEND_SETTINGS.xhs_cookie),
+  douyin_cookie: normalizeText(
+    data?.douyin_cookie ?? DEFAULT_RUNTIME_BACKEND_SETTINGS.douyin_cookie
+  ),
   openai_api_key: normalizeText(data?.openai_api_key ?? DEFAULT_RUNTIME_BACKEND_SETTINGS.openai_api_key),
   openai_base_url:
     normalizeText(data?.openai_base_url ?? DEFAULT_RUNTIME_BACKEND_SETTINGS.openai_base_url) ||
@@ -248,6 +285,7 @@ export async function saveRuntimeSettings(settings: RuntimeSettings): Promise<Ru
     google_maps_api_key: settings.google_maps_api_key,
     google_maps_proxy: settings.google_maps_proxy,
     xhs_cookie: settings.xhs_cookie,
+    douyin_cookie: settings.douyin_cookie,
     openai_api_key: settings.openai_api_key,
     openai_base_url: settings.openai_base_url,
     openai_model: settings.openai_model,
@@ -280,7 +318,7 @@ export async function saveRuntimeSettings(settings: RuntimeSettings): Promise<Ru
  */
 export async function submitTripPlan(formData: TripFormData): Promise<SubmitTripPlanResponse> {
   try {
-    const payload = { ...formData, user_id: getOrCreateUserId() }
+    const payload = { ...formData, user_id: getOrCreateUserId(), memory_enabled: isMemoryEnabled() }
     const response = await apiClient.post('/api/trip/plan', payload)
     return response.data
   } catch (error: any) {
@@ -294,7 +332,9 @@ export async function submitTripPlan(formData: TripFormData): Promise<SubmitTrip
  */
 export async function pollTaskStatus(taskId: string): Promise<any> {
   try {
-    const response = await apiClient.get(`/api/trip/status/${taskId}`)
+    // 携带当前语言,后端对缺失 overall_suggestions 的历史任务快照按语言生成兜底文案
+    const lang = i18n.global.locale.value
+    const response = await apiClient.get(`/api/trip/status/${taskId}`, { params: { lang } })
     return response.data
   } catch (error: any) {
     console.error('查询任务状态失败:', error)
@@ -319,7 +359,9 @@ export async function getTripHistory(limit = 8): Promise<TripHistoryItem[]> {
  */
 export async function getTripPlan(planId: string): Promise<any> {
   try {
-    const response = await apiClient.get(`/api/trip/plans/${planId}`)
+    // 携带当前语言,后端对缺失 overall_suggestions 的历史计划按语言生成兜底文案
+    const lang = i18n.global.locale.value
+    const response = await apiClient.get(`/api/trip/plans/${planId}`, { params: { lang } })
     return response.data
   } catch (error: any) {
     console.error('读取历史计划详情失败:', error)

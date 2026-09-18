@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    languageChinese: '中国語',
+    languageEnglish: '英語',
+    languageJapanese: '日本語',
+    switchToChinese: '中国語に切り替える',
+    switchToEnglish: '英語に切り替える',
+    switchToJapanese: '日本語に切り替える',
     home: 'ホーム',
     explore: '探索',
     food: 'グルメ',
@@ -91,7 +97,7 @@ export default {
     home: 'ホーム',
     explore: '探索',
     food: 'グルメ',
-    routes: 'ルート',
+    routes: 'AI旅程',
     favorites: 'お気に入り',
     mine: 'マイページ',
   },
@@ -99,11 +105,14 @@ export default {
     title: '巴蜀文化探索',
     exploreDesc: '成都各区の独特なスポットと文化を探索',
     foodDesc: '世界美食の都の麻辣鮮香を味わう',
-    routesDesc: '厳選観光ルートで天府の美を深く体験',
+    routesDesc: 'AIがあなただけの旅程を賢くプランニング',
   },
   routes: {
-    title: 'ルート計画',
-    subtitle: 'あなただけの旅程を計画し、Baidu マップで天府の美を体感',
+    title: 'AI スマート旅程',
+    subtitle: 'AIがあなただけの旅程をプランニング — 経路・予算・地図を一括で',
+    entryTitle: 'AI 旅程プランナー',
+    entryDesc: '目的地と旅行の好みを入力すると、AI が複数日旅程を自動生成：スポット提案、経路計画、予算明細、地図ナビまで一気に。',
+    cta: 'AI旅程の計画を始める',
     tabPrebuilt: '厳選ルート',
     tabCustom: 'カスタムルート',
     prebuiltTitle: 'セレクト観光ルート',
@@ -354,6 +363,32 @@ export default {
     goExplore: '探索へ',
     unfavorite: 'お気に入り解除',
     viewDetail: '詳細を見る',
+  },
+  trip: {
+    badge: 'AI プランニング',
+    title: 'AI スマート旅程',
+    subtitle: 'ひとことで、あなただけの成都旅を',
+    intro: '日数・同行者・好みを伝えるだけで、AI が小紅書・抖音のリアルな旅行者の投稿と高徳地図のデータを組み合わせ、日程の組み立て・予算の算出・共有できる旅程図の作成まで行います。',
+    features: {
+      route: {
+        name: 'スマートルート設計',
+        desc: '日ごとに見どころを並べ、遠回りや戻りを減らします。',
+      },
+      reviews: {
+        name: 'リアルな口コミ',
+        desc: '小紅書のノートと抖音のショート動画に基づく、実際の旅行者の声を参考にご提案。',
+      },
+      budget: {
+        name: '予算がひと目で',
+        desc: '入場料・宿泊・食事・交通を項目ごとに明示。',
+      },
+      map: {
+        name: '地図で可視化',
+        desc: '見どころ・ホテル・ルートを地図上で一画面に。',
+      },
+    },
+    cta: 'AI プランニングを体験',
+    ctaHint: 'ログインすると無料で旅程を生成できます',
   },
   mineMenu: {
     profile: 'マイページ',

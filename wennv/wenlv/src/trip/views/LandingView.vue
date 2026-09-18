@@ -157,8 +157,14 @@
               <template #label>
                 <span class="field-label">{{ t('home.attractionSourceLabel') }}</span>
               </template>
-              <a-radio-group v-model:value="formData.attraction_source" size="large" class="source-radio">
+              <a-radio-group
+                :value="formData.attraction_source"
+                size="large"
+                class="source-radio"
+                @change="onSourceChange"
+              >
                 <a-radio-button value="xhs">{{ t('home.attractionSource.xhs') }}</a-radio-button>
+                <a-radio-button value="douyin">{{ t('home.attractionSource.douyin') }}</a-radio-button>
                 <a-radio-button value="map">{{ t('home.attractionSource.map') }}</a-radio-button>
               </a-radio-group>
               <p class="source-hint">{{ t('home.attractionSourceHint') }}</p>
@@ -182,6 +188,17 @@
               </div>
             </a-form-item>
           </div>
+
+          <!-- 用户偏好记忆开关：由用户自主选择是否让 AI 参考历史偏好 -->
+          <a-form-item class="memory-toggle-item">
+            <div class="memory-toggle">
+              <a-switch v-model:checked="memoryEnabled" size="large" />
+              <div class="memory-toggle-copy">
+                <span class="memory-toggle-label">{{ t('home.memoryToggle.label') }}</span>
+                <span class="memory-toggle-desc">{{ t('home.memoryToggle.desc') }}</span>
+              </div>
+            </div>
+          </a-form-item>
 
           <a-form-item>
             <button type="submit" class="btn btn-danger btn-round submit-btn" :class="{ loading: tripTask.generating }" :disabled="tripTask.generating">
@@ -277,22 +294,29 @@
             v-for="item in historyPlans"
             :key="item.plan_id"
             class="history-item"
+            :class="{ 'history-item-failed': item.status === 'failed' }"
             role="button"
             tabindex="0"
-            @click="openHistoryPlan(item.plan_id)"
-            @keydown.enter.prevent="openHistoryPlan(item.plan_id)"
+            @click="handleHistoryItemClick(item)"
+            @keydown.enter.prevent="handleHistoryItemClick(item)"
           >
             <div class="history-item-main">
               <div class="history-route">
                 <span class="history-city">{{ item.city }}</span>
+                <a-tag v-if="item.status === 'failed'" color="error" class="history-failed-tag">
+                  {{ t('home.history.failedTag') }}
+                </a-tag>
                 <span class="history-date">{{ item.start_date }} {{ t('common.to') }} {{ item.end_date }}</span>
               </div>
               <p class="history-meta">
                 <span>Plan ID: {{ item.plan_id }}</span>
-                <span>{{ item.travel_days }}{{ t('home.travelDaysUnit') }}</span>
+                <span v-if="item.status !== 'failed'">{{ item.travel_days }}{{ t('home.travelDaysUnit') }}</span>
                 <span>{{ t('home.history.updatedAt') }} {{ formatHistoryTime(item.updated_at) }}</span>
               </p>
-              <p v-if="item.overall_suggestions" class="history-summary">{{ item.overall_suggestions }}</p>
+              <p v-if="item.status === 'failed' && item.error_message" class="history-error">
+                {{ item.error_message }}
+              </p>
+              <p v-else-if="item.overall_suggestions" class="history-summary">{{ item.overall_suggestions }}</p>
             </div>
             <div class="history-item-actions">
               <a-popconfirm
@@ -305,7 +329,8 @@
                   {{ t('home.history.delete') }}
                 </button>
               </a-popconfirm>
-              <span class="history-open">{{ t('home.history.open') }}</span>
+              <span v-if="item.status !== 'failed'" class="history-open">{{ t('home.history.open') }}</span>
+              <span v-else class="history-open history-open-failed">{{ t('home.history.failedHint') }}</span>
             </div>
           </div>
         </div>
@@ -317,11 +342,11 @@
 <script setup lang="ts">
 // 行程模块自带的全局样式(Paper Kit 暗色玻璃风格),随路由懒加载注入
 import '@/trip/styles/global.css'
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { getTripHistory, deleteTripPlan } from '@/trip/services/api'
+import { getTripHistory, deleteTripPlan, isMemoryEnabled, setMemoryEnabled } from '@/trip/services/api'
 import { getCurrentLocale } from '@/trip/i18n'
 import { useTripTaskStore } from '@/trip/stores/tripTask'
 import NavBar from '@/trip/components/NavBar.vue'
@@ -335,7 +360,7 @@ type LandingFormData = {
   accommodation: string
   preferences: string[]
   free_text_input: string
-  attraction_source: 'xhs' | 'map'
+  attraction_source: 'xhs' | 'douyin' | 'map'
 }
 
 const router = useRouter()
@@ -349,6 +374,12 @@ const panelHeight = ref<number | string>('auto')
 const fogEnabled = ref(true)
 const historyLoading = ref(false)
 const historyPlans = ref<TripHistoryItem[]>([])
+
+/** 用户偏好记忆开关:持久化到 localStorage,提交行程时随请求发送 */
+const memoryEnabled = ref(isMemoryEnabled())
+watch(memoryEnabled, (val) => {
+  setMemoryEnabled(val)
+})
 
 const interestOptions = [
   { value: '历史文化', labelKey: 'home.interests.history' },
@@ -374,6 +405,18 @@ const formData = reactive<LandingFormData>({
 })
 
 const totalDays = computed(() => formData.cities.reduce((sum, cs) => sum + (cs.days || 1), 0))
+
+/**
+ * 景点来源切换:抖音真人分享暂未实现,点击时保持原选项并提示开发中
+ */
+function onSourceChange(e: any) {
+  const val = e?.target?.value as 'xhs' | 'douyin' | 'map'
+  if (val === 'douyin') {
+    message.info(t('home.douyinComingSoon'))
+    return
+  }
+  formData.attraction_source = val
+}
 
 const computedEndDate = computed(() => {
   if (!formData.start_date) return null
@@ -455,6 +498,15 @@ const openHistoryPlan = (planId: string) => {
   sessionStorage.removeItem('graphData')
   sessionStorage.setItem('planId', planId)
   router.push({ path: '/trip/result', query: { plan_id: planId } })
+}
+
+// 失败的历史计划不可回看,点击给出提示
+const handleHistoryItemClick = (item: TripHistoryItem) => {
+  if (item.status === 'failed') {
+    message.warning(item.error_message || t('home.history.failedHint'))
+    return
+  }
+  openHistoryPlan(item.plan_id)
 }
 
 const loadHistoryPlans = async () => {
@@ -646,6 +698,32 @@ const handleSubmit = async () => {
   transform: translateY(-1px);
   border-color: rgba(93, 164, 177, 0.4);
   background: #F6F0E5;
+}
+
+/* 失败的历史计划:置灰不可回看 */
+.history-item-failed {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.history-item-failed:hover {
+  transform: none;
+  border-color: rgba(184, 69, 62, 0.35);
+  background: rgba(184, 69, 62, 0.04);
+}
+.history-failed-tag {
+  margin-left: 8px;
+  margin-right: 0;
+  flex-shrink: 0;
+}
+.history-error {
+  margin: 6px 0 0;
+  color: #B8453E;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.history-open-failed {
+  color: #8A9A9E;
+  cursor: not-allowed;
 }
 
 .history-item-main {
@@ -1120,6 +1198,35 @@ const handleSubmit = async () => {
 
 .source-hint {
   margin: 8px 2px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8A9A9E;
+}
+
+/* 用户偏好记忆开关 */
+.memory-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(93, 164, 177, 0.06);
+  border: 1px solid rgba(93, 164, 177, 0.18);
+}
+
+.memory-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memory-toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2E3A3D;
+}
+
+.memory-toggle-desc {
   font-size: 12px;
   line-height: 1.6;
   color: #8A9A9E;

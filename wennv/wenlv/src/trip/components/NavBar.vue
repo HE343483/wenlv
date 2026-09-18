@@ -153,6 +153,18 @@
                 allow-clear
               />
             </a-form-item>
+
+            <a-form-item class="runtime-settings-full">
+              <template #label>
+                <span class="field-label">{{ t('settings.labels.douyinCookie') }}</span>
+              </template>
+              <a-textarea
+                v-model:value="settingsForm.douyin_cookie"
+                :rows="4"
+                :placeholder="t('settings.placeholders.douyinCookie')"
+                allow-clear
+              />
+            </a-form-item>
           </a-form>
         </section>
       </a-spin>
@@ -185,6 +197,7 @@ const settingsForm = reactive<RuntimeSettings>({
   google_maps_api_key: '',
   google_maps_proxy: '',
   xhs_cookie: '',
+  douyin_cookie: '',
   openai_api_key: '',
   openai_base_url: '',
   openai_model: '',
@@ -210,6 +223,7 @@ const applyRuntimeSettings = (settings: RuntimeSettings) => {
   settingsForm.google_maps_api_key = settings.google_maps_api_key || ''
   settingsForm.google_maps_proxy = settings.google_maps_proxy || ''
   settingsForm.xhs_cookie = settings.xhs_cookie || ''
+  settingsForm.douyin_cookie = settings.douyin_cookie || ''
   settingsForm.openai_api_key = settings.openai_api_key || ''
   settingsForm.openai_base_url = settings.openai_base_url || ''
   settingsForm.openai_model = settings.openai_model || ''
@@ -238,6 +252,7 @@ const saveSettingsNow = async () => {
       google_maps_api_key: settingsForm.google_maps_api_key,
       google_maps_proxy: settingsForm.google_maps_proxy,
       xhs_cookie: settingsForm.xhs_cookie,
+      douyin_cookie: settingsForm.douyin_cookie,
       openai_api_key: settingsForm.openai_api_key,
       openai_base_url: settingsForm.openai_base_url,
       openai_model: settingsForm.openai_model,

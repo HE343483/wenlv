@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * LanguageSwitch.vue — 语言切换分段器（中 | EN）
+ * LanguageSwitch.vue — 语言切换分段器（中文 | English | 日本語）
  * 首页 NavBar 与内部 HomeLayout 顶栏共用，保证全局语言按钮一致
  */
 import { useLanguageStore } from '@/stores/language'
@@ -12,27 +12,33 @@ const langStore = useLanguageStore()
   <div class="lang-switch" role="group" :aria-label="langStore.t('nav.ariaLang')">
     <button
       type="button"
-      class="lang-switch__btn"
+      class="lang-switch__btn lang-switch__btn--zh"
       :class="{ 'lang-switch__btn--active': langStore.lang === 'zh' }"
+      :aria-label="langStore.t('nav.switchToChinese')"
+      :title="langStore.t('nav.languageChinese')"
       @click="langStore.setLang('zh')"
     >
-      中
+      {{ langStore.t('nav.languageChinese') }}
     </button>
     <button
       type="button"
-      class="lang-switch__btn"
+      class="lang-switch__btn lang-switch__btn--en"
       :class="{ 'lang-switch__btn--active': langStore.lang === 'en' }"
+      :aria-label="langStore.t('nav.switchToEnglish')"
+      :title="langStore.t('nav.languageEnglish')"
       @click="langStore.setLang('en')"
     >
-      EN
+      {{ langStore.t('nav.languageEnglish') }}
     </button>
     <button
       type="button"
-      class="lang-switch__btn"
+      class="lang-switch__btn lang-switch__btn--ja"
       :class="{ 'lang-switch__btn--active': langStore.lang === 'ja' }"
+      :aria-label="langStore.t('nav.switchToJapanese')"
+      :title="langStore.t('nav.languageJapanese')"
       @click="langStore.setLang('ja')"
     >
-      日
+      {{ langStore.t('nav.languageJapanese') }}
     </button>
   </div>
 </template>

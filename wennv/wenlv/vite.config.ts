@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: 'http://ra9a3c94.natappfree.cc', // natapp 穿透后端; dev 时 /api 转发至此
+          target: env.VITE_API_BASE_URL || 'http://ra9a3c94.natappfree.cc', // natapp / 本地联调; 可用 VITE_API_BASE_URL 覆盖
           changeOrigin: true,
           ws: true, // AI 行程规划通过 WebSocket 推送任务进度
         },

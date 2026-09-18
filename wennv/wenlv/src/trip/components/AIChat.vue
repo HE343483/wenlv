@@ -159,9 +159,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import axios from 'axios'
 import type { ChatMessage, TripPlan } from '@/trip/types'
 import { getRuntimeApiBaseUrl } from '@/trip/services/api'
 
@@ -310,22 +309,68 @@ const sendChatMessage = async () => {
   chatLoading.value = true
   scrollChatToBottom()
 
+  // 预先插入空的助手消息,流式增量追加,实现打字机效果
+  const assistantMsg = reactive<ChatMessage>({ role: 'assistant', content: '' })
+  chatHistory.value.push(assistantMsg)
+
   try {
     const apiBase = getRuntimeApiBaseUrl()
-    const res = await axios.post(`${apiBase}/api/chat/ask`, {
-      message: text,
-      trip_plan: props.tripPlan,
-      history: chatHistory.value.slice(0, -1),
+    const res = await fetch(`${apiBase}/api/chat/ask/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        trip_plan: props.tripPlan,
+        history: chatHistory.value.slice(0, -2),
+      }),
     })
+    if (!res.ok || !res.body) {
+      throw new Error(`HTTP ${res.status}`)
+    }
 
-    if (res.data.success) {
-      chatHistory.value.push({ role: 'assistant', content: res.data.reply })
-    } else {
-      chatHistory.value.push({ role: 'assistant', content: t('result.chat.replyFallback') })
+    // 逐行解析 SSE:data: {"delta":"..."} / data: {"error":"..."} / data: [DONE]
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let failed = false
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || '' // 最后一段可能不完整,留待下一批
+      for (const rawLine of lines) {
+        const line = rawLine.trim()
+        if (!line.startsWith('data:')) continue
+        const payload = line.slice(5).trim()
+        if (payload === '[DONE]') continue
+        try {
+          const evt = JSON.parse(payload)
+          if (evt.delta) {
+            assistantMsg.content += evt.delta
+            scrollChatToBottom()
+          } else if (evt.error) {
+            failed = true
+            assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `⚠️ ${evt.error}`
+          }
+        } catch {
+          /* 忽略无法解析的行 */
+        }
+      }
+    }
+
+    // 若模型没有返回任何内容,给出兜底提示
+    if (!assistantMsg.content) {
+      assistantMsg.content = failed ? t('result.chat.networkError') : t('result.chat.replyFallback')
     }
   } catch (err) {
     console.error('Chat error:', err)
-    chatHistory.value.push({ role: 'assistant', content: t('result.chat.networkError') })
+    if (!assistantMsg.content) {
+      assistantMsg.content = t('result.chat.networkError')
+    } else {
+      assistantMsg.content += '\n\n⚠️ ' + t('result.chat.networkError')
+    }
   } finally {
     chatLoading.value = false
     scrollChatToBottom()
