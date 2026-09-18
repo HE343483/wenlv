@@ -182,13 +182,24 @@ function syncPlayback(): void {
 
 function onPointerMove(event: PointerEvent): void {
   if (event.pointerType === 'touch' || !state) return
+  queueRippleAtClient(event.clientX, event.clientY)
+}
+
+/** 外部（如 CTA 悬停）按视口坐标注入涟漪 */
+function rippleAtClient(clientX: number, clientY: number): void {
+  if (!active.value || !state) return
+  queueRippleAtClient(clientX, clientY)
+}
+
+function queueRippleAtClient(clientX: number, clientY: number): void {
+  if (!state) return
   const canvas = canvasRef.value
   if (!canvas) return
   const rect = canvas.getBoundingClientRect()
   if (rect.width === 0 || rect.height === 0) return
   pendingPointer = {
-    x: ((event.clientX - rect.left) / rect.width) * state.width,
-    y: ((event.clientY - rect.top) / rect.height) * state.height,
+    x: ((clientX - rect.left) / rect.width) * state.width,
+    y: ((clientY - rect.top) / rect.height) * state.height,
   }
 }
 
@@ -289,6 +300,8 @@ onBeforeUnmount(() => {
   follow.value = false
   teardown()
 })
+
+defineExpose({ rippleAtClient })
 </script>
 
 <template>

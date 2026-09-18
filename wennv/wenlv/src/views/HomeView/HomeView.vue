@@ -10,12 +10,19 @@ import PandaCursor from '@/components/PandaCursor.vue'
 import Carousel from '@/components/Carousel.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import HeroRipple from '@/components/HeroRipple.vue'
+import CultureScroll from '@/components/CultureScroll.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
 
 const langStore = useLanguageStore()
+const heroRippleRef = ref<InstanceType<typeof HeroRipple> | null>(null)
 
 function scrollToExplore() {
   document.getElementById('explore')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+function onCtaPointer(e: PointerEvent) {
+  if (e.pointerType === 'touch') return
+  heroRippleRef.value?.rippleAtClient?.(e.clientX, e.clientY)
 }
 
 const carouselItems: CarouselItem[] = [
@@ -71,58 +78,6 @@ const cultureCards = [
   { key: 'cuisine', icon: 'cuisine' },
   { key: 'history', icon: 'history' },
   { key: 'embroidery', icon: 'embroidery' },
-]
-
-/* 文明脉络 — 时间线 */
-const timeline = [
-  {
-    era: '古蜀时期',
-    eraEn: 'Ancient Shu',
-    period: '约公元前1600年 — 公元前316年',
-    periodEn: 'c. 1600 BC — 316 BC',
-    desc: '三星堆与金沙遗址代表了古蜀文明的辉煌成就，青铜神树、黄金面具、太阳神鸟等文物震惊世界。',
-    descEn: 'Sanxingdui and Jinsha sites represent the brilliance of ancient Shu — bronze trees, gold masks, and the Sun Bird.',
-  },
-  {
-    era: '秦并巴蜀',
-    eraEn: 'Qin Annexation',
-    period: '公元前316年 — 公元221年',
-    periodEn: '316 BC — 221 AD',
-    desc: '秦灭巴蜀后，李冰父子修建都江堰水利工程，使成都平原成为"天府之国"。',
-    descEn: 'After Qin conquered Shu, Li Bing and his son built the Dujiangyan irrigation system, turning Chengdu into the "Land of Abundance."',
-  },
-  {
-    era: '蜀汉风云',
-    eraEn: 'Shu Han',
-    period: '公元221年 — 263年',
-    periodEn: '221 — 263 AD',
-    desc: '刘备在成都称帝建立蜀汉政权，诸葛亮六出祁山，三国文化自此深深烙印在成都的血脉中。',
-    descEn: 'Liu Bei founded Shu Han in Chengdu. Zhuge Liang\'s northern campaigns etched Three Kingdoms legacy into the city\'s soul.',
-  },
-  {
-    era: '唐宋锦绣',
-    eraEn: 'Tang & Song',
-    period: '公元618年 — 1279年',
-    periodEn: '618 — 1279 AD',
-    desc: '"锦官城"之名响彻天下，杜甫、陆游等诗人留居成都，留下无数传世诗篇。蜀锦、蜀绣、雕版印刷空前繁荣。',
-    descEn: 'Chengdu flourished as the "City of Brocade." Poets Du Fu and Lu You lived here, leaving timeless verses.',
-  },
-  {
-    era: '明清延续',
-    eraEn: 'Ming & Qing',
-    period: '公元1368年 — 1911年',
-    periodEn: '1368 — 1911 AD',
-    desc: '宽窄巷子、锦里等明清古街格局形成，川剧、川菜、茶馆文化日趋成熟，成都慢生活文化源远流长。',
-    descEn: 'Kuanzhai Alley and Jinli took shape. Sichuan opera, cuisine, and teahouse culture matured into the city\'s signature slow pace.',
-  },
-  {
-    era: '现代成都',
-    eraEn: 'Modern Chengdu',
-    period: '1911年 — 至今',
-    periodEn: '1911 — Present',
-    desc: '千年古都焕发新生，以公园城市理念建设践行新发展理念，天府新区、大运会场馆见证城市蝶变。',
-    descEn: 'The ancient capital reinvents itself as a "Park City." Tianfu New Area and global events showcase Chengdu\'s transformation.',
-  },
 ]
 
 /* 非遗项目 */
@@ -223,7 +178,7 @@ function setSectionRef(el: unknown, index: number) {
           role="img"
           aria-label="成都风景"
         />
-        <HeroRipple />
+        <HeroRipple ref="heroRippleRef" />
         <div class="hero__gradient" />
         <div class="hero__pattern" />
       </div>
@@ -239,12 +194,11 @@ function setSectionRef(el: unknown, index: number) {
         </div>
 
         <h1 class="hero__title">
-          <span class="hero__title-zh">{{ langStore.lang === 'zh' ? '巴蜀文化' : 'Bashu Culture' }}</span>
-          <span class="hero__title-en-row">
-            <span class="hero__title-en">{{ langStore.lang === 'zh' ? '锦绣天府' : 'Splendid Tianfu' }}</span>
-            <!-- 落款印章 — 呼应全站"决策点即印章"的语言 -->
+          <span class="hero__title-zh-wrap">
+            <span class="hero__title-zh">{{ langStore.lang === 'zh' ? '巴蜀文化' : 'Bashu Culture' }}</span>
             <span class="hero__title-sign" aria-hidden="true">蜀</span>
           </span>
+          <span class="hero__title-en">{{ langStore.lang === 'zh' ? '锦绣天府' : 'Splendid Tianfu' }}</span>
         </h1>
 
         <p class="hero__subtitle">
@@ -252,7 +206,12 @@ function setSectionRef(el: unknown, index: number) {
         </p>
 
         <div class="hero__cta-group">
-          <button class="hero__cta hero__cta--primary" @click="scrollToExplore">
+          <button
+            class="hero__cta hero__cta--primary"
+            @click="scrollToExplore"
+            @pointerenter="onCtaPointer"
+            @pointermove="onCtaPointer"
+          >
             {{ langStore.t('hero.cta') }}
             <span class="hero__cta-arrow">→</span>
           </button>
@@ -330,41 +289,13 @@ function setSectionRef(el: unknown, index: number) {
     <!-- ──── 文明脉络 ──── -->
     <section
       :ref="(el) => setSectionRef(el, 2)"
-      class="culture-timeline reveal"
+      class="culture-scroll-section reveal"
     >
-      <div class="container">
-        <div class="culture-timeline__header">
-          <h2 class="section-title">{{ langStore.t('culture.timelineTitle') }}</h2>
-          <p class="section-subtitle">{{ langStore.t('culture.timelineSubtitle') }}</p>
-        </div>
-
-        <div class="culture-timeline__track">
-          <div class="culture-timeline__line" />
-          <div
-            v-for="(item, i) in timeline"
-            :key="item.era"
-            class="culture-timeline__item"
-            :style="{ '--delay': `${i * 0.1}s` }"
-          >
-            <div class="culture-timeline__dot">
-              <span class="culture-timeline__dot-inner" />
-            </div>
-            <div class="culture-timeline__content">
-              <div class="culture-timeline__meta">
-                <span class="culture-timeline__era">
-                  {{ langStore.lang === 'zh' ? item.era : item.eraEn }}
-                </span>
-                <span class="culture-timeline__period">
-                  {{ langStore.lang === 'zh' ? item.period : item.periodEn }}
-                </span>
-              </div>
-              <p class="culture-timeline__desc">
-                {{ langStore.lang === 'zh' ? item.desc : item.descEn }}
-              </p>
-            </div>
-          </div>
-        </div>
+      <div class="culture-scroll-section__header container">
+        <h2 class="section-title">{{ langStore.t('culture.timelineTitle') }}</h2>
+        <p class="section-subtitle">{{ langStore.t('culture.timelineSubtitle') }}</p>
       </div>
+      <CultureScroll />
     </section>
 
     <!-- ──── 非遗传承 ──── -->
@@ -540,6 +471,11 @@ function setSectionRef(el: unknown, index: number) {
   gap: var(--space-2);
 }
 
+.hero__title-zh-wrap {
+  position: relative;
+  display: inline-block;
+}
+
 .hero__title-zh {
   font-family: var(--font-display);
   font-size: var(--text-6xl);
@@ -560,14 +496,11 @@ function setSectionRef(el: unknown, index: number) {
   text-shadow: 0 2px 20px rgba(15, 13, 11, 0.6);
 }
 
-.hero__title-en-row {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-/* 落款印章 — 金线描边，安静平和 */
+/* 落款印章 — 挂在「巴蜀文化」右上角，不占文档流 */
 .hero__title-sign {
+  position: absolute;
+  top: 0;
+  right: 0;
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -579,7 +512,8 @@ function setSectionRef(el: unknown, index: number) {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  transform: rotate(-2deg);
+  transform: translate(55%, -45%) rotate(-2deg);
+  pointer-events: none;
 }
 
 .hero__subtitle {
@@ -603,21 +537,23 @@ function setSectionRef(el: unknown, index: number) {
   gap: var(--space-3);
   padding: var(--space-4) var(--space-10);
   border-radius: var(--radius-sm);
-  font-size: var(--text-base);
+  font-family: 'SimSun', '宋体', 'Songti SC', 'Noto Serif SC', serif;
+  font-size: var(--text-2xl);
+  font-weight: 700;
   letter-spacing: var(--tracking-wide);
   transition: all var(--transition-base);
 }
 
 .hero__cta--primary {
-  background: var(--color-gold);
-  color: var(--color-bg);
-  font-weight: 500;
+  background: transparent;
+  color: #fff;
+  font-weight: 700;
 }
 
 .hero__cta--primary:hover {
-  background: var(--color-gold-light);
-  box-shadow: 0 0 32px var(--color-gold-glow);
-  transform: translateY(-1px);
+  background: transparent;
+  color: #fff;
+  transform: translateY(-4px);
 }
 
 .hero__cta-arrow {
@@ -702,7 +638,6 @@ function setSectionRef(el: unknown, index: number) {
 /* 子元素离场时同步消散，避免内容瞬间消失 */
 .reveal.is-leaving .culture-stat,
 .reveal.is-leaving .culture-card,
-.reveal.is-leaving .culture-timeline__item,
 .reveal.is-leaving .heritage-card {
   transition: opacity 0.35s ease, transform 0.35s ease;
   opacity: 0;
@@ -882,115 +817,24 @@ function setSectionRef(el: unknown, index: number) {
 }
 
 /* ========================================
-   文明脉络 — 时间线
+   文明脉络 — 长卷
    ======================================== */
-.culture-timeline {
-  padding: var(--space-16) 0;
+.culture-scroll-section {
+  padding-top: var(--space-16);
   background: var(--color-bg-alt);
 }
 
-.culture-timeline__header {
+/* Sticky pin must not sit under a transformed ancestor. */
+.culture-scroll-section.reveal,
+.culture-scroll-section.reveal.is-visible,
+.culture-scroll-section.reveal.is-leaving {
+  opacity: 1;
+  transform: none;
+}
+
+.culture-scroll-section__header {
   text-align: center;
-  margin-bottom: var(--space-10);
-}
-
-.culture-timeline__track {
-  position: relative;
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-.culture-timeline__line {
-  position: absolute;
-  left: 20px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: linear-gradient(180deg, var(--color-gold), var(--color-border), var(--color-gold));
-}
-
-.culture-timeline__item {
-  position: relative;
-  padding-left: 56px;
-  padding-bottom: var(--space-8);
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-.culture-timeline__item:last-child {
-  padding-bottom: 0;
-}
-
-.reveal.is-visible .culture-timeline__item {
-  animation: timeline-fade-in 0.6s ease forwards;
-  animation-delay: var(--delay);
-}
-
-@keyframes timeline-fade-in {
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.culture-timeline__dot {
-  position: absolute;
-  left: 12px;
-  top: 4px;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.culture-timeline__dot-inner {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--color-gold);
-  box-shadow: 0 0 12px var(--color-gold-glow);
-}
-
-.culture-timeline__content {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-  transition: border-color var(--transition-base);
-}
-
-.culture-timeline__content:hover {
-  border-color: var(--color-gold-dark);
-}
-
-.culture-timeline__meta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.culture-timeline__era {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 700;
-  color: var(--color-text-primary);
-  letter-spacing: var(--tracking-wide);
-}
-
-.culture-timeline__period {
-  font-family: var(--font-en-body);
-  font-size: var(--text-xs);
-  color: var(--color-gold);
-  letter-spacing: var(--tracking-wider);
-}
-
-.culture-timeline__desc {
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-8);
 }
 
 /* ========================================
