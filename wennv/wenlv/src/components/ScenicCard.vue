@@ -32,7 +32,10 @@ function goDetail() {
 }
 
 function toggleFav() {
-  userStore.toggleFavorite(props.spot.id)
+  userStore.toggleFavorite(props.spot.id).catch((err: unknown) => {
+    // 接口失败已回滚本地状态，此处提示用户
+    alert(err instanceof Error ? err.message : '操作失败')
+  })
 }
 
 function starCount(rating: number): number {

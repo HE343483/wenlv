@@ -61,6 +61,11 @@ function resetTimer() {
 }
 
 /* ---- 手动翻页 ---- */
+/* 滚轮冷却:一次滚动会连续触发多个 wheel 事件,加阈值+冷却避免翻页风暴 */
+const WHEEL_COOLDOWN_MS = 450
+const WHEEL_THRESHOLD = 10
+let wheelCooldownAt = 0
+
 function next() {
   current.value = (current.value + 1) % total.value
   resetTimer()
@@ -88,6 +93,10 @@ function onLeave() {
 
 function onWheel(e: WheelEvent) {
   e.preventDefault()
+  const now = performance.now()
+  if (now < wheelCooldownAt) return
+  if (Math.abs(e.deltaY) < WHEEL_THRESHOLD) return
+  wheelCooldownAt = now + WHEEL_COOLDOWN_MS
   if (e.deltaY > 0) next()
   else prev()
 }
@@ -266,8 +275,7 @@ onUnmounted(stopTimer)
   width: 44px;
   height: 44px;
   border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.45);
   color: #fffdf8;
   display: flex;
   align-items: center;
@@ -313,7 +321,9 @@ onUnmounted(stopTimer)
 
 .carousel__diamond {
   display: block;
-  transition: font-size var(--transition-base), color var(--transition-fast);
+  /* 用 transform 缩放代替 font-size 过渡,避免动画触发布局计算 */
+  transform: scale(1);
+  transition: transform var(--transition-base), color var(--transition-fast);
 }
 
 .carousel__dot:hover {
@@ -325,7 +335,7 @@ onUnmounted(stopTimer)
 }
 
 .carousel__dot--active .carousel__diamond {
-  font-size: var(--text-base);
+  transform: scale(1.3);
   text-shadow: 0 0 12px var(--color-gold-glow);
   animation: diamond-pulse 2s ease-in-out infinite;
 }

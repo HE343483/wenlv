@@ -40,6 +40,7 @@ func main() {
 	photoRepo := repository.NewPhotoRepo(db)
 	articleRepo := repository.NewArticleRepo(db)
 	userMemoryRepo := repository.NewUserMemoryRepo(db)
+	hotTopicRepo := repository.NewHotTopicRepo(db)
 
 	// 鉴权工具
 	jwtMgr := pkg.NewJWTManager(pkg.JWTConfig{
@@ -118,6 +119,10 @@ func main() {
 	// 小红书 Cookie 保活:定时访问首页续期并持久化
 	service.NewXHSKeepalive(tripSettings).Start()
 
+	// 文旅热点:定时抓取四川文旅厅"行业动态",LLM 翻译多语言,落库 hot_topics(列表走 Redis 缓存 24h)
+	hotTopicSvc := service.NewHotTopicService(hotTopicRepo, tripLLM, rdb)
+	hotTopicSvc.Start()
+
 	// 处理器
 	h := &handler.Bootstrap{
 		Auth:     handler.NewAuthHandler(authSvc),
@@ -130,6 +135,7 @@ func main() {
 		Photo:    handler.NewPhotoHandler(photoSvc),
 		Article:  handler.NewArticleHandler(articleSvc),
 		Upload:   handler.NewUploadHandler(uploadSvc),
+		HotTopic: handler.NewHotTopicHandler(hotTopicSvc),
 		Trip:     handler.NewTripHandler(tripPlanner, tripChat, tripTasks, tripSettings),
 		TripTool: handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripDouyin, tripMemory),
 	}

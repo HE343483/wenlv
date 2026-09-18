@@ -5,16 +5,199 @@
  * 说明: 与探索页(ExplorePage)去重 — 不再展示区域筛选/全部景点网格，
  *       改为首页专属的精选推荐、热点新闻与趣味冷知识。
  */
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 import { getRecommendedSpots, newsItems, funFacts } from '@/data/chengdu'
+import { listScenics, listHotspots, type ScenicItem, type HotspotItem } from '@/api/content'
 
 const router = useRouter()
 const langStore = useLanguageStore()
 
-const recommended = getRecommendedSpots()
+/** 统一的推荐景点展示结构(接口数据优先,静态数据兜底) */
+interface RecSpot {
+  key: string
+  nameZh: string
+  nameEn: string
+  descZh: string
+  descEn: string
+  tags: string[]
+  rating: number
+  image: string
+}
+
+const RECOMMEND_COUNT = 6
+
+function fromRemoteScenic(item: ScenicItem): RecSpot {
+  return {
+    key: `db-${item.id}`,
+    nameZh: item.name_zh,
+    nameEn: item.name_en || item.name_zh,
+    descZh: item.desc || '',
+    descEn: item.desc || '',
+    tags: (item.tags || '').split(',').map(t => t.trim()).filter(Boolean),
+    rating: item.score || 0,
+    image: item.images || '',
+  }
+}
+
+function fromStatic(): RecSpot[] {
+  return getRecommendedSpots().map(s => ({
+    key: s.id,
+    nameZh: s.nameZh,
+    nameEn: s.nameEn,
+    descZh: s.shortDescZh,
+    descEn: s.shortDescEn,
+    tags: s.tags,
+    rating: s.rating,
+    image: '',
+  }))
+}
+
+const remoteSpots = ref<RecSpot[]>([])
+const recommended = computed<RecSpot[]>(() =>
+  remoteSpots.value.length >= RECOMMEND_COUNT ? remoteSpots.value : fromStatic(),
+)
+
+/** 接口失败时静默回退静态数据 */
+onMounted(async () => {
+  try {
+    const page = await listScenics({ page: 1, page_size: 100 })
+    const spots = [...page.items]
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, RECOMMEND_COUNT)
+      .map(fromRemoteScenic)
+    if (spots.length >= RECOMMEND_COUNT) remoteSpots.value = spots
+  } catch {
+    /* 保持静态兜底 */
+  }
+})
+
+/** 图片加载失败时移除,回退首字水印占位 */
+function onImgError(spot: RecSpot) {
+  spot.image = ''
+}
+
+/** ============================================================
+ *  文旅热点:接口数据优先,静态数据兜底
+ *  ============================================================ */
+/** 统一的热点展示结构(远端与静态数据映射到同一形状) */
+interface NewsDisplay {
+  key: string
+  titleZh: string
+  titleEn: string
+  titleJa: string
+  summaryZh: string
+  summaryEn: string
+  summaryJa: string
+  sourceZh: string
+  sourceEn: string
+  timeZh: string
+  timeEn: string
+  timeJa: string
+  hot: boolean
+  url: string
+}
+
+/** 远端热点(接口失败时保持空,展示静态兜底) */
+const NEWS_PAGE_SIZE = 6
+const remoteNews = ref<NewsDisplay[]>([])
+const remoteNewsTotal = ref(0)
+const newsPage = ref(1)
+const newsLoading = ref(false)
+const newsTotalPages = computed(() =>
+  Math.max(1, Math.ceil(remoteNewsTotal.value / NEWS_PAGE_SIZE)),
+)
+
+const news = computed<NewsDisplay[]>(() =>
+  remoteNews.value.length ? remoteNews.value : newsItems.map(n => ({
+    key: n.id,
+    titleZh: n.titleZh, titleEn: n.titleEn, titleJa: '',
+    summaryZh: n.summaryZh, summaryEn: n.summaryEn, summaryJa: '',
+    sourceZh: n.sourceZh, sourceEn: n.sourceEn,
+    timeZh: n.timeZh, timeEn: n.timeEn, timeJa: n.timeZh,
+    hot: n.hot ?? false,
+    url: '',
+  })),
+)
+
+/** 相对时间文案(中/英/日) */
+function relativeTime(published: Date): { zh: string; en: string; ja: string } {
+  const diff = Date.now() - published.getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 60) return { zh: '刚刚', en: 'just now', ja: 'たった今' }
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return { zh: `${hours}小时前`, en: `${hours}h ago`, ja: `${hours}時間前` }
+  const days = Math.floor(hours / 24)
+  if (days < 30) return { zh: `${days}天前`, en: `${days} days ago`, ja: `${days}日前` }
+  const months = Math.floor(days / 30)
+  return { zh: `${months}个月前`, en: `${months} months ago`, ja: `${months}ヶ月前` }
+}
+
+function fromRemote(item: HotspotItem): NewsDisplay {
+  const t = relativeTime(new Date(item.published_at))
+  return {
+    key: `hot-${item.id}`,
+    titleZh: item.title_zh, titleEn: item.title_en || '', titleJa: item.title_ja || '',
+    summaryZh: item.summary_zh || item.title_zh, summaryEn: item.summary_en || '', summaryJa: item.summary_ja || '',
+    sourceZh: item.source_zh, sourceEn: item.source_en || item.source_zh,
+    timeZh: t.zh, timeEn: t.en, timeJa: t.ja,
+    hot: item.hot,
+    url: item.url,
+  }
+}
+
+/** 按当前语言取标题/摘要/来源/时间(缺失字段逐级回退中文) */
+function newsTitle(item: NewsDisplay): string {
+  if (langStore.lang === 'en') return item.titleEn || item.titleZh
+  if (langStore.lang === 'ja') return item.titleJa || item.titleZh
+  return item.titleZh
+}
+function newsSummary(item: NewsDisplay): string {
+  if (langStore.lang === 'en') return item.summaryEn || item.summaryZh
+  if (langStore.lang === 'ja') return item.summaryJa || item.summaryZh
+  return item.summaryZh
+}
+function newsSource(item: NewsDisplay): string {
+  return langStore.lang === 'en' ? (item.sourceEn || item.sourceZh) : item.sourceZh
+}
+function newsTime(item: NewsDisplay): string {
+  if (langStore.lang === 'en') return item.timeEn
+  if (langStore.lang === 'ja') return item.timeJa
+  return item.timeZh
+}
+
+/** 点击热点条目:有原文链接时新窗口打开 */
+function openNews(item: NewsDisplay) {
+  if (item.url) window.open(item.url, '_blank', 'noopener,noreferrer')
+}
+
+/** 加载指定页的热点数据(失败静默保持静态兜底) */
+async function loadNews(page: number) {
+  if (newsLoading.value) return
+  newsLoading.value = true
+  try {
+    const res = await listHotspots(page, NEWS_PAGE_SIZE)
+    if (res.items.length) {
+      remoteNews.value = res.items.map(fromRemote)
+      remoteNewsTotal.value = res.total
+      newsPage.value = res.page
+    }
+  } catch {
+    /* 保持静态兜底 */
+  } finally {
+    newsLoading.value = false
+  }
+}
+
+/** 热点翻页 */
+function changeNewsPage(page: number) {
+  const target = Math.min(Math.max(1, page), newsTotalPages.value)
+  if (target === newsPage.value) return
+  loadNews(target)
+}
 
 function padRank(n: number): string {
   return String(n + 1).padStart(2, '0')
@@ -23,6 +206,22 @@ function padRank(n: number): string {
 function goExplore() {
   router.push('/home/explore')
 }
+
+/** 接口失败时静默回退静态数据 */
+onMounted(async () => {
+  try {
+    const page = await listScenics({ page: 1, page_size: 100 })
+    const spots = [...page.items]
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, RECOMMEND_COUNT)
+      .map(fromRemoteScenic)
+    if (spots.length >= RECOMMEND_COUNT) remoteSpots.value = spots
+  } catch {
+    /* 保持静态兜底 */
+  }
+  // 文旅热点:失败静默保持静态兜底
+  loadNews(1)
+})
 </script>
 
 <template>
@@ -51,7 +250,7 @@ function goExplore() {
       <div class="recommend__grid">
         <article
           v-for="(spot, index) in recommended"
-          :key="spot.id"
+          :key="spot.key"
           class="recommend-card"
           tabindex="0"
           @click="goExplore"
@@ -64,7 +263,18 @@ function goExplore() {
               {{ spot.rating }}
             </span>
           </div>
-          <div class="recommend-card__placeholder" aria-hidden="true">
+          <!-- 真实图片:接口返回有效 URL 时展示,加载失败回退首字水印占位 -->
+          <img
+            v-if="spot.image"
+            class="recommend-card__photo"
+            :src="spot.image"
+            :alt="langStore.lang === 'zh' || langStore.lang === 'ja' ? spot.nameZh : spot.nameEn"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+            @error="onImgError(spot)"
+          />
+          <div v-else class="recommend-card__placeholder" aria-hidden="true">
             <span class="recommend-card__shu">{{ spot.nameZh.charAt(0) }}</span>
           </div>
           <div class="recommend-card__body">
@@ -72,7 +282,7 @@ function goExplore() {
               {{ langStore.lang === 'zh' || langStore.lang === 'ja' ? spot.nameZh : spot.nameEn }}
             </h3>
             <p class="recommend-card__desc">
-              {{ langStore.lang === 'zh' || langStore.lang === 'ja' ? spot.shortDescZh : spot.shortDescEn }}
+              {{ langStore.lang === 'zh' || langStore.lang === 'ja' ? spot.descZh : spot.descEn }}
             </p>
             <div class="recommend-card__tags">
               <span v-for="tag in spot.tags.slice(0, 3)" :key="tag" class="recommend-card__tag">{{ tag }}</span>
@@ -93,24 +303,43 @@ function goExplore() {
 
       <ul class="news__list">
         <li
-          v-for="item in newsItems"
-          :key="item.id"
+          v-for="item in news"
+          :key="item.key"
           class="news__item"
+          :class="{ 'news__item--link': item.url }"
+          @click="openNews(item)"
         >
           <span v-if="item.hot" class="news__hot">
             {{ langStore.t('home.newsHot') }}
           </span>
           <div class="news__body">
-            <h3 class="news__title">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.titleZh : item.titleEn }}</h3>
-            <p class="news__summary">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.summaryZh : item.summaryEn }}</p>
+            <h3 class="news__title">{{ newsTitle(item) }}</h3>
+            <p class="news__summary">{{ newsSummary(item) }}</p>
             <div class="news__meta">
-              <span class="news__source">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.sourceZh : item.sourceEn }}</span>
+              <span class="news__source">{{ newsSource(item) }}</span>
               <span class="news__dot">·</span>
-              <span class="news__time">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.timeZh : item.timeEn }}</span>
+              <span class="news__time">{{ newsTime(item) }}</span>
             </div>
           </div>
         </li>
       </ul>
+
+      <!-- 热点分页(仅远端数据超过一页时展示) -->
+      <div v-if="remoteNewsTotal > NEWS_PAGE_SIZE" class="news__pager">
+        <button
+          class="news__pager-btn"
+          :disabled="newsPage <= 1 || newsLoading"
+          aria-label="上一页"
+          @click="changeNewsPage(newsPage - 1)"
+        >‹</button>
+        <span class="news__pager-info">{{ newsPage }} / {{ newsTotalPages }}</span>
+        <button
+          class="news__pager-btn"
+          :disabled="newsPage >= newsTotalPages || newsLoading"
+          aria-label="下一页"
+          @click="changeNewsPage(newsPage + 1)"
+        >›</button>
+      </div>
     </section>
 
     <!-- ──── 成都冷知识 ──── -->
@@ -254,6 +483,14 @@ function goExplore() {
   padding: 2px 10px;
 }
 
+.recommend-card__photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--color-bg-alt);
+}
+
 .recommend-card__placeholder {
   position: relative;
   width: 100%;
@@ -341,6 +578,55 @@ function goExplore() {
 .news__item:hover {
   border-color: var(--color-gold-dark);
   transform: translateX(4px);
+}
+
+/* 有原文链接的条目可点击跳转 */
+.news__item--link {
+  cursor: pointer;
+}
+
+/* ========================================
+   热点分页
+   ======================================== */
+.news__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.news__pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-lg);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.news__pager-btn:hover:not(:disabled) {
+  color: var(--color-gold);
+  border-color: var(--color-gold-dark);
+}
+
+.news__pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.news__pager-info {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+  min-width: 48px;
+  text-align: center;
 }
 
 .news__hot {

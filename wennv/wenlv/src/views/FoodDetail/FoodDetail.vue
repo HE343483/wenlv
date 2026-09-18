@@ -4,9 +4,11 @@
  * 说明：当前为纯布局骨架，基础名称/描述复用本地 i18n（food.card.*）渲染版式；
  *       后期由后端接口按路由参数 :id 拉取美食详情数据填充（见下方「后端接口接入预留区」）。
  */
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { getFood } from '@/api/content'
+import type { FoodItem } from '@/api/content'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
@@ -302,6 +304,82 @@ const detail = computed<FoodLocalData>(() => {
 })
 
 /* ════════════════════════════════════════════════
+ *  后端接口接入(GET /api/food/:id)
+ *  数字 id → 味道图鉴卡片,加载接口真实数据;
+ *  分类 key(hotpot/chuanchuan/...) → 保留本地 Mock 版式。
+ *  ════════════════════════════════════════════════ */
+const apiFood = ref<FoodItem | null>(null)
+const imgFailed = ref(false)
+
+const numericId = computed(() => {
+  const n = Number(foodId.value)
+  return Number.isFinite(n) && n > 0 ? n : 0
+})
+
+onMounted(async () => {
+  if (!numericId.value) return
+  try {
+    apiFood.value = await getFood(numericId.value)
+  } catch {
+    /* 加载失败保持占位展示 */
+  }
+})
+
+const displayName = computed(() => {
+  if (apiFood.value) {
+    return langStore.lang === 'zh' ? apiFood.value.name_zh : (apiFood.value.name_en || apiFood.value.name_zh)
+  }
+  if (numericId.value) {
+    return langStore.lang === 'zh' ? `美味 · ${foodId.value}` : `Dish · ${foodId.value}`
+  }
+  return placeholderName.value
+})
+
+const subTitle = computed(() => {
+  if (apiFood.value) {
+    return langStore.lang === 'zh' ? (apiFood.value.name_en || '') : apiFood.value.name_zh
+  }
+  return placeholderEnTitle.value
+})
+
+const heroTags = computed(() =>
+  (apiFood.value?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+)
+
+const heroImg = computed(() =>
+  apiFood.value?.images && !imgFailed.value ? apiFood.value.images : ''
+)
+
+const displayDesc = computed(() => {
+  if (apiFood.value?.desc) return apiFood.value.desc
+  if (numericId.value) {
+    if (langStore.lang === 'ja') return '紹介文は準備中です。'
+    if (langStore.lang !== 'zh') return 'Description coming soon.'
+    return '简介整理中，敬请期待。'
+  }
+  return placeholderDesc.value
+})
+
+/* 数字 id 时用接口字段填充信息面板;分类 key 时用本地 Mock */
+const displayDetail = computed<FoodLocalData>(() => {
+  if (numericId.value) {
+    const tagList = (apiFood.value?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+    return {
+      rating: '—',
+      flavor: tagList.slice(0, 2).join(' · ') || '川味',
+      spice: tagList[0] || '—',
+      price: '—',
+      signature: tagList.slice(0, 3).join(' · ') || '—',
+      scene: apiFood.value?.district || '成都',
+      storyTitle: langStore.lang === 'zh' ? '一味一故事' : 'A Taste Story',
+      paras: [displayDesc.value],
+      related: [],
+    }
+  }
+  return detail.value
+})
+
+/* ════════════════════════════════════════════════
  *  后端接口接入预留区
  *  ════════════════════════════════════════════════
  *  建议接口：GET /api/food/:id
@@ -374,19 +452,29 @@ const detail = computed<FoodLocalData>(() => {
       <!-- ──── HERO — 图片区（占位）──── -->
       <section class="detail-hero">
         <div class="detail-hero__media">
-          <!-- 图片占位：后期替换为接口返回的美食封面图 -->
-          <div class="detail-hero__placeholder">
+          <!-- 接口返回封面图,加载失败回退占位 -->
+          <img
+            v-if="heroImg"
+            class="detail-hero__photo"
+            :src="heroImg"
+            :alt="displayName"
+            referrerpolicy="no-referrer"
+            @error="imgFailed = true"
+          />
+          <div v-else class="detail-hero__placeholder">
             <div class="detail-hero__shu" aria-hidden="true">味</div>
             <span class="detail-hero__api-badge">{{ langStore.t('foodDetail.imagePlaceholder') }}</span>
           </div>
 
           <!-- 名称浮层 -->
           <div class="detail-hero__overlay">
-            <h1 class="detail-hero__title">{{ placeholderName }}</h1>
-            <p class="detail-hero__en-title">{{ placeholderEnTitle }}</p>
+            <h1 class="detail-hero__title">{{ displayName }}</h1>
+            <p class="detail-hero__en-title">{{ subTitle }}</p>
             <div class="detail-hero__tags">
               <span
-                v-for="(t, i) in (langStore.lang === 'zh' ? placeholderTags : enTags)"
+                v-for="(t, i) in (heroTags.length
+                  ? heroTags
+                  : (langStore.lang === 'zh' ? placeholderTags : enTags))"
                 :key="t"
                 class="detail-hero__tag"
                 :class="{ 'detail-hero__tag--accent': i === tagIndex }"
@@ -404,7 +492,7 @@ const detail = computed<FoodLocalData>(() => {
           <!-- 左：评分面板 -->
           <aside class="detail-summary__aside">
             <div class="detail-score">
-              <span class="detail-score__num">{{ detail.rating }}</span>
+              <span class="detail-score__num">{{ displayDetail.rating }}</span>
               <div class="detail-score__meta">
                 <span class="detail-score__stars">
                   <AppIcon v-for="i in 5" :key="i" name="star" :size="16" />
@@ -414,15 +502,15 @@ const detail = computed<FoodLocalData>(() => {
             </div>
             <div class="detail-aside__row">
               <span class="detail-aside__key">{{ langStore.t('foodDetail.flavor') }}</span>
-              <span class="detail-aside__value">{{ detail.flavor }}</span>
+              <span class="detail-aside__value">{{ displayDetail.flavor }}</span>
             </div>
             <div class="detail-aside__row">
               <span class="detail-aside__key">{{ langStore.t('foodDetail.spiceLevel') }}</span>
-              <span class="detail-aside__value">{{ detail.spice }}</span>
+              <span class="detail-aside__value">{{ displayDetail.spice }}</span>
             </div>
             <div class="detail-aside__row">
               <span class="detail-aside__key">{{ langStore.t('foodDetail.avgPrice') }}</span>
-              <span class="detail-aside__value">{{ detail.price }}</span>
+              <span class="detail-aside__value">{{ displayDetail.price }}</span>
             </div>
           </aside>
 
@@ -433,7 +521,7 @@ const detail = computed<FoodLocalData>(() => {
               {{ langStore.t('foodDetail.overview') }}
               <span>◈</span>
             </div>
-            <p class="detail-summary__text">{{ placeholderDesc }}</p>
+            <p class="detail-summary__text">{{ displayDesc }}</p>
           </div>
         </div>
       </section>
@@ -444,22 +532,22 @@ const detail = computed<FoodLocalData>(() => {
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="star" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('foodDetail.signature') }}</h3>
-            <p class="detail-info__value">{{ detail.signature }}</p>
+            <p class="detail-info__value">{{ displayDetail.signature }}</p>
           </div>
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="fire" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('foodDetail.spiceLevel') }}</h3>
-            <p class="detail-info__value">{{ detail.spice }}</p>
+            <p class="detail-info__value">{{ displayDetail.spice }}</p>
           </div>
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="ticket" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('foodDetail.avgPrice') }}</h3>
-            <p class="detail-info__value">{{ detail.price }}</p>
+            <p class="detail-info__value">{{ displayDetail.price }}</p>
           </div>
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="clock" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('foodDetail.recommendScene') }}</h3>
-            <p class="detail-info__value">{{ detail.scene }}</p>
+            <p class="detail-info__value">{{ displayDetail.scene }}</p>
           </div>
         </div>
       </section>
@@ -475,7 +563,15 @@ const detail = computed<FoodLocalData>(() => {
           <!-- 配图占位块 — 后期替换为后端富文本/段落+配图 -->
           <div class="detail-content__row">
             <div class="detail-content__figure">
-              <div class="detail-content__img detail-content__img--empty">
+              <img
+                v-if="heroImg"
+                class="detail-content__photo"
+                :src="heroImg"
+                :alt="displayName"
+                referrerpolicy="no-referrer"
+                @error="imgFailed = true"
+              />
+              <div v-else class="detail-content__img detail-content__img--empty">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
                   <rect x="3" y="3" width="18" height="18" rx="2"/>
                   <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -484,8 +580,8 @@ const detail = computed<FoodLocalData>(() => {
               </div>
             </div>
             <div class="detail-content__text">
-              <h3 class="detail-content__caption">{{ detail.storyTitle }}</h3>
-              <p v-for="p in detail.paras" :key="p" class="detail-content__para">{{ p }}</p>
+              <h3 class="detail-content__caption">{{ displayDetail.storyTitle }}</h3>
+              <p v-for="p in displayDetail.paras" :key="p" class="detail-content__para">{{ p }}</p>
             </div>
           </div>
         </div>
@@ -523,15 +619,15 @@ const detail = computed<FoodLocalData>(() => {
         </div>
       </section>
 
-      <!-- ──── 相关推荐 ──── -->
-      <section class="detail-section container">
+      <!-- ──── 相关推荐(接口详情无推荐数据时隐藏) ──── -->
+      <section v-if="displayDetail.related.length" class="detail-section container">
         <header class="detail-block-head">
           <h2 class="section-title">{{ langStore.t('foodDetail.aroundTitle') }}</h2>
           <p class="section-subtitle">{{ langStore.t('foodDetail.aroundSubtitle') }}</p>
         </header>
 
         <div class="detail-around">
-          <div v-for="r in detail.related" :key="r.name" class="detail-around__card">
+          <div v-for="r in displayDetail.related" :key="r.name" class="detail-around__card">
             <div class="detail-around__img">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -655,6 +751,22 @@ const detail = computed<FoodLocalData>(() => {
   width: 100%;
   height: clamp(320px, 46vh, 480px);
   overflow: hidden;
+}
+
+.detail-hero__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.detail-content__photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
 }
 
 .detail-hero__placeholder {

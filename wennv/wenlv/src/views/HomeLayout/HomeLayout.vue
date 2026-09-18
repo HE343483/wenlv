@@ -87,6 +87,7 @@ function onResize() {
 onMounted(() => {
   syncNarrow()
   weatherStore.fetchWeather()
+  userStore.syncFavorites()
   document.addEventListener('click', onDocClick)
   window.addEventListener('resize', onResize)
 })

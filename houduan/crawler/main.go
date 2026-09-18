@@ -76,6 +76,8 @@ func main() {
 	delay := flag.Int("delay", 1500, "每次维基百科请求的间隔毫秒数")
 	upload := flag.Bool("upload", false, "图片下载后同步上传 OSS,并把数据库图片地址替换为 OSS URL")
 	uploadOnly := flag.Bool("upload-only", false, "跳过爬取,仅把本地已下载图片上传 OSS 并更新数据库(无需代理)")
+	food := flag.Bool("food", false, "爬取成都美食(写入 foods 表),配合 -upload 上传 OSS")
+	only := flag.String("only", "", "美食模式下仅处理名称包含该关键字的条目")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -122,6 +124,13 @@ func main() {
 		return
 	}
 
+	// ── 美食模式:爬取成都经典美食写入 foods 表 ──
+	if *food {
+		foodOut := filepath.Join(filepath.Dir(*outDir), "food") // images/food/,与景点图片分开存放
+		runFoodCrawl(client, db, oss, foodOut, *delay, *only)
+		return
+	}
+
 	okCnt, noWiki, noImg, failCnt := 0, 0, 0, 0
 	for i, s := range spots {
 		log.Printf("[%d/%d] %s", i+1, len(spots), s.NameZH)
@@ -144,7 +153,7 @@ func main() {
 			log.Printf("    未找到维基百科词条,保留原有简介")
 			noWiki++
 		} else {
-			// 2. 依次尝试候选,要求摘要内容提及成都/四川,防止跨地域误配
+			// 2. 依次尝试候选,要求摘要内容提及成都/四川/川菜,防止跨地域误配
 			matched, fetchErr := "", false
 			for _, t := range titles {
 				sum, err := fetchSummary(client, t)
@@ -156,14 +165,20 @@ func main() {
 				if sum.Type == "disambiguation" {
 					continue
 				}
-				if !strings.Contains(sum.Extract, "成都") && !strings.Contains(sum.Extract, "四川") {
-					log.Printf("    候选 [%s] 与成都无关,跳过", t)
+				extract := sum.Extract
+				if extract == "" {
+					// REST summary 对部分词条返回空 extract,回退 Action API
+					extract, _ = fetchIntro(client, t)
+				}
+				if !strings.Contains(extract, "成都") && !strings.Contains(extract, "四川") &&
+					!strings.Contains(extract, "川菜") && !strings.Contains(extract, "川味") {
+					log.Printf("    候选 [%s] 与成都/四川无关,跳过", t)
 					continue
 				}
 				matched = t
 				s.WikiTitle = t
-				if sum.Extract != "" {
-					s.Extract = sum.Extract
+				if extract != "" {
+					s.Extract = extract
 				}
 				if sum.OriginalImage != nil && sum.OriginalImage.Source != "" {
 					s.ImageURL = sum.OriginalImage.Source
@@ -398,14 +413,19 @@ func commonsImage(client *http.Client, nameZH, nameEN string) string {
 				continue
 			}
 			info := p.ImageInfo[0]
-			low := strings.ToLower(info.URL)
+			// 去掉 Wikimedia 附加的 ?utm_source=... 查询参数后再判断扩展名
+			clean := info.URL
+			if idx := strings.IndexByte(clean, '?'); idx >= 0 {
+				clean = clean[:idx]
+			}
+			low := strings.ToLower(clean)
 			if !strings.HasSuffix(low, ".jpg") && !strings.HasSuffix(low, ".jpeg") && !strings.HasSuffix(low, ".png") {
 				continue
 			}
 			if info.Width < 640 || info.Width <= bestW {
 				continue
 			}
-			best, bestW = info.URL, info.Width
+			best, bestW = clean, info.Width
 		}
 		if best != "" {
 			return best
@@ -420,6 +440,28 @@ func fetchSummary(client *http.Client, title string) (wikiSummary, error) {
 	var sum wikiSummary
 	err := httpGetJSON(client, u, &sum)
 	return sum, err
+}
+
+// fetchIntro 通过 Action API 获取词条导言纯文本。
+// REST summary 对部分词条 extract 返回空,用此接口兜底。
+func fetchIntro(client *http.Client, title string) (string, error) {
+	u := fmt.Sprintf(
+		"https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&utf8=1&titles=%s",
+		url.QueryEscape(title))
+	var res struct {
+		Query struct {
+			Pages map[string]struct {
+				Extract string `json:"extract"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := httpGetJSON(client, u, &res); err != nil {
+		return "", err
+	}
+	for _, p := range res.Query.Pages {
+		return strings.TrimSpace(p.Extract), nil
+	}
+	return "", nil
 }
 
 func downloadImage(client *http.Client, imgURL, dest string) error {
@@ -475,6 +517,8 @@ func ossUpload(cfg *ossCfg, localPath, key string) (string, error) {
 	}
 	req.Header.Set("Date", date)
 	req.Header.Set("Content-Type", contentType)
+	// 浏览器缓存 24h:看过的图片不再重复回源 OSS;图片被替换后最长隔天生效(强刷立即生效)
+	req.Header.Set("Cache-Control", "public, max-age=86400")
 	req.Header.Set("Authorization", "OSS "+cfg.AccessKey+":"+signature)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -547,8 +591,8 @@ func mustConnectDB() *gorm.DB {
 		log.Fatalf("连接数据库失败: %v", err)
 	}
 	// 与主服务保持一致,确保表存在且字段注释齐全
-	if err := db.AutoMigrate(&model.ScenicSpot{}); err != nil {
-		log.Fatalf("迁移 scenic_spots 失败: %v", err)
+	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}); err != nil {
+		log.Fatalf("数据库迁移失败: %v", err)
 	}
 	return db
 }
@@ -597,6 +641,201 @@ func upsertSpot(db *gorm.DB, s spot, dists map[string]district) error {
 	}
 	if images != "" {
 		updates["images"] = images
+	}
+	return db.Model(&existing).Updates(updates).Error
+}
+
+// ──── 美食爬取 ────
+
+// foodSeed 成都经典美食种子数据。
+// Wiki 为维基百科搜索词(缺省用 NameZH);ImgTerm 为 Commons 补图搜索词(缺省用中英文名);
+// Desc 为无词条时的回退简介。
+type foodSeed struct {
+	ID      string
+	NameZH  string
+	NameEN  string
+	Wiki    string
+	ImgTerm string
+	Tags    []string
+	Desc    string
+}
+
+func foodSeeds() []foodSeed {
+	return []foodSeed{
+		{"hotpot", "火锅", "Chengdu Hotpot", "四川火锅", "", []string{"火锅", "麻辣"}, "麻辣鲜香的牛油红汤翻滚沸腾，毛肚、鸭肠七上八下，是成都人聚会的首选，也是川渝饮食文化最响亮的名片。"},
+		{"chuanchuan", "串串香", "Chuanchuan", "串串香", "", []string{"串串", "市井"}, "竹签串起荤素百味，浸入红汤涮烫，蘸上干碟香油碟， 成都街头的烟火气美食代表。"},
+		{"maocai", "冒菜", "Maocai", "冒菜", "", []string{"冒菜", "一个人的火锅"}, "一个人的火锅。荤素食材在滚汤中冒熟，浇上红油蒜泥，配一碗米饭，实惠又过瘾。"},
+		{"mapo", "麻婆豆腐", "Mapo Tofu", "", "", []string{"川菜", "麻辣"}, "川菜之魂。豆腐嫩滑、牛肉酥香，麻、辣、烫、香、酥、嫩、鲜、活八字真味，享誉全球。"},
+		{"kungpao", "宫保鸡丁", "Kung Pao Chicken", "", "", []string{"川菜", "荔枝味"}, "糊辣荔枝味型代表作，鸡丁滑嫩、花生酥脆，咸甜酸辣平衡，是最早走向世界的川菜。"},
+		{"huiguo", "回锅肉", "Twice-Cooked Pork", "", "", []string{"川菜", "家常"}, "川菜第一菜。五花肉先煮后炒，卷成灯盏窝，豆瓣与甜面酱赋予其灵魂，是四川人心中家的味道。"},
+		{"fuqi", "夫妻肺片", "Fuqi Feipian", "", "", []string{"凉菜", "老字号"}, "经典川味凉菜。牛肉牛杂切薄片，淋上红油花椒料汁，麻辣鲜香、细嫩化渣，由成都郭朝华夫妇创制得名。"},
+		{"dandan", "担担面", "Dan Dan Noodles", "", "", []string{"面食", "小吃"}, "挑担叫卖起家的成都名小吃。面条细薄，臆子酥香，咸鲜微辣，芽菜与花生碎让口感层次丰富。"},
+		{"longchaoshou", "龙抄手", "Long Chaoshou", "龙抄手", "", []string{"小吃", "老字号"}, "成都老字号名小吃。皮薄馅嫩、汤浓味美，原汤、红油、海味等多种口味各有拥趸。"},
+		{"zhongshuijiao", "钟水饺", "Zhong Dumplings", "", "", []string{"小吃", "红油"}, "始于光绪年间的中华老字号。水饺皮薄馅足，淋特制红油与复制甜酱油，咸甜微辣，回味悠长。"},
+		{"tianshuimian", "甜水面", "Sweet Water Noodles", "", "", []string{"面食", "甜辣"}, "粗壮有嚼劲的手擀面，裹上复制甜酱油、红油辣子与芝麻酱，甜中带辣，是成都独一份的味觉记忆。"},
+		{"feichangfen", "肥肠粉", "Feichang Rice Noodles", "", "", []string{"粉", "市井"}, "双流名小吃。红薯粉滑爽筋道，肥肠软糯入味，加一节冒节子，配军屯锅盔堪称绝配。"},
+		{"sandapao", "三大炮", "San Da Pao", "", "", []string{"小吃", "糯米"}, "锦里庙会的明星小吃。糯米团掷向案板发出三声炮响，裹上黄豆粉淋红糖汁，香甜软糯。"},
+		{"tangyouguozi", "糖油果子", "Sugar Rice Balls", "", "", []string{"小吃", "甜食"}, "街头经典甜食。糯米果子在糖油中炸至红亮，外脆内糯，撒白芝麻串成串，是老成都的童年味道。"},
+		{"danhonggao", "蛋烘糕", "Dan Hong Gao", "", "", []string{"小吃", "街头"}, "成都人的心头好。面糊在小铜锅中烘成蛋皮小饼，夹肉松奶油或土豆丝，甜咸皆宜。"},
+		{"totou", "兔头", "Rabbit Head", "兔头", "", []string{"麻辣", "夜宵"}, "双流老妈兔头名扬天下。兔头经卤煮浸泡，麻辣入骨，啃起来越嚼越香，配上啤酒是地道夜宵。"},
+		{"boboji", "钵钵鸡", "Bo Bo Chicken", "", "", []string{"串串", "凉食"}, "瓦罐土陶盛满红油或藤椒汤料，串好的鸡肉藕片浸于其中，麻辣鲜香、随取随吃。"},
+		{"juntunkui", "军屯锅盔", "Juntun Guokui", "军屯锅魁", "Guokui", []string{"锅盔", "彭州"}, "彭州军乐镇传统名小吃。千层油酥面饼先煎后烤，层次分明、香酥化渣，夹上凉粉更是人间美味。"},
+		{"yeerba", "叶儿粑", "Leaf Cake", "", "", []string{"小吃", "糯米"}, "用良姜叶包裹蒸制的糯米粑，馅分咸甜两派，清香滋润，是川人逢年过节的味觉符号。"},
+		{"hanbaozi", "韩包子", "Han Baozi", "", "", []string{"小吃", "老字号"}, "成都老字号包子。皮薄纹匀、馅心细嫩、松泡化渣，南虾包子更是经典中的经典。"},
+		{"laitangyuan", "赖汤圆", "Lai Tangyuan", "", "", []string{"小吃", "甜食"}, "创始于1894年的中华老字号。汤圆皮薄滋润、心里甜，黑芝麻馅香甜可口、不腻不沾牙。"},
+		{"bingfen", "冰粉", "Bingfen", "", "", []string{"甜食", "消夏"}, "成都夏日限定。晶莹剔透的冰粉配红糖水、花生碎、山楂片，一碗下去暑气全消。"},
+	}
+}
+
+// runFoodCrawl 爬取美食词条文本与图片,写入 foods 表。
+// only 非空时仅处理名称包含该关键字的条目(用于单条重爬)。
+func runFoodCrawl(client *http.Client, db *gorm.DB, oss *ossCfg, outDir string, delayMs int, only string) {
+	seeds := foodSeeds()
+	if only != "" {
+		filtered := make([]foodSeed, 0, 1)
+		for _, f := range seeds {
+			if strings.Contains(f.NameZH, only) {
+				filtered = append(filtered, f)
+			}
+		}
+		seeds = filtered
+	}
+	log.Printf("开始爬取成都美食(%d 种),输出目录: %s", len(seeds), outDir)
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		log.Fatalf("创建图片目录失败: %v", err)
+	}
+
+	okCnt, noImg, failCnt := 0, 0, 0
+	for i, f := range seeds {
+		log.Printf("[%d/%d] %s", i+1, len(seeds), f.NameZH)
+
+		// 1. 搜索词条并做地域校验(须提及成都/四川),防止误配其他地域同名食物
+		searchName := f.NameZH
+		if f.Wiki != "" {
+			searchName = f.Wiki
+		}
+		titles, err := searchWiki(client, searchName)
+		if err != nil {
+			log.Printf("    搜索失败: %v", err)
+			failCnt++
+			continue
+		}
+		extract, imgURL := "", ""
+		for _, t := range titles {
+			sum, err := fetchSummary(client, t)
+			if err != nil {
+				log.Printf("    摘要获取失败: %v", err)
+				break
+			}
+			if sum.Type == "disambiguation" {
+				continue
+			}
+			cur := sum.Extract
+			if cur == "" {
+				// REST summary 空文本时回退 Action API
+				cur, _ = fetchIntro(client, t)
+			}
+			if !strings.Contains(cur, "成都") && !strings.Contains(cur, "四川") &&
+				!strings.Contains(cur, "川菜") && !strings.Contains(cur, "川味") {
+				log.Printf("    候选 [%s] 与成都/四川无关,跳过", t)
+				continue
+			}
+			extract = cur
+			if sum.OriginalImage != nil && sum.OriginalImage.Source != "" {
+				imgURL = sum.OriginalImage.Source
+			} else if sum.Thumbnail != nil {
+				imgURL = sum.Thumbnail.Source
+			}
+			break
+		}
+
+		// 2. 无主图时从 Commons 补图(优先使用指定搜索词)
+		if imgURL == "" {
+			termZH, termEN := f.NameZH, f.NameEN
+			if f.ImgTerm != "" {
+				termZH, termEN = f.ImgTerm, f.ImgTerm
+			}
+			if img := commonsImage(client, termZH, termEN); img != "" {
+				imgURL = img
+				log.Printf("    Commons 图库补图")
+			}
+		}
+
+		// 3. 下载并上传 OSS
+		if imgURL != "" {
+			ext := strings.ToLower(filepath.Ext(imgURL))
+			if idx := strings.IndexByte(ext, '?'); idx >= 0 {
+				ext = ext[:idx]
+			}
+			if ext == "" || len(ext) > 6 {
+				ext = ".jpg"
+			}
+			local := filepath.Join(outDir, f.ID+ext)
+			if err := downloadImage(client, imgURL, local); err != nil {
+				log.Printf("    图片下载失败(%s): %v", imgURL, err)
+				noImg++
+			} else {
+				log.Printf("    图片已保存: %s", local)
+				if oss != nil {
+					if ossURL, err := ossUpload(oss, local, "food/"+f.ID+ext); err != nil {
+						log.Printf("    OSS 上传失败: %v", err)
+					} else {
+						imgURL = ossURL
+						log.Printf("    已上传 OSS: %s", ossURL)
+					}
+				}
+			}
+		} else {
+			noImg++
+			log.Printf("    未获取到图片")
+		}
+
+		// 4. 入库
+		if err := upsertFood(db, f, extract, imgURL); err != nil {
+			log.Printf("    入库失败: %v", err)
+			failCnt++
+			continue
+		}
+		okCnt++
+		if extract != "" {
+			log.Printf("    文本: %s...", truncate(extract, 40))
+		}
+		time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	}
+	log.Printf("美食爬取完成: 成功入库 %d / 无图 %d / 失败 %d", okCnt, noImg, failCnt)
+}
+
+// upsertFood 按 name_zh 匹配写入 foods 表;已有记录仅在拿到新文本/图片时覆盖。
+func upsertFood(db *gorm.DB, f foodSeed, extract, imgURL string) error {
+	var existing model.Food
+	err := db.Where("name_zh = ?", f.NameZH).First(&existing).Error
+	desc := extract
+	if desc == "" {
+		desc = f.Desc
+	}
+	tags := strings.Join(f.Tags, ",")
+	if err == gorm.ErrRecordNotFound {
+		return db.Create(&model.Food{
+			NameZH:   f.NameZH,
+			NameEN:   f.NameEN,
+			District: "成都",
+			Tags:     tags,
+			Desc:     desc,
+			Images:   imgURL,
+		}).Error
+	}
+	if err != nil {
+		return err
+	}
+	updates := map[string]any{
+		"name_en": f.NameEN,
+		"tags":    tags,
+	}
+	if extract != "" {
+		updates["desc"] = extract
+	}
+	if imgURL != "" {
+		updates["images"] = imgURL
 	}
 	return db.Model(&existing).Updates(updates).Error
 }

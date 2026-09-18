@@ -72,3 +72,23 @@ export function listRoutes(params?: QueryParams): Promise<PageResult<RouteItem>>
 export function getRoute(id: number): Promise<RouteItem> {
   return get<RouteItem>(`/routes/${id}`)
 }
+
+/** 文旅热点(后端定时抓取官方文旅新闻源) */
+export interface HotspotItem {
+  id: number
+  title_zh: string
+  title_en?: string
+  title_ja?: string
+  summary_zh: string
+  summary_en?: string
+  summary_ja?: string
+  source_zh: string
+  source_en?: string
+  url: string
+  hot: boolean
+  published_at: string
+}
+
+export function listHotspots(page = 1, pageSize = 6): Promise<PageResult<HotspotItem>> {
+  return get<PageResult<HotspotItem>>('/news/hotspots', { params: { page, page_size: pageSize } })
+}

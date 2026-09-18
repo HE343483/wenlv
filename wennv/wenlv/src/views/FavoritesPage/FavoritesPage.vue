@@ -1,14 +1,16 @@
 <script setup lang="ts">
 /**
  * FavoritesPage.vue — 收藏独立页
- * 网格卡片展示已收藏景点，支持取消收藏与跳详情
+ * 收藏列表来自后端 /favorites 接口，景点详情按后端景点数据渲染
+ * 支持取消收藏（调后端接口）与跳详情
  */
-import { computed } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useLanguageStore } from '@/stores/language'
 import { useUserStore } from '@/stores/user'
-import { getScenicSpotById } from '@/data/chengdu'
+import { listScenics, type ScenicItem } from '@/api/content'
+import { districts } from '@/data/chengdu'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 import type { ScenicSpot } from '@/types'
@@ -19,8 +21,59 @@ const userStore = useUserStore()
 const { lang } = storeToRefs(langStore)
 const { favorites } = storeToRefs(userStore)
 
+/* ── 后端景点数据 ── */
+const loadingSpots = ref(true)
+const allSpots = ref<ScenicItem[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await listScenics({ page_size: 200 })
+    allSpots.value = res.items
+  } catch {
+    /* 加载失败保持空列表 */
+  } finally {
+    loadingSpots.value = false
+  }
+})
+
+/** 后端 ScenicItem → 前端 ScenicSpot 适配（与探索页一致） */
+function mapScenic(item: ScenicItem): ScenicSpot {
+  const d = districts.find(x => x.nameZh === item.district)
+  const desc = item.desc || ''
+  return {
+    id: `scenic-${item.id}`,
+    districtId: d?.id ?? '',
+    nameZh: item.name_zh,
+    nameEn: item.name_en || item.name_zh,
+    shortDescZh: desc.length > 30 ? desc.slice(0, 30) + '…' : desc,
+    shortDescEn: desc.length > 60 ? desc.slice(0, 60) + '…' : desc,
+    descriptionZh: desc,
+    descriptionEn: desc,
+    tags: (item.tags || '').split(',').filter(Boolean),
+    imageUrl: item.images || '',
+    rating: item.score || 0,
+    coords: { lng: item.lng || 0, lat: item.lat || 0 },
+  }
+}
+
+/** 收藏的数字景点ID集合 */
+const favIds = computed(() => {
+  const ids = new Set<number>()
+  favorites.value.forEach(id => {
+    const m = /^scenic-(\d+)$/.exec(id)
+    if (m) ids.add(Number(m[1]))
+  })
+  return ids
+})
+
+/* 图片加载失败时回退到首字水印占位 */
+const imgFailed = reactive(new Set<string>())
+function onImgError(spot: ScenicSpot) {
+  imgFailed.add(spot.id)
+}
+
 const items = computed<ScenicSpot[]>(() =>
-  favorites.value.map(id => getScenicSpotById(id)).filter((s): s is ScenicSpot => Boolean(s)),
+  allSpots.value.filter(s => favIds.value.has(s.id)).map(mapScenic),
 )
 
 function spotName(s: ScenicSpot): string {
@@ -32,8 +85,12 @@ function spotDesc(s: ScenicSpot): string {
 function goDetail(id: string) {
   router.push({ name: 'scenic-detail', params: { id } })
 }
-function remove(id: string) {
-  userStore.removeFavorite(id)
+async function remove(id: string) {
+  try {
+    await userStore.removeFavorite(id)
+  } catch (err) {
+    alert(err instanceof Error ? err.message : '操作失败')
+  }
 }
 </script>
 
@@ -50,8 +107,11 @@ function remove(id: string) {
       {{ items.length }} {{ langStore.t('favorites.countLabel') }}
     </div>
 
+    <!-- 加载中 -->
+    <div v-if="loadingSpots" class="favorites-loading">{{ langStore.t('scenic.loading') }}</div>
+
     <!-- 空状态 -->
-    <div v-if="!items.length" class="favorites-empty">
+    <div v-else-if="!items.length" class="favorites-empty">
       <div class="favorites-empty__icon" aria-hidden="true">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
           <path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z" />
@@ -65,8 +125,17 @@ function remove(id: string) {
     <!-- 网格 -->
     <div v-else class="favorites-grid">
       <article v-for="spot in items" :key="spot.id" class="fav-card" tabindex="0" @click="goDetail(spot.id)" @keyup.enter="goDetail(spot.id)">
-        <div class="fav-card__media" aria-hidden="true">
-          <span class="fav-card__char">{{ spot.nameZh.charAt(0) }}</span>
+        <div class="fav-card__media">
+          <img
+            v-if="spot.imageUrl && !imgFailed.has(spot.id)"
+            class="fav-card__photo"
+            :src="spot.imageUrl"
+            :alt="spotName(spot)"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+            @error="onImgError(spot)"
+          />
+          <span v-else class="fav-card__char">{{ spot.nameZh.charAt(0) }}</span>
           <span class="fav-card__rating"><AppIcon name="star" :size="11" filled /> {{ spot.rating }}</span>
           <button class="fav-card__fav-btn" :title="langStore.t('favorites.unfavorite')" @click.stop="remove(spot.id)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z" /></svg>
@@ -96,6 +165,13 @@ function remove(id: string) {
   gap: var(--space-6);
 }
 .favorites-page__count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+}
+.favorites-loading {
+  padding: var(--space-12) 0;
+  text-align: center;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   letter-spacing: var(--tracking-wide);
@@ -149,6 +225,14 @@ function remove(id: string) {
   align-items: center;
   justify-content: center;
   background: radial-gradient(ellipse 60% 60% at 50% 30%, color-mix(in srgb, var(--color-gold) 10%, transparent), transparent 70%), var(--color-bg-alt);
+}
+.fav-card__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .fav-card__char { font-family: var(--font-display); font-size: 72px; font-weight: 900; color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--color-gold) 40%, transparent); user-select: none; }
 .fav-card__rating {

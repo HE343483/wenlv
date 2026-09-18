@@ -26,6 +26,9 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 	api.GET("/routes", h.Route.List)
 	api.GET("/routes/:id", h.Route.Get)
 
+	// 文旅热点(公开,定时抓取官方文旅新闻源)
+	api.GET("/news/hotspots", h.HotTopic.List)
+
 	// 评价/图墙/游记(公开读取)
 	api.GET("/reviews", h.Review.List)
 	api.GET("/reviews/summary/:targetType/:targetId", h.Review.Summary)

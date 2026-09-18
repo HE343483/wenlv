@@ -39,6 +39,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.UserMemory{},
 		&model.TripPlanRecord{},
 		&model.TripSetting{},
+		&model.HotTopic{},
 	); err != nil {
 		return err
 	}
@@ -59,6 +60,7 @@ var tableComments = map[string]string{
 	"user_memories": "AI行程用户偏好记忆表",
 	"trip_plans":    "AI行程计划历史表",
 	"trip_settings": "AI行程模块设置表",
+	"hot_topics":    "文旅热点资讯表(定时抓取官方文旅新闻源)",
 }
 
 // idComments 自增主键 id 的注释(GORM AutoMigrate 不修改主键定义,需单独补)。
@@ -73,6 +75,7 @@ var idComments = map[string]string{
 	"photos":       "照片ID",
 	"articles":     "游记ID",
 	"trip_plans":   "行程记录ID",
+	"hot_topics":   "文旅热点ID",
 }
 
 // applyTableComments 给所有表补充表级注释,便于 Navicat 等工具阅读。
