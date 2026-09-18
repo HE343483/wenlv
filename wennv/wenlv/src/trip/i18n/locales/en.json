@@ -125,6 +125,7 @@
       "map": "Map Search"
     },
     "attractionSourceHint": "RED (Xiaohongshu) and Douyin recommendations come from real travelers' notes and short videos for authentic experiences; Map Search is powered by AMap directly — fast and always available.",
+    "douyinComingSoon": "Douyin real-person sharing is under development — stay tuned",
     "memoryToggle": {
       "label": "Personalized Preference Memory",
       "desc": "When enabled, AI remembers your travel preferences (favorite attraction types, accommodation habits, etc.) to tailor recommendations. Preferences are tied to your account and can be turned off anytime."

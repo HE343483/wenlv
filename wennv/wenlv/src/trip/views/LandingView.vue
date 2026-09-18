@@ -157,7 +157,12 @@
               <template #label>
                 <span class="field-label">{{ t('home.attractionSourceLabel') }}</span>
               </template>
-              <a-radio-group v-model:value="formData.attraction_source" size="large" class="source-radio">
+              <a-radio-group
+                :value="formData.attraction_source"
+                size="large"
+                class="source-radio"
+                @change="onSourceChange"
+              >
                 <a-radio-button value="xhs">{{ t('home.attractionSource.xhs') }}</a-radio-button>
                 <a-radio-button value="douyin">{{ t('home.attractionSource.douyin') }}</a-radio-button>
                 <a-radio-button value="map">{{ t('home.attractionSource.map') }}</a-radio-button>
@@ -400,6 +405,18 @@ const formData = reactive<LandingFormData>({
 })
 
 const totalDays = computed(() => formData.cities.reduce((sum, cs) => sum + (cs.days || 1), 0))
+
+/**
+ * 景点来源切换:抖音真人分享暂未实现,点击时保持原选项并提示开发中
+ */
+function onSourceChange(e: any) {
+  const val = e?.target?.value as 'xhs' | 'douyin' | 'map'
+  if (val === 'douyin') {
+    message.info(t('home.douyinComingSoon'))
+    return
+  }
+  formData.attraction_source = val
+}
 
 const computedEndDate = computed(() => {
   if (!formData.start_date) return null

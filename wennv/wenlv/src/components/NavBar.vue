@@ -141,16 +141,22 @@ onUnmounted(() => {
     class="navbar"
     :class="{ 'navbar--scrolled': isScrolled }"
   >
-      <!-- ── 左：Logo + 名称 ── -->
-      <div class="navbar__logo" @click="navigate('/')">
-        <svg class="navbar__logo-mark" width="26" height="26" viewBox="0 0 26 26" fill="none">
-          <rect x="6" y="6" width="14" height="14" transform="rotate(45 13 13)" stroke="currentColor" stroke-width="1.2"/>
-          <rect x="10.5" y="10.5" width="5" height="5" transform="rotate(45 13 13)" fill="currentColor"/>
-        </svg>
-        <div class="navbar__logo-text">
-          <span class="navbar__logo-zh">蜀韵·成都</span>
-          <span class="navbar__logo-en">Shu·Chengdu</span>
+      <!-- ── 左：Logo + 名称 + 天气（天气放左侧，避免与居中锚点导航重叠） ── -->
+      <div class="navbar__left">
+        <div class="navbar__logo" @click="navigate('/')">
+          <svg class="navbar__logo-mark" width="26" height="26" viewBox="0 0 26 26" fill="none">
+            <rect x="6" y="6" width="14" height="14" transform="rotate(45 13 13)" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="10.5" y="10.5" width="5" height="5" transform="rotate(45 13 13)" fill="currentColor"/>
+          </svg>
+          <div class="navbar__logo-text">
+            <span class="navbar__logo-zh">蜀韵·成都</span>
+            <span class="navbar__logo-en">Shu·Chengdu</span>
+          </div>
         </div>
+
+        <!-- 天气：锚点按钮（含温度区间） + 下拉面板 -->
+        <WeatherTrigger ref="triggerRef" />
+        <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
       </div>
 
       <!-- ── 中：锚点导航（填补页眉中部空白） ── -->
@@ -169,10 +175,6 @@ onUnmounted(() => {
 
       <!-- ── 右：元素聚合（右对齐） ── -->
       <div class="navbar__right">
-        <!-- 天气：锚点按钮（含温度区间） + 下拉面板 -->
-        <WeatherTrigger ref="triggerRef" />
-        <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
-
         <!-- 语言切换：分段式 中/EN（共用组件） -->
         <LanguageSwitch />
 
@@ -252,6 +254,13 @@ onUnmounted(() => {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 1px 0 var(--color-border);
+}
+
+/* ── 左：Logo + 天气 ── */
+.navbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 /* ── 左：Logo ── */
