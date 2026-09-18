@@ -1,12 +1,9 @@
 <script setup lang="ts">
 /**
- * NavBar.vue — 成都文旅导航栏（页眉）
- * 布局：左Logo + 中锚点导航 + 右元素聚合
- *   左：蜀韵·成都 Logo + 名称
- *   中：首页 / 景点 / 文化 / 非遗（滚动到对应区块）
- *   右：天气按钮 / 语言切换 / 登录·注册 或 进入主页·退出登录（右对齐聚合，按登录状态切换）
+ * NavBar.vue — 公开顶栏
+ * 左：Logo + 天气图标 | 中：首页/探索/美食/路线/AI行程/收藏 | 右：语言 + 登录或我的
  */
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useWeatherStore } from '@/stores/weather'
@@ -15,17 +12,16 @@ import { hasToken, getRefreshToken, clearTokens } from '@/utils/token'
 import { logout as apiLogout } from '@/api/auth'
 import { storeToRefs } from 'pinia'
 import WeatherTrigger from './WeatherTrigger.vue'
-import WeatherPanel from './WeatherPanel.vue'
 import LanguageSwitch from './LanguageSwitch.vue'
 
 const navItems = [
-  { key: 'home', href: '' },
-  { key: 'spots', href: '/#explore' },
-  { key: 'culture', href: '/#culture-cards' },
-  { key: 'heritage', href: '/#culture-heritage' },
-  { key: 'trip', href: '/trip' },
+  { key: 'home', path: '/' },
+  { key: 'explore', path: '/home/explore' },
+  { key: 'food', path: '/home/food' },
+  { key: 'routes', path: '/home/routes' },
+  { key: 'trip', path: '/trip' },
+  { key: 'favorites', path: '/home/favorites' },
 ] as const
-
 
 const router = useRouter()
 const route = useRoute()
@@ -33,18 +29,19 @@ const langStore = useLanguageStore()
 const weatherStore = useWeatherStore()
 const userStore = useUserStore()
 const { open } = storeToRefs(weatherStore)
+const { profile } = storeToRefs(userStore)
 
 const isScrolled = ref(false)
-
-/* 登录状态：已登录时右侧显示「进入主页 / 退出登录」，避免点击登录被守卫弹回 */
 const loggedIn = ref(hasToken())
+const mineOpen = ref(false)
+const mineWrapRef = ref<HTMLDivElement | null>(null)
 
 function goToAuth(path: string) {
   router.push(path)
 }
 
-/** 退出登录：调用后端注销 → 清除 token 与本地用户态 → 回到公开首页顶部 */
 function handleLogout() {
+  mineOpen.value = false
   const refresh = getRefreshToken()
   if (refresh) apiLogout(refresh).catch(() => {})
   clearTokens()
@@ -54,18 +51,27 @@ function handleLogout() {
   else router.push('/')
 }
 
-/* 天气下拉：触发点 ref + 面板 ref（面板 Teleport 到 body，用暴露的 getElement 判点击范围） */
-const triggerRef = ref<InstanceType<typeof WeatherTrigger> | null>(null)
-const panelRef = ref<InstanceType<typeof WeatherPanel> | null>(null)
+function handleMineClick() {
+  mineOpen.value = !mineOpen.value
+}
 
-/** 点击外部收起：pointerdown 先于 click 触发 */
+function goMinePage() {
+  mineOpen.value = false
+  router.push('/home/profile')
+}
+
+function onDocClick(e: MouseEvent) {
+  if (!mineWrapRef.value) return
+  if (!mineWrapRef.value.contains(e.target as Node)) mineOpen.value = false
+}
+
+const triggerRef = ref<InstanceType<typeof WeatherTrigger> | null>(null)
+
 function onGlobalPointerDown(e: PointerEvent) {
   if (!open.value) return
   const target = e.target as Node
   const triggerEl = triggerRef.value?.getElement?.() ?? null
-  const panelEl = panelRef.value?.getElement?.() ?? null
-  if (triggerEl?.contains(target)) return // 点触发点：交给 click toggle
-  if (panelEl?.contains(target)) return   // 点面板内部：不收起
+  if (triggerEl?.contains(target)) return
   weatherStore.closeDropdown()
 }
 
@@ -75,63 +81,40 @@ watch(open, (val) => {
 })
 
 function navigate(path: string) {
-  if (path.startsWith('/#')) {
-    const hash = path.slice(2)
-    if (route.path === '/') {
-      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' })
-    } else {
-      router.push('/')
-      setTimeout(() => document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' }), 300)
-    }
-  } else if (path === '/' || path === '') {
-    // 首页：已在首页则平滑回到顶部，否则跳转
-    if (route.path === '/') {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    } else {
-      router.push('/')
-    }
-  } else {
-    router.push(path)
-  }
-}
-
-/* 当前激活的锚点导航（仅首页有效），用于高亮 */
-const activeAnchor = ref('')
-
-function updateActiveAnchor() {
-  if (route.path !== '/') {
-    activeAnchor.value = ''
+  if (path === '/') {
+    if (route.path === '/') window.scrollTo({ top: 0, behavior: 'smooth' })
+    else router.push('/')
     return
   }
-  const ids = navItems.map((item) => item.href.slice(2)).filter(Boolean)
-  let current = ''
-  for (const id of ids) {
-    const el = document.getElementById(id)
-    if (el && el.getBoundingClientRect().top <= 120) current = id
-  }
-  activeAnchor.value = current
+  router.push(path)
+}
+
+function isNavActive(path: string) {
+  if (path === '/') return route.path === '/'
+  if (path === '/trip') return route.path.startsWith('/trip')
+  return route.path === path || route.path.startsWith(`${path}/`)
 }
 
 onMounted(() => {
-  // 首次拉取天气，NavBar 无需展开即可见温度区间
   weatherStore.fetchWeather()
-
+  document.addEventListener('click', onDocClick)
   const onScroll = () => {
     isScrolled.value = window.scrollY > 40
-    updateActiveAnchor()
   }
   window.addEventListener('scroll', onScroll, { passive: true })
-  updateActiveAnchor()
   watch(route, () => {
     if (route.path === '/') isScrolled.value = window.scrollY > 40
-    updateActiveAnchor()
-    // 路由切换后同步登录状态（如 token 被清除或刷新）
     loggedIn.value = hasToken()
+    mineOpen.value = false
   })
 })
 
 onUnmounted(() => {
   window.removeEventListener('pointerdown', onGlobalPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
 })
 </script>
 
@@ -140,46 +123,40 @@ onUnmounted(() => {
     class="navbar"
     :class="{ 'navbar--scrolled': isScrolled }"
   >
-      <!-- ── 左：Logo + 名称 ── -->
-      <div class="navbar__logo" @click="navigate('/')">
-        <svg class="navbar__logo-mark" width="26" height="26" viewBox="0 0 26 26" fill="none">
-          <rect x="6" y="6" width="14" height="14" transform="rotate(45 13 13)" stroke="currentColor" stroke-width="1.2"/>
-          <rect x="10.5" y="10.5" width="5" height="5" transform="rotate(45 13 13)" fill="currentColor"/>
-        </svg>
-        <div class="navbar__logo-text">
-          <span class="navbar__logo-zh">蜀韵·成都</span>
-          <span class="navbar__logo-en">Shu·Chengdu</span>
+      <div class="navbar__left">
+        <div class="navbar__logo" @click="navigate('/')">
+          <svg class="navbar__logo-mark" width="26" height="26" viewBox="0 0 26 26" fill="none">
+            <rect x="6" y="6" width="14" height="14" transform="rotate(45 13 13)" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="10.5" y="10.5" width="5" height="5" transform="rotate(45 13 13)" fill="currentColor"/>
+          </svg>
+          <div class="navbar__logo-text">
+            <span class="navbar__logo-zh">蜀韵·成都</span>
+            <span class="navbar__logo-en">Shu·Chengdu</span>
+          </div>
         </div>
+
+        <WeatherTrigger ref="triggerRef" />
       </div>
 
-      <!-- ── 中：锚点导航（填补页眉中部空白） ── -->
       <nav class="navbar__nav" :aria-label="langStore.t('nav.ariaNav')">
         <button
           v-for="item in navItems"
           :key="item.key"
           type="button"
           class="navbar__nav-link"
-          :class="{ 'navbar__nav-link--active': activeAnchor === item.href.slice(2) }"
-          @click="navigate(item.href)"
+          :class="{ 'navbar__nav-link--active': isNavActive(item.path) }"
+          @click="navigate(item.path)"
         >
           {{ langStore.t(`nav.${item.key}`) }}
         </button>
       </nav>
 
-      <!-- ── 右：元素聚合（右对齐） ── -->
       <div class="navbar__right">
-        <!-- 天气：锚点按钮（含温度区间） + 下拉面板 -->
-        <WeatherTrigger ref="triggerRef" />
-        <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
-
-        <!-- 语言切换：分段式 中/EN（共用组件） -->
         <LanguageSwitch />
 
         <span class="navbar__divider" aria-hidden="true" />
 
-        <!-- 未登录：登录 / 注册 -->
         <template v-if="!loggedIn">
-          <!-- 登录 -->
           <button class="navbar__auth-btn navbar__auth-btn--login" @click="goToAuth('/login')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
               <circle cx="12" cy="8" r="3.5" />
@@ -187,39 +164,42 @@ onUnmounted(() => {
             </svg>
             {{ langStore.t('nav.login') }}
           </button>
-
-          <!-- 注册 -->
-          <button class="navbar__auth-btn navbar__auth-btn--register" @click="goToAuth('/register')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <circle cx="10" cy="8" r="3.5" />
-              <path d="M3.5 20c1.6-3.6 4-5 6.5-5 1.7 0 3.2.5 4.4 1.4" />
-              <path d="M18.5 8.5v6M15.5 11.5h6" />
-            </svg>
-            {{ langStore.t('nav.register') }}
-          </button>
         </template>
 
-        <!-- 已登录：进入主页 / 退出登录 -->
-        <template v-else>
-          <button class="navbar__auth-btn navbar__auth-btn--login" @click="goToAuth('/home')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M3 11l9-7 9 7" />
-              <path d="M5.5 9.5V20h13V9.5" />
+        <div v-else ref="mineWrapRef" class="navbar__mine-wrap">
+          <button
+            type="button"
+            class="navbar__auth-btn navbar__auth-btn--mine"
+            :class="{
+              'navbar__auth-btn--open': mineOpen,
+              'navbar__auth-btn--active': route.path.startsWith('/home/profile'),
+            }"
+            :aria-expanded="mineOpen"
+            aria-haspopup="menu"
+            @click.stop="handleMineClick"
+          >
+            <span v-if="profile.avatar" class="navbar__avatar"><img :src="profile.avatar" alt="" /></span>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M5 20c1.6-3.6 4.1-5 7-5s5.4 1.4 7 5" />
             </svg>
-            {{ langStore.t('nav.enterHome') }}
+            {{ langStore.t('nav.mine') }}
+            <svg class="navbar__chev" :class="{ 'navbar__chev--open': mineOpen }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6" /></svg>
           </button>
 
-          <button class="navbar__auth-btn navbar__auth-btn--register" @click="handleLogout">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M14 4H6v16h8" />
-              <path d="M10 12h10M17 9l3 3-3 3" />
-            </svg>
-            {{ langStore.t('mineMenu.logout') }}
-          </button>
-        </template>
+          <Transition name="mine-drop">
+            <div v-if="mineOpen" class="navbar__mine-menu" role="menu">
+              <button type="button" role="menuitem" class="navbar__mine-item" @click="goMinePage">
+                {{ langStore.t('nav.mine') }}
+              </button>
+              <button type="button" role="menuitem" class="navbar__mine-item navbar__mine-item--logout" @click="handleLogout">
+                {{ langStore.t('mineMenu.logout') }}
+              </button>
+            </div>
+          </Transition>
+        </div>
       </div>
 
-    <!-- 底部分割金线 -->
     <div class="navbar__underline" />
   </header>
 </template>
@@ -253,9 +233,17 @@ onUnmounted(() => {
   box-shadow: 0 1px 0 var(--color-border);
 }
 
-/* ── 左：Logo ── */
-.navbar__logo {
+/* ── 左：Logo + 天气 ── */
+.navbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
   margin-left: 20px;
+  z-index: 1;
+}
+
+.navbar__logo {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -342,6 +330,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
+  flex-shrink: 0;
 }
 
 /* 竖分隔线：区分「工具区」与「账号区」 */
@@ -355,42 +344,119 @@ onUnmounted(() => {
 .navbar__auth-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
+  /* 预留最长文案（进入主页 / Register / ログアウト）空间，切语言不挤动布局 */
+  width: 8.75rem;
+  flex-shrink: 0;
+  box-sizing: border-box;
   font-size: var(--text-sm);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-full);
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), background var(--transition-fast),
+    border-color var(--transition-fast), box-shadow var(--transition-fast),
+    transform var(--transition-fast);
   letter-spacing: var(--tracking-wide);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  box-shadow: var(--shadow-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .navbar__auth-btn svg {
   flex-shrink: 0;
 }
 
-.navbar__auth-btn--login {
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  background: transparent;
-}
-
-.navbar__auth-btn--login:hover {
+.navbar__auth-btn--login:hover,
+.navbar__auth-btn--mine:hover,
+.navbar__auth-btn--open,
+.navbar__auth-btn--active {
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
   border-color: var(--color-gold);
   color: var(--color-gold-dark);
-  background: color-mix(in srgb, var(--color-gold) 8%, transparent);
-}
-
-/* 注册：实心主按钮，页眉中最强的行动点 */
-.navbar__auth-btn--register {
-  background: var(--color-gold);
-  color: var(--color-bg);
-  font-weight: 500;
-  border: 1px solid transparent;
-}
-
-.navbar__auth-btn--register:hover {
-  background: var(--color-gold-light);
-  box-shadow: 0 0 20px var(--color-gold-glow);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.navbar__mine-wrap {
+  position: relative;
+}
+
+.navbar__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 40%, transparent);
+}
+
+.navbar__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.navbar__chev {
+  opacity: 0.7;
+  transition: transform var(--transition-fast);
+}
+
+.navbar__chev--open {
+  transform: rotate(180deg);
+}
+
+.navbar__mine-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  min-width: 148px;
+  padding: var(--space-2);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 20;
+}
+
+.navbar__mine-item {
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.navbar__mine-item:hover {
+  background: color-mix(in srgb, var(--color-gold) 10%, transparent);
+  color: var(--color-gold-dark);
+}
+
+.navbar__mine-item--logout {
+  color: var(--color-cinnabar);
+}
+
+.mine-drop-enter-active,
+.mine-drop-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.mine-drop-enter-from,
+.mine-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
 }
 
 /* 底部分割金线 */

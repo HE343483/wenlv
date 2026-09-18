@@ -1,11 +1,9 @@
 <script setup lang="ts">
 /**
  * HomeLayout.vue — 登录后内部页面布局
- * 顶栏：左 品牌 | 中 快捷导航(首页/探索/美食/路线/收藏/我的) | 右 天气+语言+我的
- * 响应式：正常宽度导航一行展示；窄屏(<1100px)中间导航隐藏，点击“我的”展开全部路由下拉
- * 正常大小下“我的”就是右侧普通按钮，直接进 /home/profile
+ * 左：Logo + 天气 | 中：首页/探索/美食/路线/AI行程/收藏 | 右：语言 + 我的
  */
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
@@ -14,7 +12,6 @@ import { useUserStore } from '@/stores/user'
 import { logout as apiLogout } from '@/api/auth'
 import { getRefreshToken, clearTokens } from '@/utils/token'
 import WeatherTrigger from '@/components/WeatherTrigger.vue'
-import WeatherPanel from '@/components/WeatherPanel.vue'
 import LanguageSwitch from '@/components/LanguageSwitch.vue'
 
 const route = useRoute()
@@ -25,25 +22,34 @@ const userStore = useUserStore()
 const { open } = storeToRefs(weatherStore)
 const { profile } = storeToRefs(userStore)
 
-function goBack() {
-  router.push('/')
-}
-
 const quickNavs = [
-  { route: '/home/index', key: 'bottomNav.home' },
-  { route: '/home/explore', key: 'bottomNav.explore' },
-  { route: '/home/food', key: 'bottomNav.food' },
-  { route: '/home/routes', key: 'bottomNav.routes' },
-  { route: '/home/favorites', key: 'bottomNav.favorites' },
-  { route: '/home/profile', key: 'bottomNav.mine' },
+  { route: '/home/index', key: 'nav.home' },
+  { route: '/home/explore', key: 'nav.explore' },
+  { route: '/home/food', key: 'nav.food' },
+  { route: '/home/routes', key: 'nav.routes' },
+  { route: '/trip', key: 'nav.trip' },
+  { route: '/home/favorites', key: 'nav.favorites' },
 ] as const
 
-const isQuickActive = (target: string) => route.path === target || route.path.startsWith(target + '/')
+const isQuickActive = (target: string) => {
+  if (target === '/trip') return route.path.startsWith('/trip')
+  return route.path === target || route.path.startsWith(`${target}/`)
+}
 
 const triggerRef = ref<InstanceType<typeof WeatherTrigger> | null>(null)
-const panelRef = ref<InstanceType<typeof WeatherPanel> | null>(null)
 
-/* ── 响应式：窄屏判定 ── */
+function onWeatherOutside(e: PointerEvent) {
+  if (!open.value) return
+  const triggerEl = triggerRef.value?.getElement?.() ?? null
+  if (triggerEl?.contains(e.target as Node)) return
+  weatherStore.closeDropdown()
+}
+
+watch(open, (val) => {
+  if (val) window.addEventListener('pointerdown', onWeatherOutside)
+  else window.removeEventListener('pointerdown', onWeatherOutside)
+})
+
 const NARROW_BP = 1100
 const isNarrow = ref(false)
 function syncNarrow() {
@@ -51,46 +57,50 @@ function syncNarrow() {
   isNarrow.value = window.innerWidth <= NARROW_BP
 }
 
-/* ── 我的：桌面=按钮 / 窄屏=全部路由下拉 ── */
 const mineOpen = ref(false)
 const mineWrapRef = ref<HTMLDivElement | null>(null)
 
 function handleMineClick() {
-  if (!isNarrow.value) {
-    router.push('/home/profile')
-    return
-  }
   mineOpen.value = !mineOpen.value
 }
-function closeMine() { mineOpen.value = false }
+
+function goMinePage() {
+  mineOpen.value = false
+  router.push('/home/profile')
+}
+
 function goNav(path: string) {
   mineOpen.value = false
   router.push(path)
 }
+
 function onDocClick(e: MouseEvent) {
-  if (!isNarrow.value) return
   if (!mineWrapRef.value) return
   if (!mineWrapRef.value.contains(e.target as Node)) mineOpen.value = false
 }
-function onResize() { syncNarrow(); if (!isNarrow.value) mineOpen.value = false }
+
+function onResize() {
+  syncNarrow()
+  if (!isNarrow.value) mineOpen.value = false
+}
 
 onMounted(() => {
   syncNarrow()
+  weatherStore.fetchWeather()
   document.addEventListener('click', onDocClick)
   window.addEventListener('resize', onResize)
 })
+
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('pointerdown', onWeatherOutside)
 })
 
-/** 退出登录：调用后端注销 → 清除 token 与本地用户态 → 返回公开首页 */
 function handleLogout() {
   mineOpen.value = false
   const refresh = getRefreshToken()
-  if (refresh) {
-    apiLogout(refresh).catch(() => {})
-  }
+  if (refresh) apiLogout(refresh).catch(() => {})
   clearTokens()
   userStore.resetAll()
   router.push('/')
@@ -101,11 +111,6 @@ function handleLogout() {
   <div class="internal-layout">
     <header class="internal-topbar">
       <div class="internal-topbar__left">
-        <button class="internal-topbar__back" :title="langStore.t('common.back')" @click="goBack">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
         <div class="internal-topbar__brand" @click="router.push('/home/index')">
           <svg class="internal-topbar__brand-mark" width="24" height="24" viewBox="0 0 26 26" fill="none">
             <rect x="6" y="6" width="14" height="14" transform="rotate(45 13 13)" stroke="currentColor" stroke-width="1.2" />
@@ -116,9 +121,9 @@ function handleLogout() {
             <span class="internal-topbar__subtitle">Shu·Chengdu</span>
           </div>
         </div>
+        <WeatherTrigger ref="triggerRef" />
       </div>
 
-      <!-- 正常宽度：一行导航 -->
       <nav class="internal-topbar__nav" :aria-label="langStore.t('nav.ariaNav')">
         <RouterLink
           v-for="item in quickNavs"
@@ -132,22 +137,18 @@ function handleLogout() {
       </nav>
 
       <div class="internal-topbar__actions">
-        <WeatherTrigger ref="triggerRef" />
-        <WeatherPanel v-if="open" ref="panelRef" :anchor="triggerRef" />
         <LanguageSwitch />
         <span class="internal-topbar__divider" aria-hidden="true" />
 
-        <!-- 我的：桌面是普通按钮，窄屏是下拉触发器 -->
         <div ref="mineWrapRef" class="internal-topbar__mine-wrap">
           <button
             class="internal-topbar__profile"
             :class="{
-              'internal-topbar__profile--open': isNarrow && mineOpen,
-              'router-link-active': route.path.startsWith('/home/profile') || route.path.startsWith('/home/favorites')
+              'internal-topbar__profile--open': mineOpen,
+              'router-link-active': route.path.startsWith('/home/profile'),
             }"
-            :aria-haspopup="isNarrow ? 'menu' : undefined"
-            :aria-expanded="isNarrow ? mineOpen : undefined"
-            :title="isNarrow ? langStore.t('bottomNav.mine') : undefined"
+            aria-haspopup="menu"
+            :aria-expanded="mineOpen"
             @click.stop="handleMineClick"
           >
             <span v-if="profile.avatar" class="internal-topbar__avatar"><img :src="profile.avatar" alt="avatar" /></span>
@@ -155,23 +156,26 @@ function handleLogout() {
               <circle cx="12" cy="8" r="3.5" />
               <path d="M5 20c1.6-3.6 4.1-5 7-5s5.4 1.4 7 5" />
             </svg>
-            {{ langStore.t('bottomNav.mine') }}
-            <!-- 仅窄屏显示下拉箭头 -->
-            <svg v-if="isNarrow" class="internal-topbar__chev" :class="{ 'internal-topbar__chev--open': mineOpen }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6" /></svg>
+            {{ langStore.t('nav.mine') }}
+            <svg class="internal-topbar__chev" :class="{ 'internal-topbar__chev--open': mineOpen }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6" /></svg>
           </button>
 
-          <!-- 窄屏下拉：展示全部路由 -->
           <Transition name="mine-drop">
-            <div v-if="isNarrow && mineOpen" class="internal-topbar__mine-menu internal-topbar__mine-menu--full" role="menu">
-              <button
-                v-for="item in quickNavs"
-                :key="item.route"
-                role="menuitem"
-                class="internal-topbar__mine-item"
-                :class="{ 'internal-topbar__mine-item--active': isQuickActive(item.route) }"
-                @click="goNav(item.route)"
-              >
-                {{ langStore.t(item.key) }}
+            <div v-if="mineOpen" class="internal-topbar__mine-menu" :class="{ 'internal-topbar__mine-menu--full': isNarrow }" role="menu">
+              <template v-if="isNarrow">
+                <button
+                  v-for="item in quickNavs"
+                  :key="item.route"
+                  role="menuitem"
+                  class="internal-topbar__mine-item"
+                  :class="{ 'internal-topbar__mine-item--active': isQuickActive(item.route) }"
+                  @click="goNav(item.route)"
+                >
+                  {{ langStore.t(item.key) }}
+                </button>
+              </template>
+              <button role="menuitem" class="internal-topbar__mine-item" :class="{ 'internal-topbar__mine-item--active': route.path.startsWith('/home/profile') }" @click="goMinePage">
+                {{ langStore.t('nav.mine') }}
               </button>
               <button role="menuitem" class="internal-topbar__mine-item internal-topbar__mine-item--logout" @click="handleLogout">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
@@ -197,9 +201,7 @@ function handleLogout() {
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--color-border); transition: background var(--transition-base);
 }
 .internal-topbar::after { content: ''; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%); width: 60%; height: 1px; background: linear-gradient(90deg, transparent, var(--color-gold), transparent); pointer-events: none; }
-.internal-topbar__left { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.internal-topbar__back { flex-shrink: 0; width: 36px; height: 36px; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary); border: 1px solid var(--color-border); transition: all var(--transition-fast); }
-.internal-topbar__back:hover { border-color: var(--color-gold); color: var(--color-gold); box-shadow: 0 0 12px var(--color-gold-glow); }
+.internal-topbar__left { display: flex; align-items: center; gap: var(--space-4); min-width: 0; z-index: 1; }
 .internal-topbar__brand { display: flex; align-items: center; gap: var(--space-3); cursor: pointer; user-select: none; }
 .internal-topbar__brand-mark { color: var(--color-gold); flex-shrink: 0; }
 .internal-topbar__brand-text { display: flex; flex-direction: column; line-height: 1.2; }
@@ -210,7 +212,7 @@ function handleLogout() {
 .internal-topbar__nav-link:hover { color: var(--color-gold-dark); background: color-mix(in srgb, var(--color-gold) 8%, transparent); }
 .internal-topbar__nav-link--active { color: var(--color-gold-dark); font-weight: 600; }
 .internal-topbar__nav-link--active::after { content: ''; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); width: 16px; height: 2px; border-radius: var(--radius-full); background: var(--color-gold); }
-.internal-topbar__actions { display: flex; align-items: center; gap: var(--space-3); }
+.internal-topbar__actions { display: flex; align-items: center; gap: var(--space-3); z-index: 1; }
 .internal-topbar__divider { width: 1px; height: 18px; background: var(--color-border); }
 
 .internal-topbar__mine-wrap { position: relative; }

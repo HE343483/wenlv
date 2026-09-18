@@ -1,19 +1,18 @@
 <script setup lang="ts">
 /**
- * WeatherPanel.vue — 天气下拉面板 (非模态浮动层，无卡片/无跳转)
- * 锚定于 WeatherTrigger 正下方，Teleport 至 body
- * 内容：温度区间 + 区域筛选(市→区县→镇/街道 三级级联,覆盖四川全省)
- * 面板内操作直接写入 weather store，全局（按钮/表行）实时同步
+ * WeatherPanel.vue — 天气右侧滑出面板
+ * 点击天气图标后从屏幕右侧滑入，展示温度区间与区域筛选
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWeatherStore } from '@/stores/weather'
 import { useLanguageStore } from '@/stores/language'
 import { fetchRegionChildren, type RegionNode } from '@/api/region'
 import AppIcon from '@/components/AppIcon.vue'
 
-const props = defineProps<{
-  /** WeatherTrigger 暴露的定位/取值接口 */
+defineProps<{
+  open: boolean
+  /** 保留锚点接口以兼容 NavBar 外部点击判定（定位改为右侧固定） */
   anchor: { getAnchorRect: () => DOMRect; getElement?: () => HTMLElement | null } | null
 }>()
 
@@ -23,13 +22,7 @@ const langStore = useLanguageStore()
 const { data, state, error } = storeToRefs(weatherStore)
 
 const panelRef = ref<HTMLDivElement | null>(null)
-const pos = ref({ top: 0, left: 0 })
-/** 挂载后置 true，触发进入过渡（配合外部 v-if 卸载动画） */
-const visible = ref(false)
-const PANEL_W = 280
-const GAP = 8
 
-/** 区域级联数据源 — 市 / 区县 / 镇街道 三级,逐级懒加载 */
 const cityList = ref<RegionNode[]>([])
 const districtList = ref<RegionNode[]>([])
 const streetList = ref<RegionNode[]>([])
@@ -38,15 +31,12 @@ const cascadeError = ref<string | null>(null)
 const pickedCity = ref<RegionNode | null>(null)
 const pickedDistrict = ref<RegionNode | null>(null)
 
-/** 区域下拉（自定义级联单选）— 选中区县即拉取天气,街道仅细化展示 */
 const districtOpen = ref(false)
 const districtTriggerRef = ref<HTMLButtonElement | null>(null)
 const districtListRef = ref<HTMLDivElement | null>(null)
 
-/** 触发按钮显示的当前区域名(街道优先) */
 const currentDistrictName = computed(() => weatherStore.displayName)
 
-/** 首次展开级联时加载市级列表(sessionStorage 缓存命中则零请求) */
 async function ensureCityList() {
   if (cityList.value.length > 0 || cascadeLoading.value > 0) return
   cascadeLoading.value++
@@ -60,14 +50,12 @@ async function ensureCityList() {
   }
 }
 
-/** 选中市 → 加载区县列 */
 async function onPickCity(node: RegionNode) {
   pickedCity.value = node
   pickedDistrict.value = null
   districtList.value = []
   streetList.value = []
   if (node.level === 'district') {
-    // 省直辖县级行政单位兜底:无下级时直接作为区县选择
     onPickDistrict(node)
     return
   }
@@ -81,7 +69,6 @@ async function onPickCity(node: RegionNode) {
   }
 }
 
-/** 选中区县 → 加载街道列 + 按区县 adcode 查天气 */
 async function onPickDistrict(node: RegionNode) {
   pickedDistrict.value = node
   streetList.value = []
@@ -94,13 +81,12 @@ async function onPickDistrict(node: RegionNode) {
   try {
     streetList.value = await fetchRegionChildren(node.adcode)
   } catch {
-    streetList.value = [] // 街道列表加载失败不影响天气
+    streetList.value = []
   } finally {
     cascadeLoading.value--
   }
 }
 
-/** 选中街道 — 展示细化,天气仍按区县 adcode(命中缓存,零请求);选完即收起下拉 */
 function onPickStreet(node: RegionNode) {
   if (!pickedDistrict.value) return
   weatherStore.selectRegion({
@@ -117,25 +103,11 @@ function toggleDistrict() {
   if (districtOpen.value) void ensureCityList()
 }
 
-/** 点击下拉外部时收起 */
 function onDistrictOutsideClick(e: MouseEvent) {
   if (!districtOpen.value) return
   const t = e.target as HTMLElement
   if (districtTriggerRef.value?.contains(t) || districtListRef.value?.contains(t)) return
   districtOpen.value = false
-}
-
-/** 定位：触发点下方 8px，空间不足时翻转 */
-function updatePos() {
-  const rect = props.anchor?.getAnchorRect()
-  if (!rect) return
-  const panelH = panelRef.value?.offsetHeight ?? 220
-  const left = Math.min(Math.max(rect.left, 8), window.innerWidth - PANEL_W - 8)
-  let top = rect.bottom + GAP
-  if (top + panelH > window.innerHeight - 8) {
-    top = Math.max(8, rect.top - GAP - panelH)
-  }
-  pos.value = { top, left }
 }
 
 function refresh() {
@@ -146,62 +118,48 @@ function close() {
   weatherStore.closeDropdown()
 }
 
-/** Esc 关闭（优先收起地区下拉，再关闭面板） */
 function onKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
-  if (districtOpen.value) {
-    districtOpen.value = false
-  } else {
-    close()
-  }
+  if (districtOpen.value) districtOpen.value = false
+  else close()
 }
 
-/** 供外部（NavBar）判定面板点击范围 */
 function getElement(): HTMLElement | null {
   return panelRef.value
 }
 
 defineExpose({ getElement })
 
-/** 按钮展开过渡结束后重新定位，保持面板与按钮左缘对齐 */
-function onAnchorTransition(e: TransitionEvent) {
-  if (e.propertyName === 'grid-template-columns') {
-    updatePos()
-  }
-}
-
-onMounted(async () => {
-  await nextTick()
-  updatePos()
-  visible.value = true
-  await nextTick()
-  updatePos() // 面板实际高度就位后重定位，避免底部溢出
-  props.anchor?.getElement?.()?.addEventListener('transitionend', onAnchorTransition)
+onMounted(() => {
   window.addEventListener('keydown', onKeydown)
-  window.addEventListener('resize', updatePos)
   document.addEventListener('mousedown', onDistrictOutsideClick)
 })
 
 onBeforeUnmount(() => {
-  props.anchor?.getElement?.()?.removeEventListener('transitionend', onAnchorTransition)
   window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('resize', updatePos)
   document.removeEventListener('mousedown', onDistrictOutsideClick)
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="weather-panel">
+    <Transition name="weather-scrim">
       <div
-        v-if="visible"
+        v-if="open"
+        class="weather-scrim"
+        aria-hidden="true"
+        @click="close"
+      />
+    </Transition>
+
+    <Transition name="weather-panel">
+      <aside
+        v-if="open"
         ref="panelRef"
         class="weather-panel"
-        :style="{ top: pos.top + 'px', left: pos.left + 'px', width: PANEL_W + 'px' }"
         role="dialog"
         aria-label="天气信息"
       >
-        <!-- 头部：区域就地选择 + 刷新 -->
         <div class="weather-panel__header">
           <div class="weather-panel__location">
             <button
@@ -286,21 +244,27 @@ onBeforeUnmount(() => {
               </div>
             </Transition>
           </div>
-          <button class="weather-panel__refresh" @click="refresh" :title="langStore.t('weather.retry')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M1 4v6h6M23 20v-6h-6"/>
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-            </svg>
-          </button>
+
+          <div class="weather-panel__header-actions">
+            <button class="weather-panel__refresh" @click="refresh" :title="langStore.t('weather.retry')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M1 4v6h6M23 20v-6h-6"/>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+              </svg>
+            </button>
+            <button class="weather-panel__close" type="button" aria-label="关闭天气" @click="close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <!-- 加载中 -->
         <div v-if="state === 'loading'" class="weather-panel__loading">
           <span class="weather-panel__spinner" />
           <span>{{ langStore.t('weather.refreshing') }}</span>
         </div>
 
-        <!-- 错误（内联，带重试） -->
         <div v-else-if="state === 'error'" class="weather-panel__error">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
@@ -309,7 +273,6 @@ onBeforeUnmount(() => {
           <button class="weather-panel__retry" @click="refresh">{{ langStore.t('weather.retry') }}</button>
         </div>
 
-        <!-- 成功：温度区间 -->
         <template v-else-if="data">
           <div class="weather-panel__current">
             <span class="weather-panel__icon">
@@ -339,33 +302,42 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </template>
-
-      </div>
+      </aside>
     </Transition>
   </Teleport>
 </template>
 
 <style scoped>
-/* 蜀锦笺 — 实心材质 + 金线描边 + 极淡织纹底 */
-.weather-panel {
+.weather-scrim {
   position: fixed;
-  z-index: 2000;
-  background: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-gold) 32%, transparent);
-  border-radius: var(--radius-md);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  inset: 0;
+  z-index: 1990;
+  background: rgba(15, 13, 11, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
-/* 蜀锦织纹底（极淡，压住内容之下） */
+.weather-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  width: min(360px, 92vw);
+  background: var(--color-surface);
+  border-left: 1px solid color-mix(in srgb, var(--color-gold) 32%, transparent);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.18);
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  overflow-y: auto;
+}
+
 .weather-panel::before {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: inherit;
   pointer-events: none;
   background-image: repeating-conic-gradient(
     transparent 0deg 44deg,
@@ -378,24 +350,33 @@ onBeforeUnmount(() => {
   opacity: 0.35;
 }
 
-/* 头部 */
 .weather-panel__header {
+  position: relative;
+  z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+.weather-panel__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .weather-panel__location {
   position: relative;
   min-width: 0;
+  flex: 1;
 }
 
-/* 触发按钮 — 柔和朱砂笺标签（平和） */
 .weather-panel__location-trigger {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: 100%;
   border: 1px solid color-mix(in srgb, var(--color-cinnabar) 28%, transparent);
   background: color-mix(in srgb, var(--color-cinnabar) 10%, var(--color-surface));
   color: color-mix(in srgb, var(--color-cinnabar) 52%, var(--color-text-primary));
@@ -425,6 +406,8 @@ onBeforeUnmount(() => {
 .weather-panel__location-label {
   flex: 1;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .weather-panel__location-chevron {
@@ -438,13 +421,13 @@ onBeforeUnmount(() => {
   transform: rotate(180deg);
 }
 
-/* 下拉列表 */
 .weather-panel__location-dropdown {
   position: absolute;
   top: calc(100% + var(--space-2));
   left: 0;
+  right: 0;
   z-index: 20;
-  min-width: 260px;
+  min-width: 100%;
   padding: var(--space-1);
   background: var(--color-surface-elevated);
   border: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
@@ -452,7 +435,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
-/* 三列级联 */
 .weather-panel__cascade {
   display: flex;
   gap: 2px;
@@ -521,12 +503,6 @@ onBeforeUnmount(() => {
   color: var(--color-gold);
 }
 
-.weather-panel__location-check {
-  color: var(--color-gold);
-  flex-shrink: 0;
-}
-
-/* 下拉过渡 */
 .district-drop-enter-active {
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -545,9 +521,16 @@ onBeforeUnmount(() => {
   transform: translateY(-4px) scale(0.98);
 }
 
-.weather-panel__refresh {
+.weather-panel__refresh,
+.weather-panel__close {
   color: var(--color-text-muted);
-  transition: color 0.3s ease, transform 0.3s ease;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  transition: color 0.3s ease, background 0.3s ease, transform 0.3s ease;
   flex-shrink: 0;
 }
 
@@ -556,7 +539,11 @@ onBeforeUnmount(() => {
   transform: rotate(180deg);
 }
 
-/* 加载 */
+.weather-panel__close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
 .weather-panel__loading {
   display: flex;
   align-items: center;
@@ -578,7 +565,6 @@ onBeforeUnmount(() => {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* 错误 */
 .weather-panel__error {
   display: flex;
   flex-direction: column;
@@ -605,8 +591,9 @@ onBeforeUnmount(() => {
   color: var(--temp-tone);
 }
 
-/* 成功内容 */
 .weather-panel__current {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -625,8 +612,9 @@ onBeforeUnmount(() => {
   letter-spacing: var(--tracking-wide);
 }
 
-/* 温度区间 — 衬线数字 + 色调强调 + 金线 */
 .weather-panel__range {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-en-display);
   font-size: var(--text-3xl);
   font-weight: 400;
@@ -637,8 +625,9 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
 }
 
-/* 附加信息 */
 .weather-panel__details {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: var(--space-6);
 }
@@ -663,25 +652,35 @@ onBeforeUnmount(() => {
   font-weight: 500;
 }
 
-/* 过渡动画 — 进入缓落、退出快收 */
+/* 右侧滑入 / 滑出 */
 .weather-panel-enter-active {
-  transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-              transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .weather-panel-leave-active {
-  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .weather-panel-enter-from,
 .weather-panel-leave-to {
+  transform: translateX(100%);
+}
+
+.weather-scrim-enter-active,
+.weather-scrim-leave-active {
+  transition: opacity 0.28s ease;
+}
+
+.weather-scrim-enter-from,
+.weather-scrim-leave-to {
   opacity: 0;
-  transform: translateY(-8px) scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .weather-panel-enter-active,
-  .weather-panel-leave-active {
+  .weather-panel-leave-active,
+  .weather-scrim-enter-active,
+  .weather-scrim-leave-active {
     transition: none;
   }
   .weather-panel__refresh,

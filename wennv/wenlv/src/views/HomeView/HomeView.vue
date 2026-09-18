@@ -9,6 +9,7 @@ import NavBar from '@/components/NavBar.vue'
 import PandaCursor from '@/components/PandaCursor.vue'
 import Carousel from '@/components/Carousel.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import HeroRipple from '@/components/HeroRipple.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
 
 const langStore = useLanguageStore()
@@ -222,6 +223,7 @@ function setSectionRef(el: unknown, index: number) {
           role="img"
           aria-label="成都风景"
         />
+        <HeroRipple />
         <div class="hero__gradient" />
         <div class="hero__pattern" />
       </div>
@@ -436,6 +438,7 @@ function setSectionRef(el: unknown, index: number) {
 .hero__photo {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background-image: url('/images/home/hero-chengdu.jpg');
   background-size: cover;
   background-position: center;
@@ -452,6 +455,8 @@ function setSectionRef(el: unknown, index: number) {
 .hero__gradient {
   position: absolute;
   inset: 0;
+  z-index: 1;
+  pointer-events: none;
   background:
     linear-gradient(
       180deg,
@@ -464,6 +469,8 @@ function setSectionRef(el: unknown, index: number) {
 .hero__pattern {
   position: absolute;
   inset: 0;
+  z-index: 1;
+  pointer-events: none;
   background-image:
     repeating-conic-gradient(
       transparent 0deg 89deg,
