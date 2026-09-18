@@ -227,14 +227,14 @@ function setSectionRef(el: unknown, index: number) {
       <div class="hero__content container-wide">
         <div class="hero__badge">
           <span class="hero__badge-diamond">◈</span>
-          <span class="hero__badge-text">{{ langStore.lang === 'zh' ? '四川省 · 成都' : 'Chengdu · Sichuan' }}</span>
+          <span class="hero__badge-text">{{ langStore.lang === 'zh' ? '四川省 · 成都' : langStore.lang === 'ja' ? '四川省 · 成都' : 'Chengdu · Sichuan' }}</span>
           <span class="hero__badge-diamond">◈</span>
         </div>
 
         <h1 class="hero__title">
-          <span class="hero__title-zh">{{ langStore.lang === 'zh' ? '巴蜀文化' : 'Bashu Culture' }}</span>
+          <span class="hero__title-zh">{{ langStore.lang === 'zh' ? '巴蜀文化' : langStore.lang === 'ja' ? '巴蜀文化' : 'Bashu Culture' }}</span>
           <span class="hero__title-en-row">
-            <span class="hero__title-en">{{ langStore.lang === 'zh' ? '锦绣天府' : 'Splendid Tianfu' }}</span>
+            <span class="hero__title-en">{{ langStore.lang === 'zh' ? '锦绣天府' : langStore.lang === 'ja' ? '絢爛たる天府' : 'Splendid Tianfu' }}</span>
             <!-- 落款印章 — 呼应全站"决策点即印章"的语言 -->
             <span class="hero__title-sign" aria-hidden="true">蜀</span>
           </span>

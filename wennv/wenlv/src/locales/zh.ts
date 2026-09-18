@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    languageChinese: '中文',
+    languageEnglish: 'English',
+    languageJapanese: '日本語',
+    switchToChinese: '切换到中文',
+    switchToEnglish: '切换到英文',
+    switchToJapanese: '切换到日语',
     home: '首页',
     spots: '景点',
     culture: '文化',

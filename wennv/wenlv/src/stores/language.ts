@@ -41,7 +41,7 @@ export const useLanguageStore = defineStore('language', () => {
     setLang(next)
   }
 
-  /** 获取多语言文本：t('nav.home') => '首页' / 'Home' */
+  /** 获取多语言文本：t('nav.home') => '首页' / 'Home' / 'ホーム' */
   function t(key: string): string {
     const locale = locales[lang.value] as Record<string, unknown>
     const parts = key.split('.')

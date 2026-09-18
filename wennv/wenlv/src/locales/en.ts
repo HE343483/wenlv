@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    languageChinese: 'Chinese',
+    languageEnglish: 'English',
+    languageJapanese: 'Japanese',
+    switchToChinese: 'Switch to Chinese',
+    switchToEnglish: 'Switch to English',
+    switchToJapanese: 'Switch to Japanese',
     home: 'Home',
     spots: 'Spots',
     culture: 'Culture',

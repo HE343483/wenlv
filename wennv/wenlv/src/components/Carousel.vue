@@ -119,9 +119,9 @@ onUnmounted(stopTimer)
           <div class="carousel__overlay" />
           <div class="carousel__content">
             <h2 class="carousel__title">
-              {{ langStore.lang === 'zh' ? item.titleZh : item.titleEn }}
+              {{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.titleZh : item.titleEn }}
             </h2>
-            <p v-if="langStore.lang === 'zh' && item.subtitleZh" class="carousel__subtitle">
+            <p v-if="(langStore.lang === 'zh' || langStore.lang === 'ja') && item.subtitleZh" class="carousel__subtitle">
               {{ item.subtitleZh }}
             </p>
             <p v-else-if="item.subtitleEn" class="carousel__subtitle">

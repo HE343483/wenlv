@@ -24,10 +24,10 @@ const routeStats = computed(() => {
   const themes = new Set(travelRoutes.map(r => r.themeZh))
   const coveredSpots = new Set(travelRoutes.flatMap(r => r.stops.map(s => s.spotId)))
   return [
-    { value: String(travelRoutes.length), label: langStore.lang === 'zh' ? '精品路线' : 'Curated Routes' },
-    { value: String(themes.size), label: langStore.lang === 'zh' ? '出行主题' : 'Themes' },
-    { value: String(coveredSpots.size), label: langStore.lang === 'zh' ? '覆盖景点' : 'Covered Spots' },
-    { value: String(scenicSpots.length), label: langStore.lang === 'zh' ? '可规划景点' : 'Plan-able Spots' },
+    { value: String(travelRoutes.length), label: langStore.lang === 'zh' ? '精品路线' : langStore.lang === 'ja' ? 'おすすめルート' : 'Curated Routes' },
+    { value: String(themes.size), label: langStore.lang === 'zh' ? '出行主题' : langStore.lang === 'ja' ? 'テーマ' : 'Themes' },
+    { value: String(coveredSpots.size), label: langStore.lang === 'zh' ? '覆盖景点' : langStore.lang === 'ja' ? '対象スポット' : 'Covered Spots' },
+    { value: String(scenicSpots.length), label: langStore.lang === 'zh' ? '可规划景点' : langStore.lang === 'ja' ? '計画可能なスポット' : 'Plan-able Spots' },
   ]
 })
 
@@ -503,7 +503,7 @@ onMounted(() => {
               <span class="route-card__badge route-card__badge--stops">
                 <AppIcon name="pin" :size="14" />
                 {{ route.stops.length }}
-                {{ langStore.lang === 'zh' ? '站' : 'stops' }}
+                {{ langStore.lang === 'zh' ? '站' : langStore.lang === 'ja' ? 'か所' : 'stops' }}
               </span>
               <span class="route-card__badge">
                 <b>{{ langStore.t('routes.duration') }}</b>

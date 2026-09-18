@@ -29,7 +29,7 @@ function goExplore() {
   <div class="dashboard">
     <!-- ──── 欢迎横幅 ──── -->
     <HomeBanner
-      :eyebrow="langStore.lang === 'zh' ? '四川省 · 成都' : 'Chengdu · Sichuan'"
+      :eyebrow="langStore.lang === 'zh' ? '四川省 · 成都' : langStore.lang === 'ja' ? '四川省 · 成都' : 'Chengdu · Sichuan'"
       :title="langStore.t('home.welcome')"
       :subtitle="langStore.t('home.welcomeSubtitle')"
       watermark="蜀"
@@ -69,10 +69,10 @@ function goExplore() {
           </div>
           <div class="recommend-card__body">
             <h3 class="recommend-card__title">
-              {{ langStore.lang === 'zh' ? spot.nameZh : spot.nameEn }}
+              {{ langStore.lang === 'zh' || langStore.lang === 'ja' ? spot.nameZh : spot.nameEn }}
             </h3>
             <p class="recommend-card__desc">
-              {{ langStore.lang === 'zh' ? spot.shortDescZh : spot.shortDescEn }}
+              {{ langStore.lang === 'zh' || langStore.lang === 'ja' ? spot.shortDescZh : spot.shortDescEn }}
             </p>
             <div class="recommend-card__tags">
               <span v-for="tag in spot.tags.slice(0, 3)" :key="tag" class="recommend-card__tag">{{ tag }}</span>
@@ -101,12 +101,12 @@ function goExplore() {
             {{ langStore.t('home.newsHot') }}
           </span>
           <div class="news__body">
-            <h3 class="news__title">{{ langStore.lang === 'zh' ? item.titleZh : item.titleEn }}</h3>
-            <p class="news__summary">{{ langStore.lang === 'zh' ? item.summaryZh : item.summaryEn }}</p>
+            <h3 class="news__title">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.titleZh : item.titleEn }}</h3>
+            <p class="news__summary">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.summaryZh : item.summaryEn }}</p>
             <div class="news__meta">
-              <span class="news__source">{{ langStore.lang === 'zh' ? item.sourceZh : item.sourceEn }}</span>
+              <span class="news__source">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.sourceZh : item.sourceEn }}</span>
               <span class="news__dot">·</span>
-              <span class="news__time">{{ langStore.lang === 'zh' ? item.timeZh : item.timeEn }}</span>
+              <span class="news__time">{{ langStore.lang === 'zh' || langStore.lang === 'ja' ? item.timeZh : item.timeEn }}</span>
             </div>
           </div>
         </li>

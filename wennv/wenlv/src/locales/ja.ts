@@ -2,6 +2,12 @@
 
 export default {
   nav: {
+    languageChinese: '中国語',
+    languageEnglish: '英語',
+    languageJapanese: '日本語',
+    switchToChinese: '中国語に切り替える',
+    switchToEnglish: '英語に切り替える',
+    switchToJapanese: '日本語に切り替える',
     home: 'ホーム',
     spots: '観光スポット',
     culture: '文化',
@@ -11,7 +17,7 @@ export default {
     ariaLang: '言語切替',
     login: 'ログイン',
     register: '登録',
-    langSwitch: '中',
+    langSwitch: '中文',
     weather: '天気を取得',
   },
   hero: {
