@@ -4,15 +4,53 @@
  * 功能：搜索景点 → 区域筛选 → 多选标签筛选 → 景点网格
  * 筛选区：自定义下拉（区域）+ 多选标签下拉 + 活跃筛选 Chips
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useLanguageStore } from '@/stores/language'
-import { scenicSpots, districts } from '@/data/chengdu'
+import { districts } from '@/data/chengdu'
+import { listScenics } from '@/api/content'
+import type { ScenicItem } from '@/api/content'
+import type { ScenicSpot } from '@/types'
 import TagFilter from '@/components/TagFilter.vue'
 import DistrictFilter from '@/components/DistrictFilter.vue'
 import ScenicCard from '@/components/ScenicCard.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 
 const langStore = useLanguageStore()
+
+/* ── 景点数据(后端接口) ── */
+const spots = ref<ScenicSpot[]>([])
+const loadingSpots = ref(false)
+
+/** 后端 ScenicItem → 前端 ScenicSpot 适配 */
+function mapScenic(item: ScenicItem): ScenicSpot {
+  const d = districts.find(x => x.nameZh === item.district)
+  const desc = item.desc || ''
+  return {
+    id: `scenic-${item.id}`,
+    districtId: d?.id ?? '',
+    nameZh: item.name_zh,
+    nameEn: item.name_en || item.name_zh,
+    shortDescZh: desc.length > 30 ? desc.slice(0, 30) + '…' : desc,
+    shortDescEn: desc.length > 60 ? desc.slice(0, 60) + '…' : desc,
+    descriptionZh: desc,
+    descriptionEn: desc,
+    tags: (item.tags || '').split(',').filter(Boolean),
+    imageUrl: item.images || '',
+    rating: item.score || 0,
+    coords: { lng: item.lng || 0, lat: item.lat || 0 },
+  }
+}
+
+async function loadSpots() {
+  loadingSpots.value = true
+  try {
+    const res = await listScenics({ page_size: 200 })
+    spots.value = res.items.map(mapScenic)
+  } finally {
+    loadingSpots.value = false
+  }
+}
+onMounted(loadSpots)
 
 /* ── 搜索 ── */
 const searchQuery = ref('')
@@ -24,7 +62,7 @@ const selectedDistrict = ref('all')
 /* ── 标签筛选（多选）── */
 const allTags = computed(() => {
   const tagSet = new Set<string>()
-  scenicSpots.forEach(s => s.tags.forEach(t => tagSet.add(t)))
+  spots.value.forEach(s => s.tags.forEach(t => tagSet.add(t)))
   return Array.from(tagSet).sort()
 })
 const selectedTags = ref<string[]>([])
@@ -35,7 +73,7 @@ function onTagsUpdate(tags: string[]) {
 
 /* ── 筛选结果 ── */
 const filteredSpots = computed(() => {
-  let result = scenicSpots
+  let result = spots.value
 
   // 区域筛选
   if (selectedDistrict.value !== 'all') {
@@ -217,8 +255,13 @@ watch(filteredSpots, () => {
     <!-- ──── 景点展示 ──── -->
     <section class="explore-grid">
       <div class="container">
+        <!-- 加载中 -->
+        <div v-if="loadingSpots" class="explore-empty">
+          <span>{{ langStore.lang === 'zh' ? '正在加载景点数据…' : 'Loading attractions…' }}</span>
+        </div>
+
         <!-- 空状态 -->
-        <div v-if="filteredSpots.length === 0" class="explore-empty">
+        <div v-else-if="filteredSpots.length === 0" class="explore-empty">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity: 0.3">
             <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
             <path d="M9 9h.01M15 9h.01M7 15h10"/>

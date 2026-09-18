@@ -4,9 +4,11 @@
  * 说明：当前为纯布局骨架（图片占位 / 文案占位），
  *       后期由后端接口按路由参数 :id 拉取景点详情数据填充。
  */
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { getScenic } from '@/api/content'
+import type { ScenicItem } from '@/api/content'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
@@ -30,6 +32,38 @@ const tagIndex = computed(() =>
 const placeholderName = computed(() =>
   langStore.lang === 'zh' ? `景点 · ${scenicId.value}` : `Scenic · ${scenicId.value}`
 )
+
+/* ── 接口数据:卡片 id 形如 scenic-3,取数字部分请求详情 ── */
+const scenic = ref<ScenicItem | null>(null)
+const imgFailed = ref(false)
+
+const numericId = computed(() => {
+  const n = Number(scenicId.value.replace(/^scenic-/, ''))
+  return Number.isFinite(n) && n > 0 ? n : 0
+})
+
+onMounted(async () => {
+  if (!numericId.value) return
+  try {
+    scenic.value = await getScenic(numericId.value)
+  } catch {
+    /* 加载失败时保持占位展示 */
+  }
+})
+
+const displayName = computed(() => {
+  if (!scenic.value) return placeholderName.value
+  return langStore.lang === 'zh' ? scenic.value.name_zh : (scenic.value.name_en || scenic.value.name_zh)
+})
+const subName = computed(() => {
+  if (!scenic.value) return langStore.t('scenicDetail.loading')
+  return langStore.lang === 'zh' ? (scenic.value.name_en || '') : scenic.value.name_zh
+})
+const spotTags = computed(() =>
+  (scenic.value?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+)
+const spotDesc = computed(() => scenic.value?.desc || '')
+const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? scenic.value.images : '')
 </script>
 
 <template>
@@ -82,21 +116,29 @@ const placeholderName = computed(() =>
       <!-- ──── HERO — 图片区（占位）──── -->
       <section class="detail-hero">
         <div class="detail-hero__media">
-          <!-- 图片占位：后期替换为接口返回的景区封面图 -->
-          <div class="detail-hero__placeholder">
+          <!-- 接口返回封面图,加载失败回退占位 -->
+          <img
+            v-if="heroImage"
+            class="detail-hero__photo"
+            :src="heroImage"
+            :alt="displayName"
+            referrerpolicy="no-referrer"
+            @error="imgFailed = true"
+          />
+          <div v-else class="detail-hero__placeholder">
             <div class="detail-hero__shu" aria-hidden="true">景</div>
             <span class="detail-hero__api-badge">{{ langStore.t('scenicDetail.imagePlaceholder') }}</span>
           </div>
 
           <!-- 名称浮层 -->
           <div class="detail-hero__overlay">
-            <h1 class="detail-hero__title">{{ placeholderName }}</h1>
-            <p class="detail-hero__en-title">{{ langStore.t('scenicDetail.loading') }}</p>
+            <h1 class="detail-hero__title">{{ displayName }}</h1>
+            <p class="detail-hero__en-title">{{ subName }}</p>
             <div class="detail-hero__tags">
               <span
-                v-for="(t, i) in (langStore.lang === 'zh'
-                  ? placeholderTags
-                  : ['Culture', 'Landmark', 'Food'])"
+                v-for="(t, i) in (spotTags.length
+                  ? spotTags
+                  : (langStore.lang === 'zh' ? placeholderTags : ['Culture', 'Landmark', 'Food']))"
                 :key="t"
                 class="detail-hero__tag"
                 :class="{ 'detail-hero__tag--accent': i === tagIndex }"
@@ -114,7 +156,7 @@ const placeholderName = computed(() =>
           <!-- 评价横条：分数 + 星级 + 关键信息，横向排列 -->
           <div class="detail-scorebar">
             <div class="detail-scorebar__rating">
-              <span class="detail-scorebar__num">—</span>
+              <span class="detail-scorebar__num">{{ scenic?.score ?? '—' }}</span>
               <span class="detail-scorebar__stars">
                 <AppIcon v-for="i in 5" :key="i" name="star" :size="16" />
               </span>
@@ -125,7 +167,7 @@ const placeholderName = computed(() =>
 
             <div class="detail-scorebar__fact">
               <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.district') }}</span>
-              <span class="detail-scorebar__fact-value">—</span>
+              <span class="detail-scorebar__fact-value">{{ scenic?.district || '—' }}</span>
             </div>
             <div class="detail-scorebar__fact">
               <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.visits') }}</span>
@@ -145,7 +187,7 @@ const placeholderName = computed(() =>
               <span>◈</span>
             </div>
             <p class="detail-summary__text">
-              {{ langStore.t('scenicDetail.overviewPlaceholder') }}
+              {{ spotDesc || langStore.t('scenicDetail.overviewPlaceholder') }}
             </p>
           </div>
         </div>
@@ -398,6 +440,15 @@ const placeholderName = computed(() =>
   width: 100%;
   height: clamp(320px, 46vh, 480px);
   overflow: hidden;
+}
+
+.detail-hero__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .detail-hero__placeholder {

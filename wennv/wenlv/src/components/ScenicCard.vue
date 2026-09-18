@@ -5,7 +5,7 @@
  * 包含：图片区、标题、描述、标签、评分
  * 状态：正常、加载中
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
@@ -38,6 +38,10 @@ function toggleFav() {
 function starCount(rating: number): number {
   return Math.round(rating)
 }
+
+/* 图片加载失败时回退到占位样式 */
+const imgFailed = ref(false)
+const hasImage = computed(() => Boolean(props.spot.imageUrl) && !imgFailed.value)
 </script>
 
 <template>
@@ -62,7 +66,17 @@ function starCount(rating: number): number {
           <path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z" :fill="isFav ? 'currentColor' : 'none'"/>
         </svg>
       </button>
-      <div class="scenic-card__placeholder">
+      <!-- 真实图片:接口返回有效 URL 时展示,加载失败回退占位 -->
+      <img
+        v-if="hasImage"
+        class="scenic-card__photo"
+        :src="spot.imageUrl"
+        :alt="name"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        @error="imgFailed = true"
+      />
+      <div v-else class="scenic-card__placeholder">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
           <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -134,6 +148,15 @@ function starCount(rating: number): number {
   aspect-ratio: 16 / 10;
   overflow: hidden;
   background: var(--color-bg-alt);
+}
+
+.scenic-card__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .scenic-card__fav {
