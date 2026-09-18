@@ -440,7 +440,9 @@ func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
 	url, err := withXHSCookie(s, ctx, func(cookie string) (string, error) {
 		return s.fetchPhotoURLWithCookie(ctx, cookie, keyword)
 	})
-	if err != nil {
+	// Cookie 未配置属预期状态(由设置页决定),不刷日志
+	var notConfigured *XHSNotConfiguredError
+	if err != nil && !errors.As(err, &notConfigured) {
 		fmt.Printf("小红书单图抓取失败 (%s): %v\n", keyword, err)
 	}
 	return url
