@@ -102,6 +102,15 @@ describe('CultureScroll', () => {
     expect(markers[1]!.find('.culture-scroll__era-media').exists()).toBe(true)
   })
 
+  it('renders decorative photos along both sides of the timeline', () => {
+    const wrapper = mount(CultureScroll)
+    const decors = wrapper.findAll('.culture-scroll__decor')
+    expect(decors.length).toBeGreaterThanOrEqual(6)
+    expect(wrapper.findAll('.culture-scroll__decor--above').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.culture-scroll__decor--below').length).toBeGreaterThan(0)
+    expect(decors[0]!.find('img').attributes('src')).toBeTruthy()
+  })
+
   it('segments expose imageUrl for every era', () => {
     expect(CULTURE_SCROLL_SEGMENTS.map((s) => s.imageUrl)).toEqual([
       '/images/home/1.jpg',

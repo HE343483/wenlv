@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
+  CULTURE_SCROLL_DECORS,
   CULTURE_SCROLL_HOTSPOTS,
   CULTURE_SCROLL_SEGMENTS,
+  type CultureScrollDecor,
   type CultureScrollSegment,
 } from '@/data/cultureScroll'
 import { useLanguageStore } from '@/stores/language'
@@ -19,6 +21,9 @@ const LINEART_TILES = 4
 const langStore = useLanguageStore()
 const segments = CULTURE_SCROLL_SEGMENTS
 const hotspots = CULTURE_SCROLL_HOTSPOTS
+const decors = CULTURE_SCROLL_DECORS
+/** Progress distance within which a decor floats in */
+const DECOR_ACTIVE_RADIUS = 0.085
 
 const railRef = ref<HTMLElement | null>(null)
 const stageRef = ref<HTMLElement | null>(null)
@@ -50,6 +55,15 @@ function segmentForHotspot(segmentId: string) {
 
 function isActiveMarker(segmentId: string) {
   return activeSegment.value?.id === segmentId
+}
+
+/** Map decor x% on the 600vw mid layer to scrub progress when it sits near viewport center. */
+function decorProgressCenter(xPercent: number) {
+  return clamp((xPercent / 100) * WORLD_VW - 0.5, 0, WORLD_VW - 1) / (WORLD_VW - 1)
+}
+
+function isDecorActive(decor: CultureScrollDecor) {
+  return Math.abs(progress.value - decorProgressCenter(decor.xPercent)) <= DECOR_ACTIVE_RADIUS
 }
 
 const worldWidth = computed(() => WORLD_VW * viewportWidth.value)
@@ -290,6 +304,22 @@ onBeforeUnmount(() => {
           </div>
           <div class="culture-scroll__timeline" aria-hidden="false">
             <div class="culture-scroll__timeline-line" aria-hidden="true" />
+            <figure
+              v-for="decor in decors"
+              :key="decor.id"
+              class="culture-scroll__decor"
+              :class="{
+                'culture-scroll__decor--above': decor.side === 'above',
+                'culture-scroll__decor--below': decor.side === 'below',
+                'culture-scroll__decor--sm': decor.size === 'sm',
+                'culture-scroll__decor--md': decor.size === 'md',
+                'culture-scroll__decor--active': isDecorActive(decor),
+              }"
+              :data-decor="decor.id"
+              :style="{ left: `${decor.xPercent}%` }"
+            >
+              <img :src="decor.imageUrl" alt="" draggable="false" />
+            </figure>
             <article
               v-for="(hotspot, index) in hotspots"
               :key="hotspot.segmentId"
@@ -533,9 +563,69 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--color-text-primary) 42%, transparent);
 }
 
+.culture-scroll__decor {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text-primary) 5%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity, transform;
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.culture-scroll__decor--sm {
+  width: min(168px, 14vw);
+  height: 112px;
+}
+
+.culture-scroll__decor--md {
+  width: min(210px, 17vw);
+  height: 140px;
+}
+
+.culture-scroll__decor--above {
+  transform: translate(-50%, 28px) rotate(-2.5deg);
+  bottom: calc(100% + 56px);
+  top: auto;
+}
+
+.culture-scroll__decor--below {
+  transform: translate(-50%, 28px) rotate(2.5deg);
+  top: 52px;
+}
+
+.culture-scroll__decor img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: saturate(0.92) contrast(1.02);
+}
+
+.culture-scroll__decor--active.culture-scroll__decor--above {
+  opacity: 0.92;
+  transform: translate(-50%, 0) rotate(-2.5deg);
+}
+
+.culture-scroll__decor--active.culture-scroll__decor--below {
+  opacity: 0.92;
+  transform: translate(-50%, 0) rotate(2.5deg);
+}
+
 .culture-scroll__marker {
   position: absolute;
   top: 0;
+  z-index: 3;
   width: min(460px, 36vw);
   transform: translate(-50%, 0);
 }
@@ -688,6 +778,14 @@ onBeforeUnmount(() => {
   .culture-scroll__era-media {
     height: 180px;
   }
+  .culture-scroll__decor--sm {
+    width: min(120px, 28vw);
+    height: 84px;
+  }
+  .culture-scroll__decor--md {
+    width: min(148px, 34vw);
+    height: 100px;
+  }
 }
 
 .culture-scroll--static {
@@ -702,11 +800,35 @@ onBeforeUnmount(() => {
   box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text-primary) 6%, transparent);
 }
 
+.culture-scroll--static .culture-scroll__decor--above {
+  opacity: 0.88;
+  transform: translate(-50%, 0) rotate(-2.5deg);
+  transition: none;
+}
+
+.culture-scroll--static .culture-scroll__decor--below {
+  opacity: 0.88;
+  transform: translate(-50%, 0) rotate(2.5deg);
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .culture-scroll__era-card,
   .culture-scroll__era-media {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+    transition: none;
+  }
+
+  .culture-scroll__decor--above {
+    opacity: 0.88;
+    transform: translate(-50%, 0) rotate(-2.5deg);
+    transition: none;
+  }
+
+  .culture-scroll__decor--below {
+    opacity: 0.88;
+    transform: translate(-50%, 0) rotate(2.5deg);
     transition: none;
   }
 }

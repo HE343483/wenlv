@@ -105,3 +105,65 @@ export const CULTURE_SCROLL_HOTSPOTS: CultureScrollHotspot[] = [
   { segmentId: 'ming-qing', xPercent: 73.3, label: '街巷' },
   { segmentId: 'modern', xPercent: 90, label: '天府' },
 ]
+
+export interface CultureScrollDecor {
+  id: string
+  imageUrl: string
+  /** Horizontal position as % of mid-layer width */
+  xPercent: number
+  side: 'above' | 'below'
+  size: 'sm' | 'md'
+}
+
+/** Decorative photos between era nodes, alternating above/below the axis. */
+export const CULTURE_SCROLL_DECORS: CultureScrollDecor[] = [
+  {
+    id: 'decor-bamboo',
+    imageUrl: '/images/home/carousel-panda.jpg',
+    xPercent: 7.5,
+    side: 'below',
+    size: 'sm',
+  },
+  {
+    id: 'decor-mist',
+    imageUrl: '/images/home/carousel-dujiangyan.jpg',
+    xPercent: 18.2,
+    side: 'above',
+    size: 'md',
+  },
+  {
+    id: 'decor-valley',
+    imageUrl: '/images/home/carousel-xiling.jpg',
+    xPercent: 32.4,
+    side: 'below',
+    size: 'sm',
+  },
+  {
+    id: 'decor-ink',
+    imageUrl: '/images/culture-scroll/era-modern-shanshui-v1.png',
+    xPercent: 51.2,
+    side: 'above',
+    size: 'md',
+  },
+  {
+    id: 'decor-night',
+    imageUrl: '/images/home/0.jpg',
+    xPercent: 66.8,
+    side: 'below',
+    size: 'md',
+  },
+  {
+    id: 'decor-tower',
+    imageUrl: '/images/home/carousel-kuanzhai.jpg',
+    xPercent: 81.5,
+    side: 'above',
+    size: 'sm',
+  },
+  {
+    id: 'decor-glow',
+    imageUrl: '/images/home/carousel-jinli.jpg',
+    xPercent: 95.2,
+    side: 'below',
+    size: 'sm',
+  },
+]
