@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useLanguageStore } from '@/stores/language'
+import { CULTURE_SCROLL_SEGMENTS } from '@/data/cultureScroll'
 import CultureScroll from './CultureScroll.vue'
 
 describe('CultureScroll', () => {
@@ -60,29 +61,67 @@ describe('CultureScroll', () => {
     expect(wrapper.find('[data-scroll-art="near"]').exists()).toBe(false)
   })
 
-  it('renders far SVG with mid shanshui scenery + transparent lineart', () => {
+  it('renders far SVG with transparent lineart only (no mid scenery)', () => {
     const wrapper = mount(CultureScroll)
     expect(wrapper.find('[data-scroll-art="far"]').exists()).toBe(true)
-    expect(wrapper.find('[data-scroll-art="mid-scenery"]').exists()).toBe(true)
+    expect(wrapper.find('[data-scroll-art="mid-scenery"]').exists()).toBe(false)
+    expect(wrapper.findAll('.culture-scroll__scenery')).toHaveLength(0)
     expect(wrapper.find('[data-scroll-art="mid-lineart"]').exists()).toBe(true)
-    expect(wrapper.findAll('.culture-scroll__scenery')).toHaveLength(4)
     expect(wrapper.findAll('.culture-scroll__lineart')).toHaveLength(4)
-    expect(wrapper.find('.culture-scroll__scenery').attributes('src')).toContain(
-      'era-scenery-shanshui-v1.jpg',
-    )
     expect(wrapper.find('.culture-scroll__lineart').attributes('src')).toContain(
       'era-scroll-lineart-transparent-v1.png',
     )
     expect(wrapper.find('canvas').exists()).toBe(false)
   })
 
-  it('places six mid-layer hotspots and opens era dialog', async () => {
-    const wrapper = mount(CultureScroll, { attachTo: document.body })
-    const buttons = wrapper.findAll('.culture-scroll__hotspot')
-    expect(buttons).toHaveLength(6)
-    const first = buttons[0]!
-    const shuHan = buttons[2]!
-    expect(buttons.map((btn) => btn.attributes('data-hotspot'))).toEqual([
+  it('places era media cards opposite text cards with confirmed srcs', () => {
+    const wrapper = mount(CultureScroll)
+    const markers = wrapper.findAll('.culture-scroll__marker')
+    expect(markers).toHaveLength(6)
+
+    const expectedSrcs = [
+      '/images/home/1.jpg',
+      '/images/home/carousel-xiling.jpg',
+      '/images/home/hero-chengdu.jpg',
+      '/images/home/154b682806f848688077dbabd5bcac3f_720.jpg',
+      '/images/culture-scroll/era-scenery-shanshui-v1.jpg',
+      '/images/home/97178dc100d4868a7d4cb804e37ef902_720.jpg',
+    ]
+
+    const medias = wrapper.findAll('.culture-scroll__era-media img')
+    expect(medias).toHaveLength(6)
+    expect(medias.map((img) => img.attributes('src'))).toEqual(expectedSrcs)
+
+    // even index: text above → media below (no --media-above class)
+    expect(markers[0]!.find('.culture-scroll__era-card').exists()).toBe(true)
+    expect(markers[0]!.classes()).toContain('culture-scroll__marker--above')
+    expect(markers[0]!.find('.culture-scroll__era-media').exists()).toBe(true)
+
+    // odd: text below → media above
+    expect(markers[1]!.classes()).toContain('culture-scroll__marker--below')
+    expect(markers[1]!.find('.culture-scroll__era-media').exists()).toBe(true)
+  })
+
+  it('segments expose imageUrl for every era', () => {
+    expect(CULTURE_SCROLL_SEGMENTS.map((s) => s.imageUrl)).toEqual([
+      '/images/home/1.jpg',
+      '/images/home/carousel-xiling.jpg',
+      '/images/home/hero-chengdu.jpg',
+      '/images/home/154b682806f848688077dbabd5bcac3f_720.jpg',
+      '/images/culture-scroll/era-scenery-shanshui-v1.jpg',
+      '/images/home/97178dc100d4868a7d4cb804e37ef902_720.jpg',
+    ])
+  })
+
+  it('renders mid-layer timeline with six always-visible era cards', () => {
+    const wrapper = mount(CultureScroll)
+    expect(wrapper.find('.culture-scroll__timeline').exists()).toBe(true)
+    expect(wrapper.findAll('.culture-scroll__hotspot')).toHaveLength(0)
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+
+    const markers = wrapper.findAll('.culture-scroll__marker')
+    expect(markers).toHaveLength(6)
+    expect(markers.map((m) => m.attributes('data-marker'))).toEqual([
       'ancient-shu',
       'qin',
       'shu-han',
@@ -90,28 +129,30 @@ describe('CultureScroll', () => {
       'ming-qing',
       'modern',
     ])
+
+    const first = markers[0]!
     expect(first.attributes('style')).toContain('%')
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(first.classes()).toContain('culture-scroll__marker--above')
+    expect(markers[1]!.classes()).toContain('culture-scroll__marker--below')
 
-    await first.trigger('click')
-    const dialog = wrapper.find('[role="dialog"]')
-    expect(dialog.exists()).toBe(true)
-    expect(dialog.text()).toContain('古蜀时期')
-    expect(dialog.text()).toContain('约公元前1600年')
-    expect(dialog.text()).toContain('三星堆')
+    const card = first.find('.culture-scroll__era-card')
+    expect(card.exists()).toBe(true)
+    expect(card.text()).toContain('古蜀时期')
+    expect(card.text()).toContain('约公元前1600年')
+    expect(card.text()).toContain('三星堆')
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    await flushPromises()
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    const axisTime = first.find('.culture-scroll__axis-time')
+    expect(axisTime.exists()).toBe(true)
+    expect(axisTime.text()).toContain('约公元前1600年')
+  })
 
-    await shuHan.trigger('click')
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
-    await wrapper.find('.culture-scroll__scrim').trigger('click')
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
-
+  it('timeline cards follow language store without dialog', async () => {
+    const wrapper = mount(CultureScroll)
     useLanguageStore().setLang('en')
-    await first.trigger('click')
-    expect(wrapper.find('[role="dialog"]').text()).toContain('Ancient Shu')
-    wrapper.unmount()
+    await flushPromises()
+    const first = wrapper.find('[data-marker="ancient-shu"]')
+    expect(first.text()).toContain('Ancient Shu')
+    expect(first.text()).toContain('1600 BC')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
   })
 })

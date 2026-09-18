@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   CULTURE_SCROLL_HOTSPOTS,
   CULTURE_SCROLL_SEGMENTS,
-  type CultureScrollHotspot,
   type CultureScrollSegment,
 } from '@/data/cultureScroll'
 import { useLanguageStore } from '@/stores/language'
@@ -13,8 +12,7 @@ const WORLD_VW = 6
 const AXIS_LOCK_PX = 5
 const WALK_EPSILON = 0.0008
 const WALK_IDLE_MS = 120
-/** 黑线简笔（透明底）叠在黄蓝山水插画之上（非实景照片） */
-const SCENERY_SRC = '/images/culture-scroll/era-scenery-shanshui-v1.jpg'
+/** 黑线简笔（透明底）叠在 mid 层时间轴之上 */
 const LINEART_SRC = '/images/culture-scroll/era-scroll-lineart-transparent-v1.png'
 const LINEART_TILES = 4
 
@@ -35,15 +33,8 @@ const dragging = ref(false)
 const prevProgress = ref(0)
 const walking = ref(false)
 const walkDir = ref<'left' | 'right'>('right')
-const openHotspotId = ref<string | null>(null)
 
 let walkIdleTimer: ReturnType<typeof setTimeout> | null = null
-
-const activeHotspot = computed(() =>
-  openHotspotId.value
-    ? segments.find((seg) => seg.id === openHotspotId.value) ?? null
-    : null,
-)
 
 function localizedField(
   segment: CultureScrollSegment,
@@ -53,29 +44,12 @@ function localizedField(
   return langStore.lang === 'zh' ? segment[key] : segment[enKey]
 }
 
-function hotspotAriaLabel(hotspot: CultureScrollHotspot) {
-  const segment = segments.find((seg) => seg.id === hotspot.segmentId)
-  if (!segment) return hotspot.label ?? hotspot.segmentId
-  return localizedField(segment, 'era')
+function segmentForHotspot(segmentId: string) {
+  return segments.find((seg) => seg.id === segmentId)
 }
 
-function openHotspot(segmentId: string) {
-  openHotspotId.value = segmentId
-}
-
-function closeHotspot() {
-  openHotspotId.value = null
-}
-
-function onHotspotPointerDown(event: PointerEvent) {
-  event.stopPropagation()
-}
-
-function onDialogKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && openHotspotId.value) {
-    event.preventDefault()
-    closeHotspot()
-  }
+function isActiveMarker(segmentId: string) {
+  return activeSegment.value?.id === segmentId
 }
 
 const worldWidth = computed(() => WORLD_VW * viewportWidth.value)
@@ -250,7 +224,6 @@ onMounted(() => {
   measure()
   syncScrollListeners()
   window.addEventListener('resize', measure)
-  window.addEventListener('keydown', onDialogKeydown)
 
   const stage = stageRef.value
   const world = worldRef.value
@@ -275,7 +248,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', onWindowScroll)
   window.removeEventListener('scroll', updateProgress)
   window.removeEventListener('resize', measure)
-  window.removeEventListener('keydown', onDialogKeydown)
   const stage = stageRef.value
   worldRef.value?.removeEventListener('scroll', onStageScroll)
   stage?.removeEventListener('pointermove', onPointerMove)
@@ -306,16 +278,6 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="culture-scroll__layer culture-scroll__layer--mid" :style="layerStyle(1)">
-          <div class="culture-scroll__scenery-track" data-scroll-art="mid-scenery" aria-hidden="true">
-            <img
-              v-for="n in LINEART_TILES"
-              :key="`scenery-${n}`"
-              class="culture-scroll__scenery"
-              :src="SCENERY_SRC"
-              alt=""
-              draggable="false"
-            />
-          </div>
           <div class="culture-scroll__lineart-track" data-scroll-art="mid-lineart" aria-hidden="true">
             <img
               v-for="n in LINEART_TILES"
@@ -326,59 +288,51 @@ onBeforeUnmount(() => {
               draggable="false"
             />
           </div>
-          <button
-            v-for="hotspot in hotspots"
-            :key="hotspot.segmentId"
-            type="button"
-            class="culture-scroll__hotspot"
-            :data-hotspot="hotspot.segmentId"
-            :style="{ left: `${hotspot.xPercent}%` }"
-            :aria-label="hotspotAriaLabel(hotspot)"
-            aria-haspopup="dialog"
-            :aria-expanded="openHotspotId === hotspot.segmentId"
-            @pointerdown="onHotspotPointerDown"
-            @click.stop="openHotspot(hotspot.segmentId)"
-          />
+          <div class="culture-scroll__timeline" aria-hidden="false">
+            <div class="culture-scroll__timeline-line" aria-hidden="true" />
+            <article
+              v-for="(hotspot, index) in hotspots"
+              :key="hotspot.segmentId"
+              class="culture-scroll__marker"
+              :class="{
+                'culture-scroll__marker--above': index % 2 === 0,
+                'culture-scroll__marker--below': index % 2 === 1,
+                'culture-scroll__marker--active': isActiveMarker(hotspot.segmentId),
+              }"
+              :data-marker="hotspot.segmentId"
+              :data-active="isActiveMarker(hotspot.segmentId) ? 'true' : 'false'"
+              :style="{ left: `${hotspot.xPercent}%` }"
+            >
+              <span class="culture-scroll__dot" aria-hidden="true" />
+              <p class="culture-scroll__axis-time">
+                {{ localizedField(segmentForHotspot(hotspot.segmentId)!, 'period') }}
+              </p>
+              <div class="culture-scroll__era-card">
+                <h3 class="culture-scroll__era-card-title">
+                  {{ localizedField(segmentForHotspot(hotspot.segmentId)!, 'era') }}
+                </h3>
+                <p class="culture-scroll__era-card-period">
+                  {{ localizedField(segmentForHotspot(hotspot.segmentId)!, 'period') }}
+                </p>
+                <p class="culture-scroll__era-card-desc">
+                  {{ localizedField(segmentForHotspot(hotspot.segmentId)!, 'desc') }}
+                </p>
+              </div>
+              <div class="culture-scroll__era-media">
+                <img
+                  :src="segmentForHotspot(hotspot.segmentId)!.imageUrl"
+                  alt=""
+                  draggable="false"
+                />
+              </div>
+            </article>
+          </div>
         </div>
       </div>
 
       <p class="culture-scroll__colophon">
         {{ activeSegment?.era }} · {{ activeSegment?.eraEn }}
       </p>
-
-      <div
-        v-if="activeHotspot"
-        class="culture-scroll__scrim"
-        @click="closeHotspot"
-        @pointerdown.stop
-      >
-        <div
-          class="culture-scroll__dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="culture-scroll-dialog-title"
-          @click.stop
-          @pointerdown.stop
-        >
-          <button
-            type="button"
-            class="culture-scroll__dialog-close"
-            :aria-label="langStore.lang === 'zh' ? '关闭' : 'Close'"
-            @click="closeHotspot"
-          >
-            ×
-          </button>
-          <h3 id="culture-scroll-dialog-title" class="culture-scroll__dialog-era">
-            {{ localizedField(activeHotspot, 'era') }}
-          </h3>
-          <p class="culture-scroll__dialog-period">
-            {{ localizedField(activeHotspot, 'period') }}
-          </p>
-          <p class="culture-scroll__dialog-desc">
-            {{ localizedField(activeHotspot, 'desc') }}
-          </p>
-        </div>
-      </div>
     </div>
   </section>
 </template>
@@ -430,28 +384,17 @@ onBeforeUnmount(() => {
   color: var(--color-text-primary);
 }
 
-.culture-scroll__scenery-track,
 .culture-scroll__lineart-track {
   display: flex;
   align-items: flex-end;
   width: 100%;
   height: 100%;
   pointer-events: none;
-}
-
-.culture-scroll__scenery-track {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.culture-scroll__lineart-track {
   position: absolute;
   inset: 0;
   z-index: 1;
 }
 
-.culture-scroll__scenery,
 .culture-scroll__lineart {
   flex: 1 0 0;
   width: 0;
@@ -460,14 +403,6 @@ onBeforeUnmount(() => {
   object-position: center bottom;
   user-select: none;
   -webkit-user-drag: none;
-}
-
-.culture-scroll__scenery {
-  opacity: 0.92;
-  filter: saturate(1.05) contrast(1.02);
-}
-
-.culture-scroll__lineart {
   mix-blend-mode: normal;
   /* 整体略下移，贴近地平线 */
   transform: translateY(6%);
@@ -579,85 +514,145 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-.culture-scroll__hotspot {
+.culture-scroll__timeline {
   position: absolute;
-  top: 48%;
-  z-index: 3;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: 1.5px solid color-mix(in srgb, var(--color-gold) 80%, #fff);
+  top: 56%;
+  left: 0;
+  width: 100%;
+  height: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.culture-scroll__timeline-line {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-text-primary) 42%, transparent);
+}
+
+.culture-scroll__marker {
+  position: absolute;
+  top: 0;
+  width: min(460px, 36vw);
+  transform: translate(-50%, 0);
+}
+
+.culture-scroll__dot {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 10px;
+  height: 10px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--color-gold) 88%, #f4ead0);
-  box-shadow:
-    0 0 0 5px color-mix(in srgb, var(--color-gold) 22%, transparent),
-    0 1px 4px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--color-gold) 75%, #fff);
+  background: color-mix(in srgb, var(--color-gold) 85%, #f4ead0);
   transform: translate(-50%, -50%);
-  pointer-events: auto;
-  cursor: pointer;
 }
 
-.culture-scroll__hotspot:focus-visible {
-  outline: 2px solid var(--color-gold-dark);
-  outline-offset: 4px;
+.culture-scroll__marker--active .culture-scroll__dot {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-gold) 22%, transparent);
 }
 
-.culture-scroll:not(.culture-scroll--static) .culture-scroll__hotspot {
-  animation: hotspot-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes hotspot-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 5px color-mix(in srgb, var(--color-gold) 22%, transparent),
-      0 1px 4px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 0 9px color-mix(in srgb, var(--color-gold) 10%, transparent),
-      0 1px 4px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
-  }
-}
-
-.culture-scroll__scrim {
+.culture-scroll__axis-time {
   position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  background: color-mix(in srgb, var(--color-text-primary) 28%, transparent);
+  left: 50%;
+  top: 10px;
+  margin: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-en-body);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
 }
 
-.culture-scroll__dialog {
-  position: relative;
-  width: min(420px, 100%);
-  padding: var(--space-6) var(--space-6) var(--space-5);
-  border: 1px solid var(--color-border);
+.culture-scroll__marker--above .culture-scroll__axis-time {
+  top: auto;
+  bottom: 14px;
+}
+
+.culture-scroll__era-card {
+  position: absolute;
+  left: 50%;
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-gold);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  opacity: 0;
+  transform: translateX(-50%) translateY(28px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s ease;
+  will-change: opacity, transform;
 }
 
-.culture-scroll__dialog-close {
+.culture-scroll__marker--above .culture-scroll__era-card {
+  bottom: calc(100% + 28px);
+}
+
+.culture-scroll__marker--below .culture-scroll__era-card {
+  top: 36px;
+}
+
+.culture-scroll__era-media {
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  width: 32px;
-  height: 32px;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 1.35rem;
-  line-height: 1;
-  cursor: pointer;
+  left: 50%;
+  width: 100%;
+  height: 240px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  opacity: 0;
+  transform: translateX(-50%) translateY(28px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+  pointer-events: none;
+  will-change: opacity, transform;
 }
 
-.culture-scroll__dialog-era {
-  margin: 0 0 var(--space-2);
-  padding-right: var(--space-8);
+.culture-scroll__era-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* text above → media below axis */
+.culture-scroll__marker--above .culture-scroll__era-media {
+  top: 48px;
+}
+
+/* text below → media above axis */
+.culture-scroll__marker--below .culture-scroll__era-media {
+  bottom: calc(100% + 28px);
+}
+
+/* 滚到当前区段：文案卡与图片卡上浮显现 */
+.culture-scroll__marker--active .culture-scroll__era-card,
+.culture-scroll__marker--active .culture-scroll__era-media {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.culture-scroll__marker--active .culture-scroll__era-card {
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--color-text-primary) 6%, transparent),
+    0 12px 28px color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+}
+
+.culture-scroll__era-card-title {
+  margin: 0 0 var(--space-1);
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 700;
@@ -665,23 +660,55 @@ onBeforeUnmount(() => {
   color: var(--color-text-primary);
 }
 
-.culture-scroll__dialog-period {
-  margin: 0 0 var(--space-3);
+.culture-scroll__era-card-period {
+  margin: 0 0 var(--space-2);
   font-family: var(--font-en-body);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wider);
+  font-size: var(--text-sm);
   color: var(--color-gold);
 }
 
-.culture-scroll__dialog-desc {
+.culture-scroll__era-card-desc {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   line-height: var(--leading-relaxed);
   color: var(--color-text-secondary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+  overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .culture-scroll__marker {
+    width: min(320px, 56vw);
+  }
+  .culture-scroll__era-card-desc {
+    -webkit-line-clamp: 7;
+  }
+  .culture-scroll__era-media {
+    height: 180px;
+  }
 }
 
 .culture-scroll--static {
   height: auto;
+}
+
+.culture-scroll--static .culture-scroll__era-card,
+.culture-scroll--static .culture-scroll__era-media {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition: none;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .culture-scroll__era-card,
+  .culture-scroll__era-media {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    transition: none;
+  }
 }
 
 .culture-scroll--static .culture-scroll__stage {
