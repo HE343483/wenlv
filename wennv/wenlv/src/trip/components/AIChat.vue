@@ -391,7 +391,7 @@ const sendChatMessage = async () => {
   transform: translateX(-50%) translateY(-55%);
   width: 12rem;
   height: 11rem;
-  background-color: #dedfe0;
+  background-color: #e8efed;
   border-radius: 2rem;
   transition: all 0.3s ease;
 }
@@ -438,7 +438,7 @@ const sendChatMessage = async () => {
 
 .card:hover {
   box-shadow:
-    0 10px 40px rgba(0, 0, 60, 0.25),
+    0 10px 40px rgba(0, 0, 0, 0.12),
     inset 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
@@ -451,7 +451,9 @@ const sendChatMessage = async () => {
   z-index: -10;
   border-radius: 3rem;
   transition: all 0.3s ease;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(255, 253, 248, 0.92);
+  border: 1px solid #e8efed;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 .balls {
@@ -478,28 +480,28 @@ const sendChatMessage = async () => {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #9147ff;
+  background-color: #3e7d8a;
 }
 
 .background-blur-balls .ball.green {
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #34d399;
+  background-color: #8fc4cd;
 }
 
 .background-blur-balls .ball.rosa {
   top: 50%;
   left: 0;
   transform: translateY(-50%);
-  background-color: #ec4899;
+  background-color: #b8453e;
 }
 
 .background-blur-balls .ball.cyan {
   top: 50%;
   right: 0;
   transform: translateY(-50%);
-  background-color: #05e0f5;
+  background-color: #5da4b1;
 }
 
 .content-card {
@@ -536,7 +538,7 @@ const sendChatMessage = async () => {
   & .eye {
     width: 26px;
     height: 52px;
-    background-color: #fff;
+    background-color: #b8453e;
     border-radius: 16px;
     animation: animate-eyes 10s infinite linear;
     transition: all 0.3s ease;
@@ -545,7 +547,7 @@ const sendChatMessage = async () => {
 
 .eyes.happy {
   display: none;
-  color: #fff;
+  color: #b8453e;
   gap: 0;
 
   & svg {
@@ -595,7 +597,7 @@ const sendChatMessage = async () => {
   height: 100%;
   padding: 90px 20px 20px;
   overflow: hidden;
-  background-color: #ffffff;
+  background-color: #fffdf8;
 }
 
 .container-wrap .card .chat .chat-bot {
@@ -616,20 +618,20 @@ const sendChatMessage = async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(93, 164, 177, 0.06);
 
   &::-webkit-scrollbar {
     width: 12px;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #dedfe0;
+    background: #d9e2e0;
     border-radius: 5px;
   }
 }
 
 .card .chat .chat-bot .chat-empty {
-  color: #8b8b8b;
+  color: #8a9a9e;
   line-height: 1.5;
 
   p {
@@ -652,8 +654,8 @@ const sendChatMessage = async () => {
   padding: 12px 24px;
   font-size: 42px;
   font-weight: 500;
-  background-color: #f5593d;
-  border-color: #f5593d;
+  background-color: #b8453e;
+  border-color: #b8453e;
   color: #ffffff;
   opacity: 1;
   filter: alpha(opacity=100);
@@ -674,16 +676,16 @@ const sendChatMessage = async () => {
   line-height: 1.6;
   border-radius: 24px;
   padding: 16px 24px;
-  color: #2c2c2c;
-  background: #f3f6fd;
+  color: #2e3a3d;
+  background: #f6f0e5;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .card .chat .chat-bot .chat-msg.user {
   margin-left: auto;
-  background-color: #f5593d;
-  border-color: #f5593d;
+  background-color: #5da4b1;
+  border-color: #5da4b1;
   color: #ffffff;
   opacity: 1;
   filter: alpha(opacity=100);
@@ -707,8 +709,8 @@ const sendChatMessage = async () => {
   height: 10px;
   border-radius: 50%;
 //   background: #9147ff;
-  background-color: #f5593d;
-  border-color: #f5593d;
+  background-color: #5da4b1;
+  border-color: #5da4b1;
   color: #ffffff;
   opacity: 1;
   filter: alpha(opacity=100);
@@ -724,13 +726,13 @@ const sendChatMessage = async () => {
 }
 
 .card .chat .chat-bot textarea {
-  background-color: transparent;
+  background-color: #ffffff;
   border-radius: 16px;
-  border: none;
+  border: 1px solid #d9e2e0;
   width: 100%;
   min-height: 156px;
   max-height: 178px;
-  color: #4a4a4a;
+  color: #2e3a3d;
   font-family: sans-serif;
   font-size: 48px;
   font-weight: 500;
@@ -748,21 +750,21 @@ const sendChatMessage = async () => {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #dedfe0;
+    background: #d9e2e0;
     border-radius: 5px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: #8b8b8b;
+    background: #8a9a9e;
     cursor: pointer;
   }
 
   &::placeholder {
-    color: #dedfe0;
+    color: #8a9a9e;
     transition: all 0.3s ease;
   }
   &:focus::placeholder {
-    color: #8b8b8b;
+    color: #5e6e72;
   }
 }
 
@@ -783,7 +785,7 @@ const sendChatMessage = async () => {
 
   & button {
     display: flex;
-    color: rgba(0, 0, 0, 0.1);
+    color: rgba(46, 58, 61, 0.25);
     background-color: transparent;
     border: none;
     cursor: pointer;
@@ -791,7 +793,7 @@ const sendChatMessage = async () => {
 
     &:hover {
       transform: translateY(-10px);
-      color: #8b8b8b;
+      color: #8a9a9e;
     }
   }
 }
@@ -799,8 +801,8 @@ const sendChatMessage = async () => {
 .card .chat .options .btn-submit {
   display: flex;
   padding: 15px;
-  background-color: #f5593d;
-  border-color: #f5593d;
+  background-color: #b8453e;
+  border-color: #b8453e;
   color: #ffffff;
   opacity: 1;
   filter: alpha(opacity=100);
@@ -821,7 +823,7 @@ const sendChatMessage = async () => {
     background: rgba(0, 0, 0, 0.1);
     border-radius: 10px;
     backdrop-filter: blur(3px);
-    color: #cfcfcf;
+    color: rgba(255, 255, 255, 0.85);
   }
   & svg {
     transition: all 0.3s ease;
@@ -829,13 +831,13 @@ const sendChatMessage = async () => {
   &:hover {
     opacity: 1;
     & svg {
-      color: #f3f6fd;
+      color: #ffffff;
       filter: drop-shadow(0 0 5px #ffffff);
     }
   }
 
   &:focus svg {
-    color: #f3f6fd;
+    color: #ffffff;
     filter: drop-shadow(0 0 5px #ffffff);
     transform: scale(1.2) rotate(45deg) translateX(-2px) translateY(1px);
   }

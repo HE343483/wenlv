@@ -533,8 +533,8 @@ const handleSubmit = async () => {
 <style scoped>
 .landing-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #0d171d 0%, #142430 58%, #0f1a22 100%);
-  color: #ecf3fa;
+  background: linear-gradient(180deg, #F8F3E9 0%, #F1EADB 58%, #F8F3E9 100%);
+  color: #2E3A3D;
   position: relative;
   isolation: isolate;
   overflow-x: hidden; /* 防止水平溢出导致的出界感 */
@@ -545,7 +545,7 @@ const handleSubmit = async () => {
   inset: 0% 0 -1px 0;
   z-index: 0;
   pointer-events: none;
-  background: rgba(6, 14, 20, 0.7);
+  background: transparent;
   transition: opacity 0.18s linear;
 }
 
@@ -556,7 +556,7 @@ const handleSubmit = async () => {
   right: 0;
   top: -28px;
   height: 28px;
-  background: linear-gradient(to bottom, rgba(6, 14, 20, 0), rgba(6, 14, 20, 0.92));
+  background: transparent;
 }
 
 .landing-header {
@@ -581,11 +581,11 @@ const handleSubmit = async () => {
 .history-panel {
   max-width: 1120px;
   margin: 0 auto;
-  background: rgba(10, 20, 28, 0.74);
-  border: 1px solid rgba(203, 227, 255, 0.12);
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid #E8EFED;
   border-radius: 28px;
   padding: 24px;
-  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(14px);
 }
 
@@ -599,7 +599,7 @@ const handleSubmit = async () => {
 
 .history-eyebrow {
   margin: 0 0 6px;
-  color: rgba(203, 227, 255, 0.62);
+  color: #8A9A9E;
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -607,7 +607,7 @@ const handleSubmit = async () => {
 
 .history-title {
   margin: 0;
-  color: #f5fbff;
+  color: #2E3A3D;
   font-size: 24px;
   font-weight: 700;
 }
@@ -617,7 +617,7 @@ const handleSubmit = async () => {
 }
 
 .history-loading {
-  color: rgba(236, 243, 250, 0.78);
+  color: #5E6E72;
   padding: 12px 4px;
 }
 
@@ -628,9 +628,9 @@ const handleSubmit = async () => {
 
 .history-item {
   width: 100%;
-  border: 1px solid rgba(203, 227, 255, 0.12);
+  border: 1px solid #E8EFED;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #FFFDF8;
   color: inherit;
   padding: 18px 20px;
   text-align: left;
@@ -644,8 +644,8 @@ const handleSubmit = async () => {
 
 .history-item:hover {
   transform: translateY(-1px);
-  border-color: rgba(138, 196, 255, 0.28);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(93, 164, 177, 0.4);
+  background: #F6F0E5;
 }
 
 .history-item-main {
@@ -661,13 +661,13 @@ const handleSubmit = async () => {
 }
 
 .history-city {
-  color: #f7fbff;
+  color: #2E3A3D;
   font-size: 20px;
   font-weight: 700;
 }
 
 .history-date {
-  color: rgba(236, 243, 250, 0.75);
+  color: #5E6E72;
   font-size: 14px;
 }
 
@@ -676,20 +676,20 @@ const handleSubmit = async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  color: rgba(203, 227, 255, 0.64);
+  color: #8A9A9E;
   font-size: 13px;
 }
 
 .history-summary {
   margin: 10px 0 0;
-  color: rgba(236, 243, 250, 0.9);
+  color: #5E6E72;
   font-size: 14px;
   line-height: 1.6;
 }
 
 .history-open {
   flex: none;
-  color: #8ac4ff;
+  color: #3E7D8A;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -704,10 +704,10 @@ const handleSubmit = async () => {
 
 .history-item-delete {
   flex: none;
-  border: 1px solid rgba(255, 120, 130, 0.35);
+  border: 1px solid rgba(184, 69, 62, 0.35);
   border-radius: 999px;
   background: transparent;
-  color: rgba(255, 140, 150, 0.9);
+  color: rgba(184, 69, 62, 0.9);
   font-size: 13px;
   padding: 5px 14px;
   cursor: pointer;
@@ -715,9 +715,9 @@ const handleSubmit = async () => {
 }
 
 .history-item-delete:hover {
-  background: rgba(255, 120, 130, 0.14);
-  border-color: rgba(255, 120, 130, 0.6);
-  color: #ff9aa5;
+  background: rgba(184, 69, 62, 0.08);
+  border-color: rgba(184, 69, 62, 0.6);
+  color: #B8453E;
 }
 
 .landing-header .content-center {
@@ -784,9 +784,9 @@ const handleSubmit = async () => {
   pointer-events: none;
   background: linear-gradient(
     to top,
-    rgba(6, 14, 20, 0.92) 0%,
-    rgba(6, 14, 20, 0.66) 46%,
-    rgba(6, 14, 20, 0) 100%
+    rgba(248, 243, 233, 0.95) 0%,
+    rgba(248, 243, 233, 0.6) 46%,
+    rgba(248, 243, 233, 0) 100%
   );
   transition: opacity 0.18s linear;
 }
@@ -802,11 +802,11 @@ const handleSubmit = async () => {
 .form-panel {
   max-width: 1000px;
   margin: 0 auto;
-  border: 1.2px solid rgba(236, 243, 250, 0.2);
+  border: 1.2px solid #E8EFED;
   border-radius: 22px;
-  background: rgba(12, 23, 32, 0.56);
+  background: rgba(255, 253, 248, 0.92);
   backdrop-filter: blur(18px);
-  box-shadow: 0 24px 80px rgba(4, 11, 18, 0.52);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   padding: 20px;
   transition: 0.25s;
 }
@@ -829,9 +829,9 @@ const handleSubmit = async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(215, 110, 66, 0.2);
-  border: 1.2px solid rgba(215, 110, 66, 0.4);
-  color: rgba(253, 225, 211, 0.95);
+  background: rgba(184, 69, 62, 0.10);
+  border: 1.2px solid rgba(184, 69, 62, 0.35);
+  color: #B8453E;
   font-size: 12px;
   font-weight: 700;
 }
@@ -840,7 +840,7 @@ const handleSubmit = async () => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: rgba(240, 246, 252, 0.94);
+  color: #2E3A3D;
 }
 
 .grid {
@@ -889,10 +889,10 @@ const handleSubmit = async () => {
   width: 36px;
   height: 40px;
   margin-bottom: 0;
-  border: 1.2px solid rgba(236, 243, 250, 0.2);
+  border: 1.2px solid #D9E2E0;
   border-radius: 10px;
-  background: rgba(14, 27, 38, 0.66);
-  color: rgba(236, 243, 250, 0.6);
+  background: #FFFDF8;
+  color: #8A9A9E;
   font-size: 18px;
   cursor: pointer;
   transition: all 0.2s;
@@ -902,18 +902,18 @@ const handleSubmit = async () => {
 }
 
 .city-remove-btn:hover {
-  border-color: rgba(255, 100, 100, 0.6);
-  color: #ff6464;
-  background: rgba(255, 100, 100, 0.1);
+  border-color: rgba(184, 69, 62, 0.6);
+  color: #B8453E;
+  background: rgba(184, 69, 62, 0.1);
 }
 
 .city-add-btn {
   align-self: flex-start;
   padding: 6px 16px;
-  border: 1.2px dashed rgba(215, 110, 66, 0.5);
+  border: 1.2px dashed rgba(184, 69, 62, 0.5);
   border-radius: 10px;
   background: transparent;
-  color: rgba(215, 110, 66, 0.85);
+  color: rgba(184, 69, 62, 0.85);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -921,9 +921,9 @@ const handleSubmit = async () => {
 }
 
 .city-add-btn:hover {
-  border-color: rgba(215, 110, 66, 0.9);
-  background: rgba(215, 110, 66, 0.1);
-  color: #d76e42;
+  border-color: rgba(184, 69, 62, 0.9);
+  background: rgba(184, 69, 62, 0.1);
+  color: #B8453E;
 }
 
 .field-label {
@@ -931,7 +931,7 @@ const handleSubmit = async () => {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(228, 236, 245, 0.72);
+  color: #5E6E72;
 }
 
 .field-input.ant-input,
@@ -944,12 +944,12 @@ const handleSubmit = async () => {
 .field-textarea :deep(.ant-input),
 .field-textarea.ant-input,
 .special-textarea.ant-input {
-  border: 1.2px solid rgba(236, 243, 250, 0.2) !important;
+  border: 1.2px solid #D9E2E0 !important;
   border-radius: 12px !important;
-  background: rgba(14, 27, 38, 0.66) !important;
-  background-color: rgba(14, 27, 38, 0.66) !important;
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
   background-image: none !important;
-  color: #ecf3fa !important;
+  color: #2E3A3D !important;
 }
 
 /* 浏览器自动填充（Autofill）背景色修复 */
@@ -960,21 +960,21 @@ const handleSubmit = async () => {
 :deep(.field-input .ant-picker-input > input:-webkit-autofill),
 :deep(.field-textarea textarea:-webkit-autofill),
 :deep(.special-textarea:-webkit-autofill) {
-  -webkit-box-shadow: 0 0 0 1000px #0e1b26 inset !important;
-  -webkit-text-fill-color: #ecf3fa !important;
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  -webkit-text-fill-color: #2E3A3D !important;
   transition: background-color 5000s ease-in-out 0s !important;
 }
 
 .field-input.ant-input-number :deep(.ant-input-number-input),
 .field-input.ant-input-number :deep(.ant-input-number-handler-wrap) {
-  color: #ecf3fa !important;
+  color: #2E3A3D !important;
 }
 
 .field-input.ant-input::placeholder,
 :deep(.field-input .ant-picker-input > input::placeholder),
 .field-textarea :deep(textarea::placeholder),
 .field-textarea.ant-input::placeholder {
-  color: rgba(228, 236, 245, 0.4) !important;
+  color: rgba(138, 154, 158, 0.7) !important;
 }
 
 .field-input.ant-input:hover,
@@ -982,16 +982,16 @@ const handleSubmit = async () => {
 .field-select:hover :deep(.ant-select-selector),
 .field-textarea :deep(textarea:hover),
 .field-textarea.ant-input:hover {
-  border-color: rgba(236, 243, 250, 0.42) !important;
+  border-color: rgba(93, 164, 177, 0.5) !important;
 }
 
 .field-input.ant-input:focus,
 .field-input.ant-picker-focused,
 .field-textarea :deep(textarea:focus),
 .field-textarea.ant-input:focus {
-  border-color: rgba(215, 110, 66, 0.88) !important;
-  box-shadow: 0 0 0 3px rgba(215, 110, 66, 0.2) !important;
-  background: rgba(14, 27, 38, 0.66) !important;
+  border-color: rgba(184, 69, 62, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(184, 69, 62, 0.15) !important;
+  background: #FFFFFF !important;
   outline: none !important;
 }
 
@@ -1000,14 +1000,14 @@ const handleSubmit = async () => {
 :deep(.field-input .ant-picker-suffix),
 :deep(.field-input .ant-picker-clear),
 .field-select :deep(.ant-select-arrow) {
-  color: #ecf3fa !important;
+  color: #2E3A3D !important;
 }
 
 .days-chip {
   min-height: 40px;
   border-radius: 12px;
-  border: 1.2px solid rgba(215, 110, 66, 0.42);
-  background: rgba(19, 34, 46, 0.8);
+  border: 1.2px solid rgba(184, 69, 62, 0.35);
+  background: #FFFDF8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1015,7 +1015,7 @@ const handleSubmit = async () => {
 }
 
 .days-number {
-  color: rgba(236, 243, 250, 0.72);
+  color: #2E3A3D;
   font-size: 18px;
   line-height: 1;
   font-weight: 700;
@@ -1025,7 +1025,7 @@ const handleSubmit = async () => {
   font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(224, 233, 242, 0.74);
+  color: #5E6E72;
   font-weight: 700;
 }
 
@@ -1047,9 +1047,9 @@ const handleSubmit = async () => {
 .interest-pill {
   min-height: 38px;
   border-radius: 10px;
-  border: 1.2px solid rgba(236, 243, 250, 0.16);
-  background: rgba(15, 28, 38, 0.6);
-  color: rgba(232, 239, 247, 0.84);
+  border: 1.2px solid #E8EFED;
+  background: #FFFDF8;
+  color: #5E6E72;
   font-size: 12px;
   display: inline-flex;
   align-items: center;
@@ -1060,25 +1060,26 @@ const handleSubmit = async () => {
 }
 
 .interest-pill:hover {
-  background: rgba(236, 243, 250, 0.08);
-  border-color: rgba(236, 243, 250, 0.3);
+  background: #F6F0E5;
+  border-color: #D9E2E0;
   /* transform: translateY(-2px); */
-  box-shadow: 0 4px 12px rgba(4, 11, 18, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .interest-pill:active {
   transform: translateY(1px) scale(0.96);
-  box-shadow: 0 2px 4px rgba(4, 11, 18, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .interest-pill.active {
-  border-color: rgba(215, 110, 66, 0.8);
-  background: rgba(215, 110, 66, 0.2);
+  border-color: rgba(184, 69, 62, 0.8);
+  background: rgba(184, 69, 62, 0.2);
+  color: #B8453E;
 }
 
 .interest-pill.active:hover {
-  background: rgba(215, 110, 66, 0.28);
-  border-color: rgba(215, 110, 66, 1);
+  background: rgba(184, 69, 62, 0.28);
+  border-color: rgba(184, 69, 62, 1);
 }
 
 /* 景点来源选择按钮组 */
@@ -1090,9 +1091,9 @@ const handleSubmit = async () => {
 .source-radio :deep(.ant-radio-button-wrapper) {
   flex: 1;
   text-align: center;
-  background: rgba(15, 28, 38, 0.6);
-  border-color: rgba(236, 243, 250, 0.16) !important;
-  color: rgba(232, 239, 247, 0.84);
+  background: #FFFDF8;
+  border-color: #E8EFED !important;
+  color: #5E6E72;
 }
 
 .source-radio :deep(.ant-radio-button-wrapper:first-child) {
@@ -1104,24 +1105,24 @@ const handleSubmit = async () => {
 }
 
 .source-radio :deep(.ant-radio-button-wrapper:not(:first-child))::before {
-  background: rgba(236, 243, 250, 0.16);
+  background: #E8EFED;
 }
 
 .source-radio :deep(.ant-radio-button-wrapper-checked) {
-  border-color: rgba(215, 110, 66, 0.9) !important;
-  background: rgba(215, 110, 66, 0.2);
-  color: #f0a078;
+  border-color: rgba(184, 69, 62, 0.55) !important;
+  background: rgba(184, 69, 62, 0.08);
+  color: #B8453E;
 }
 
 .source-radio :deep(.ant-radio-button-wrapper-checked::before) {
-  background: rgba(215, 110, 66, 0.6) !important;
+  background: rgba(184, 69, 62, 0.5) !important;
 }
 
 .source-hint {
   margin: 8px 2px 0;
   font-size: 12px;
   line-height: 1.6;
-  color: rgba(232, 239, 247, 0.45);
+  color: #8A9A9E;
 }
 
 .submit-btn {
@@ -1139,7 +1140,7 @@ const handleSubmit = async () => {
 }
 
 .submit-btn.loading {
-  background: rgba(14, 27, 38, 0.66);
+  background: rgba(184, 69, 62, 0.7);
   cursor: wait;
 }
 
@@ -1162,8 +1163,8 @@ const handleSubmit = async () => {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2.5px solid rgba(215, 110, 66, 0.24);
-  border-top-color: #d76e42;
+  border: 2.5px solid rgba(184, 69, 62, 0.24);
+  border-top-color: #B8453E;
   animation: spin 0.8s linear infinite;
 }
 
@@ -1193,14 +1194,14 @@ const handleSubmit = async () => {
 .stepper-title {
   font-size: 28px;
   font-weight: 700;
-  color: #fff;
+  color: #2E3A3D;
   margin-bottom: 8px;
   letter-spacing: 0.05em;
 }
 
 .stepper-subtitle {
   font-size: 15px;
-  color: rgba(236, 243, 250, 0.54);
+  color: #8A9A9E;
 }
 
 .stepper-container {
@@ -1224,51 +1225,51 @@ const handleSubmit = async () => {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(14, 27, 38, 0.8);
-  border: 1.5px solid rgba(236, 243, 250, 0.16);
+  background: #FFFFFF;
+  border: 1.5px solid #E8EFED;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
-  color: rgba(236, 243, 250, 0.4);
+  color: #8A9A9E;
   transition: all 0.35s ease;
 }
 
 .step-node.active .node-icon {
-  border-color: #d76e42;
-  background: rgba(215, 110, 66, 0.14);
-  color: #d76e42;
-  box-shadow: 0 0 16px rgba(215, 110, 66, 0.25);
+  border-color: #B8453E;
+  background: rgba(184, 69, 62, 0.08);
+  color: #B8453E;
+  box-shadow: 0 0 16px rgba(184, 69, 62, 0.2);
 }
 
 .step-node.completed .node-icon {
-  background: #d76e42;
-  border-color: #d76e42;
+  background: #B8453E;
+  border-color: #B8453E;
   color: #fff;
-  box-shadow: 0 0 12px rgba(215, 110, 66, 0.3);
+  box-shadow: 0 0 12px rgba(184, 69, 62, 0.2);
 }
 
 .node-text {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(236, 243, 250, 0.4);
+  color: #8A9A9E;
   text-align: center;
   transition: color 0.35s ease;
   line-height: 1.3;
 }
 
 .step-node.active .node-text {
-  color: #d76e42;
+  color: #B8453E;
 }
 
 .step-node.completed .node-text {
-  color: rgba(236, 243, 250, 0.85);
+  color: #2E3A3D;
 }
 
 .step-divider {
   flex: 1;
   height: 3px;
-  background: rgba(236, 243, 250, 0.08);
+  background: #E8EFED;
   margin-top: 25px; /* (52px / 2) - 1.5px */
   border-radius: 2px;
   position: relative;
@@ -1279,7 +1280,7 @@ const handleSubmit = async () => {
   content: '';
   position: absolute;
   top: 0; left: 0; bottom: 0; width: 0%;
-  background: #d76e42;
+  background: #B8453E;
   transition: width 0.45s ease;
 }
 
@@ -1295,13 +1296,13 @@ const handleSubmit = async () => {
 .stepper-footer h3 {
   font-size: 20px;
   font-weight: 600;
-  color: #d76e42;
+  color: #B8453E;
   margin-bottom: 8px;
 }
 
 .stepper-footer p {
   font-size: 14px;
-  color: rgba(236, 243, 250, 0.54);
+  color: #8A9A9E;
 }
 
 :deep(.ant-form-item-label > label) {
@@ -1309,7 +1310,7 @@ const handleSubmit = async () => {
 }
 
 :deep(.ant-form-item-explain-error) {
-  color: #ff9478 !important;
+  color: #B8453E !important;
 }
 
 /* @keyframes cloudLoop {

@@ -84,7 +84,8 @@ main {
   box-shadow: 0.063rem 0.5rem 1.25rem hsl(0deg 0% 0% / 12.16%);
   border-bottom-left-radius: 0.5rem;
   border-bottom-right-radius: 0.5rem;
-  background-color: #fff;
+  border: 1px solid #e8efed;
+  background-color: #fffdf8;
   overflow: hidden;
   position: relative;
 
@@ -95,7 +96,7 @@ main {
     flex-shrink: 0;
     overflow: hidden;
     line-height: 0;
-    background-color: #1a262f;
+    background-color: #f6f0e5;
 
     img {
       width: 100%;
@@ -118,14 +119,14 @@ main {
       z-index: 1;
     }
     .shape-fill {
-      fill: #ffffff;
+      fill: #fffdf8;
     }
   }
 
   &-content {
     position: relative;
     z-index: 2;
-    background: #fff;
+    background: #fffdf8;
     border-bottom-left-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
     padding: 0 1.65rem;
@@ -139,7 +140,7 @@ main {
     }
 
     h2 {
-      color: #000;
+      color: #2e3a3d;
       font-family: "Raleway", sans-serif;
       font-weight: 700;
       font-size: 1.4rem;
@@ -152,7 +153,7 @@ main {
     }
 
     p {
-      color: #000 !important;
+      color: #5e6e72 !important;
       line-height: 1.6;
       font-size: 0.9rem;
       display: -webkit-box;
@@ -168,9 +169,9 @@ main {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f5593d;
+      background: #b8453e;
       border-radius: 50%;
-      box-shadow: 0px 0.125rem 0.875rem #e7882f6b;
+      box-shadow: 0px 0.125rem 0.875rem rgba(184, 69, 62, 0.42);
       margin-top: 1em;
       margin-bottom: 0.8em;
       height: 0;
@@ -179,7 +180,7 @@ main {
       margin-left: auto;
 
       &:hover {
-        background: #cc462f;
+        background: #9e3a34;
       }
 
       svg {

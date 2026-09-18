@@ -4,12 +4,15 @@
  * 布局：左Logo + 中锚点导航 + 右元素聚合
  *   左：蜀韵·成都 Logo + 名称
  *   中：首页 / 景点 / 文化 / 非遗（滚动到对应区块）
- *   右：天气按钮 / 语言切换 / 登录 / 注册（右对齐聚合）
+ *   右：天气按钮 / 语言切换 / 登录·注册 或 进入主页·退出登录（右对齐聚合，按登录状态切换）
  */
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useWeatherStore } from '@/stores/weather'
+import { useUserStore } from '@/stores/user'
+import { hasToken, getRefreshToken, clearTokens } from '@/utils/token'
+import { logout as apiLogout } from '@/api/auth'
 import { storeToRefs } from 'pinia'
 import WeatherTrigger from './WeatherTrigger.vue'
 import WeatherPanel from './WeatherPanel.vue'
@@ -28,9 +31,28 @@ const router = useRouter()
 const route = useRoute()
 const langStore = useLanguageStore()
 const weatherStore = useWeatherStore()
+const userStore = useUserStore()
 const { open } = storeToRefs(weatherStore)
 
 const isScrolled = ref(false)
+
+/* 登录状态：已登录时右侧显示「进入主页 / 退出登录」，避免点击登录被守卫弹回 */
+const loggedIn = ref(hasToken())
+
+function goToAuth(path: string) {
+  router.push(path)
+}
+
+/** 退出登录：调用后端注销 → 清除 token 与本地用户态 → 回到公开首页顶部 */
+function handleLogout() {
+  const refresh = getRefreshToken()
+  if (refresh) apiLogout(refresh).catch(() => {})
+  clearTokens()
+  userStore.resetAll()
+  loggedIn.value = false
+  if (route.path === '/') window.scrollTo({ top: 0, behavior: 'smooth' })
+  else router.push('/')
+}
 
 /* 天气下拉：触发点 ref + 面板 ref（面板 Teleport 到 body，用暴露的 getElement 判点击范围） */
 const triggerRef = ref<InstanceType<typeof WeatherTrigger> | null>(null)
@@ -73,10 +95,6 @@ function navigate(path: string) {
   }
 }
 
-function goToAuth(path: string) {
-  router.push(path)
-}
-
 /* 当前激活的锚点导航（仅首页有效），用于高亮 */
 const activeAnchor = ref('')
 
@@ -107,6 +125,8 @@ onMounted(() => {
   watch(route, () => {
     if (route.path === '/') isScrolled.value = window.scrollY > 40
     updateActiveAnchor()
+    // 路由切换后同步登录状态（如 token 被清除或刷新）
+    loggedIn.value = hasToken()
   })
 })
 
@@ -157,24 +177,46 @@ onUnmounted(() => {
 
         <span class="navbar__divider" aria-hidden="true" />
 
-        <!-- 登录 -->
-        <button class="navbar__auth-btn navbar__auth-btn--login" @click="goToAuth('/login')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-            <circle cx="12" cy="8" r="3.5" />
-            <path d="M5 20c1.6-3.6 4.1-5 7-5s5.4 1.4 7 5" />
-          </svg>
-          {{ langStore.t('nav.login') }}
-        </button>
+        <!-- 未登录：登录 / 注册 -->
+        <template v-if="!loggedIn">
+          <!-- 登录 -->
+          <button class="navbar__auth-btn navbar__auth-btn--login" @click="goToAuth('/login')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M5 20c1.6-3.6 4.1-5 7-5s5.4 1.4 7 5" />
+            </svg>
+            {{ langStore.t('nav.login') }}
+          </button>
 
-        <!-- 注册 -->
-        <button class="navbar__auth-btn navbar__auth-btn--register" @click="goToAuth('/register')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-            <circle cx="10" cy="8" r="3.5" />
-            <path d="M3.5 20c1.6-3.6 4-5 6.5-5 1.7 0 3.2.5 4.4 1.4" />
-            <path d="M18.5 8.5v6M15.5 11.5h6" />
-          </svg>
-          {{ langStore.t('nav.register') }}
-        </button>
+          <!-- 注册 -->
+          <button class="navbar__auth-btn navbar__auth-btn--register" @click="goToAuth('/register')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="10" cy="8" r="3.5" />
+              <path d="M3.5 20c1.6-3.6 4-5 6.5-5 1.7 0 3.2.5 4.4 1.4" />
+              <path d="M18.5 8.5v6M15.5 11.5h6" />
+            </svg>
+            {{ langStore.t('nav.register') }}
+          </button>
+        </template>
+
+        <!-- 已登录：进入主页 / 退出登录 -->
+        <template v-else>
+          <button class="navbar__auth-btn navbar__auth-btn--login" @click="goToAuth('/home')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M3 11l9-7 9 7" />
+              <path d="M5.5 9.5V20h13V9.5" />
+            </svg>
+            {{ langStore.t('nav.enterHome') }}
+          </button>
+
+          <button class="navbar__auth-btn navbar__auth-btn--register" @click="handleLogout">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M14 4H6v16h8" />
+              <path d="M10 12h10M17 9l3 3-3 3" />
+            </svg>
+            {{ langStore.t('mineMenu.logout') }}
+          </button>
+        </template>
       </div>
 
     <!-- 底部分割金线 -->

@@ -17,7 +17,8 @@ export default {
     ariaLang: '言語切替',
     login: 'ログイン',
     register: '登録',
-    langSwitch: '中文',
+    enterHome: 'ホームへ',
+    langSwitch: '中',
     weather: '天気を取得',
   },
   hero: {

@@ -17,6 +17,7 @@ export default {
     ariaLang: 'Switch language',
     login: 'Login',
     register: 'Register',
+    enterHome: 'My Home',
     langSwitch: '日本語',
     weather: 'Weather',
   },

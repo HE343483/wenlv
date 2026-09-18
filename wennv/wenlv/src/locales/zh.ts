@@ -17,6 +17,7 @@ export default {
     ariaLang: '切换语言',
     login: '登录',
     register: '注册',
+    enterHome: '进入主页',
     langSwitch: 'EN',
     weather: '获取天气',
   },
