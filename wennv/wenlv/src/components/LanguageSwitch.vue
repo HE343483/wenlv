@@ -26,6 +26,14 @@ const langStore = useLanguageStore()
     >
       EN
     </button>
+    <button
+      type="button"
+      class="lang-switch__btn"
+      :class="{ 'lang-switch__btn--active': langStore.lang === 'ja' }"
+      @click="langStore.setLang('ja')"
+    >
+      日
+    </button>
   </div>
 </template>
 

@@ -131,6 +131,13 @@ export const useUserStore = defineStore('user', () => {
     rec.photos.splice(index, 1)
   }
 
+  /** 登出时重置所有用户态（清除本地持久化） */
+  function resetAll() {
+    profile.value = { ...DEFAULT_STATE.profile }
+    favorites.value = []
+    visits.value = []
+  }
+
   return {
     profile,
     favorites,
@@ -145,5 +152,6 @@ export const useUserStore = defineStore('user', () => {
     removeVisit,
     addVisitPhotos,
     removeVisitPhoto,
+    resetAll,
   }
 })

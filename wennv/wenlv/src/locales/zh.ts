@@ -6,6 +6,7 @@ export default {
     spots: '景点',
     culture: '文化',
     heritage: '非遗',
+    trip: 'AI 行程',
     ariaNav: '页面导航',
     ariaLang: '切换语言',
     login: '登录',
@@ -356,6 +357,7 @@ export default {
     profile: '个人资料',
     favorites: '我的收藏',
     visits: '已打卡',
+    logout: '退出登录',
   },
   footer: {
     copyright: '数智文旅 + 国际传播：巴蜀文化出海',

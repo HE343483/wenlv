@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { hasToken } from '@/utils/token'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -71,7 +72,35 @@ const router = createRouter({
       name: 'food-detail',
       component: () => import('@/views/FoodDetail/FoodDetail.vue'),
     },
+    {
+      // AI 行程规划 — 首页(多城市行程表单 / 历史计划)
+      path: '/trip',
+      name: 'trip-planner',
+      component: () => import('@/trip/views/LandingView.vue'),
+    },
+    {
+      // AI 行程规划 — 结果页(地图 / 预算 / 知识图谱 / AI 问答 / 导出图片)
+      path: '/trip/result',
+      name: 'trip-result',
+      component: () => import('@/trip/views/ResultView.vue'),
+    },
   ],
 })
 
 export default router
+
+// 全局前置守卫：内部页面需登录
+router.beforeEach((to) => {
+  const meta = to.meta as { guest?: boolean } | undefined
+  if (to.name === 'home') return true
+  if (to.path.startsWith('/scenic/') || to.path.startsWith('/food/')) return true
+  // AI 行程规划模块为公开页面(使用匿名 user_id 做偏好记忆)
+  if (to.path.startsWith('/trip')) return true
+  if (to.name === 'login' || to.name === 'register')
+    return hasToken() ? { name: 'home' } : true
+  if (meta?.guest) return hasToken() ? { name: 'home' } : true
+  if (!hasToken()) {
+    return { name: 'login' }
+  }
+  return true
+})

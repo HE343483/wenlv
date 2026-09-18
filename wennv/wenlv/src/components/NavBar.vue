@@ -20,6 +20,7 @@ const navItems = [
   { key: 'spots', href: '/#explore' },
   { key: 'culture', href: '/#culture-cards' },
   { key: 'heritage', href: '/#culture-heritage' },
+  { key: 'trip', href: '/trip' },
 ] as const
 
 

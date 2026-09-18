@@ -1,0 +1,172 @@
+package repository
+
+import (
+	"errors"
+
+	"gorm.io/gorm"
+
+	"wenlv-backend/model"
+)
+
+// 通用仓储错误。
+var (
+	ErrNotFound  = errors.New("record not found")
+	ErrDuplicate = errors.New("record already exists")
+)
+
+// QueryOptions 分页 + 过滤参数。
+type QueryOptions struct {
+	District string
+	Tag      string
+	Keyword  string
+	Page     int
+	PageSize int
+}
+
+const (
+	// DefaultPageSize 默认每页条数。
+	DefaultPageSize = 20
+	// MaxPageSize 每页条数上限。
+	MaxPageSize = 100
+)
+
+// ScenicRepo 景点数据访问。
+type ScenicRepo struct {
+	db *gorm.DB
+}
+
+// NewScenicRepo 构造景点仓储。
+func NewScenicRepo(db *gorm.DB) *ScenicRepo {
+	return &ScenicRepo{db: db}
+}
+
+// List 分页查询景点。
+func (r *ScenicRepo) List(opts QueryOptions) ([]model.ScenicSpot, int64, error) {
+	q := r.db.Model(&model.ScenicSpot{})
+	q = applyQuery(q, opts)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []model.ScenicSpot
+	if err := q.Order("id asc").Limit(pageSize(opts.PageSize)).Offset(offset(opts)).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// GetByID 按 ID 查询景点。
+func (r *ScenicRepo) GetByID(id uint) (*model.ScenicSpot, error) {
+	var s model.ScenicSpot
+	if err := r.db.First(&s, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &s, nil
+}
+
+// FoodRepo 美食数据访问。
+type FoodRepo struct {
+	db *gorm.DB
+}
+
+// NewFoodRepo 构造美食仓储。
+func NewFoodRepo(db *gorm.DB) *FoodRepo {
+	return &FoodRepo{db: db}
+}
+
+// List 分页查询美食。
+func (r *FoodRepo) List(opts QueryOptions) ([]model.Food, int64, error) {
+	q := r.db.Model(&model.Food{})
+	q = applyQuery(q, opts)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []model.Food
+	if err := q.Order("id asc").Limit(pageSize(opts.PageSize)).Offset(offset(opts)).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// GetByID 按 ID 查询美食。
+func (r *FoodRepo) GetByID(id uint) (*model.Food, error) {
+	var f model.Food
+	if err := r.db.First(&f, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &f, nil
+}
+
+// RouteRepo 路线数据访问。
+type RouteRepo struct {
+	db *gorm.DB
+}
+
+// NewRouteRepo 构造路线仓储。
+func NewRouteRepo(db *gorm.DB) *RouteRepo {
+	return &RouteRepo{db: db}
+}
+
+// List 分页查询路线。
+func (r *RouteRepo) List(opts QueryOptions) ([]model.Route, int64, error) {
+	q := r.db.Model(&model.Route{})
+	q = applyQuery(q, opts)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []model.Route
+	if err := q.Order("id asc").Limit(pageSize(opts.PageSize)).Offset(offset(opts)).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// GetByID 按 ID 查询路线。
+func (r *RouteRepo) GetByID(id uint) (*model.Route, error) {
+	var rt model.Route
+	if err := r.db.First(&rt, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &rt, nil
+}
+
+// applyQuery 复用通用的过滤条件:区县精确、标签包含、关键词模糊匹配中英文名。
+func applyQuery(q *gorm.DB, opts QueryOptions) *gorm.DB {
+	if opts.District != "" {
+		q = q.Where("district = ?", opts.District)
+	}
+	if opts.Tag != "" {
+		q = q.Where("tags LIKE ?", "%"+opts.Tag+"%")
+	}
+	if opts.Keyword != "" {
+		kw := "%" + opts.Keyword + "%"
+		q = q.Where("name_zh LIKE ? OR name_en LIKE ?", kw, kw)
+	}
+	return q
+}
+
+func pageSize(ps int) int {
+	if ps <= 0 || ps > MaxPageSize {
+		return DefaultPageSize
+	}
+	return ps
+}
+
+func offset(opts QueryOptions) int {
+	p := opts.Page
+	if p <= 0 {
+		p = 1
+	}
+	return (p - 1) * pageSize(opts.PageSize)
+}

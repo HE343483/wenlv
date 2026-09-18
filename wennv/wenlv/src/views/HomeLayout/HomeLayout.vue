@@ -11,6 +11,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useWeatherStore } from '@/stores/weather'
 import { useUserStore } from '@/stores/user'
+import { logout as apiLogout } from '@/api/auth'
+import { getRefreshToken, clearTokens } from '@/utils/token'
 import WeatherTrigger from '@/components/WeatherTrigger.vue'
 import WeatherPanel from '@/components/WeatherPanel.vue'
 import LanguageSwitch from '@/components/LanguageSwitch.vue'
@@ -81,6 +83,18 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
   window.removeEventListener('resize', onResize)
 })
+
+/** 退出登录：调用后端注销 → 清除 token 与本地用户态 → 返回公开首页 */
+function handleLogout() {
+  mineOpen.value = false
+  const refresh = getRefreshToken()
+  if (refresh) {
+    apiLogout(refresh).catch(() => {})
+  }
+  clearTokens()
+  userStore.resetAll()
+  router.push('/')
+}
 </script>
 
 <template>
@@ -158,6 +172,10 @@ onBeforeUnmount(() => {
                 @click="goNav(item.route)"
               >
                 {{ langStore.t(item.key) }}
+              </button>
+              <button role="menuitem" class="internal-topbar__mine-item internal-topbar__mine-item--logout" @click="handleLogout">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                {{ langStore.t('mineMenu.logout') }}
               </button>
             </div>
           </Transition>

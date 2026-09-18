@@ -8,6 +8,8 @@
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { useUserStore } from '@/stores/user'
+import { login as apiLogin, register as apiRegister } from '@/api/auth'
 import AuthBamboo from '@/components/AuthBamboo.vue'
 import PandaCursor from '@/components/PandaCursor.vue'
 
@@ -15,15 +17,17 @@ type Mode = 'login' | 'register'
 
 const router = useRouter()
 const langStore = useLanguageStore()
+const userStore = useUserStore()
 
 const mode = ref<Mode>('login')
 const phase = ref<'idle' | 'exit' | 'enter'>('idle')
 const busy = ref(false)
+const submitting = ref(false)
+const errorMsg = ref('')
 
 const username = ref('')
 const password = ref('')
 const regUsername = ref('')
-const regEmail = ref('')
 const regPassword = ref('')
 const regConfirm = ref('')
 
@@ -52,15 +56,69 @@ async function switchTo(target: Mode) {
 }
 
 function handleLogin() {
-  // TODO: 对接后端登录API
-  // POST /api/auth/login { username, password }
-  router.push('/home')
+  if (submitting.value) return
+  errorMsg.value = ''
+  submitting.value = true
+  apiLogin(username.value.trim(), password.value)
+    .then((res) => {
+      if (res.user?.username) {
+        userStore.updateProfile({
+          nickname: res.user.username,
+          email: '',
+          phone: '',
+          avatar: res.user.avatar_url || '',
+        })
+      }
+      router.push('/home')
+    })
+    .catch((err) => {
+      errorMsg.value = err?.message || '登录失败，请检查账号密码'
+    })
+    .finally(() => {
+      submitting.value = false
+    })
 }
 
 function handleRegister() {
-  // TODO: 对接后端注册API
-  // POST /api/auth/register { username, email, password }
-  router.push('/home')
+  if (submitting.value) return
+  if (regPassword.value !== regConfirm.value) {
+    errorMsg.value = '两次输入的密码不一致'
+    return
+  }
+  errorMsg.value = ''
+  submitting.value = true
+  register2(regUsername.value.trim(), regPassword.value)
+    .then(() => {
+      // 注册成功后自动登录并进入主页
+      return apiLogin(regUsername.value.trim(), regPassword.value)
+    })
+    .then((res) => {
+      if (res.user?.username) {
+        userStore.updateProfile({
+          nickname: res.user.username,
+          email: '',
+          phone: '',
+          avatar: res.user.avatar_url || '',
+        })
+      }
+      router.push('/home')
+    })
+    .catch((err) => {
+      errorMsg.value = err?.message || '注册失败，可能用户名已存在'
+    })
+    .finally(() => {
+      submitting.value = false
+    })
+}
+
+/** 注册并规范化错误信息 */
+async function register2(u: string, p: string) {
+  try {
+    await apiRegister(u, p)
+  } catch (err) {
+    const msg = (err as Error)?.message || '注册失败'
+    throw new Error(msg.includes('已存在') ? '用户名已存在' : msg)
+  }
 }
 
 /** 返回公开首页（HomeView） */
@@ -122,7 +180,10 @@ onBeforeUnmount(() => {
               required
             />
           </div>
-          <button type="submit" class="auth-form__submit">{{ langStore.t('login.submit') }}</button>
+          <p v-if="errorMsg" class="auth-form__error" role="alert">{{ errorMsg }}</p>
+          <button type="submit" class="auth-form__submit" :disabled="submitting">
+            {{ submitting ? langStore.t('login.loading') || '登录中…' : langStore.t('login.submit') }}
+          </button>
         </form>
       </div>
 
@@ -166,18 +227,6 @@ onBeforeUnmount(() => {
             />
           </div>
           <div class="auth-form__field">
-            <label class="auth-form__label" for="reg-email">{{ langStore.t('register.email') }}</label>
-            <input
-              id="reg-email"
-              v-model="regEmail"
-              class="auth-form__input"
-              :placeholder="langStore.t('register.emailPlaceholder')"
-              type="email"
-              autocomplete="email"
-              required
-            />
-          </div>
-          <div class="auth-form__field">
             <label class="auth-form__label" for="reg-password">{{ langStore.t('register.password') }}</label>
             <input
               id="reg-password"
@@ -201,7 +250,10 @@ onBeforeUnmount(() => {
               required
             />
           </div>
-          <button type="submit" class="auth-form__submit">{{ langStore.t('register.submit') }}</button>
+          <p v-if="errorMsg" class="auth-form__error" role="alert">{{ errorMsg }}</p>
+          <button type="submit" class="auth-form__submit" :disabled="submitting">
+            {{ submitting ? langStore.t('register.loading') || '提交中…' : langStore.t('register.submit') }}
+          </button>
         </form>
       </div>
 
@@ -455,6 +507,17 @@ onBeforeUnmount(() => {
 .auth-form__submit:hover {
   background: var(--color-gold-light);
   box-shadow: 0 0 20px var(--color-gold-glow);
+}
+
+.auth-form__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-form__error {
+  font-size: var(--text-sm);
+  color: var(--color-danger, #b8453e);
+  letter-spacing: var(--tracking-wide);
 }
 
 /* 风景卡占位：渐变天空 + 山影剪层，后续可直接替换为真实图片 */

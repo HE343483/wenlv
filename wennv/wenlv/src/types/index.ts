@@ -49,10 +49,12 @@ export interface WeatherData {
   weather_desc: string
   /** 城市名 */
   city_name: string
-  /** 相对湿度 % */
-  humidity: number
-  /** 风速 m/s */
-  wind_speed: number
+  /** 相对湿度 %（高德预报不含湿度，可能缺失） */
+  humidity?: number
+  /** 风速 m/s（高德预报不含，可能缺失） */
+  wind_speed?: number
+  /** 风向风力描述（如「北 1-3」） */
+  wind_power?: string
   /** 更新时间 ISO */
   updated_at: string
 }
@@ -61,7 +63,7 @@ export interface WeatherData {
 export type WeatherState = 'idle' | 'loading' | 'success' | 'error'
 
 /** 语言 */
-export type Language = 'zh' | 'en'
+export type Language = 'zh' | 'en' | 'ja'
 
 /** 新闻热点 */
 export interface NewsItem {
