@@ -47,7 +47,8 @@
       "openaiBaseUrl": "OpenAI-Compatible Base URL",
       "openaiModel": "OpenAI-Compatible Model",
       "openaiApiKey": "OpenAI-Compatible API Key",
-      "xhsCookie": "Xiaohongshu Cookie"
+      "xhsCookie": "Xiaohongshu Cookie (multiple supported)",
+      "douyinCookie": "Douyin Cookie"
     },
     "placeholders": {
       "apiBaseUrl": "e.g. http://localhost:8000",
@@ -55,7 +56,8 @@
       "googleMapsProxy": "e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080",
       "openaiBaseUrl": "e.g. https://api.openai.com/v1",
       "openaiModel": "e.g. gpt-4o-mini",
-      "xhsCookie": "Paste full cookie string"
+      "xhsCookie": "One full cookie string per line. Multiple cookies are rotated automatically and a rate-limited one is switched out. Paste full content when editing (masked text is not saved).",
+      "douyinCookie": "Paste full cookie string (must include logged-in fields such as msToken)"
     },
     "messages": {
       "loadFailed": "Failed to load settings",
@@ -119,9 +121,14 @@
     "attractionSourceLabel": "Attraction Source",
     "attractionSource": {
       "xhs": "RED Real Reviews",
+      "douyin": "Douyin Real Shares",
       "map": "Map Search"
     },
-    "attractionSourceHint": "RED (Xiaohongshu) recommendations come from real travelers' notes for authentic experiences; Map Search is powered by AMap directly — fast and always available.",
+    "attractionSourceHint": "RED (Xiaohongshu) and Douyin recommendations come from real travelers' notes and short videos for authentic experiences; Map Search is powered by AMap directly — fast and always available.",
+    "memoryToggle": {
+      "label": "Personalized Preference Memory",
+      "desc": "When enabled, AI remembers your travel preferences (favorite attraction types, accommodation habits, etc.) to tailor recommendations. Preferences are tied to your account and can be turned off anytime."
+    },
     "specialNeedsPlaceholder": "Tell me your special needs, e.g. traveling with seniors, want to see sunrise, pollen allergy...",
     "submit": "Start Planning",
     "submitting": "AI is planning...",
@@ -137,7 +144,9 @@
       "deleteConfirm": "Delete this plan from history?",
       "deleteSuccess": "Deleted",
       "deleteFailed": "Failed to delete",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "failedTag": "Failed",
+      "failedHint": "This trip failed to generate and cannot be viewed"
     },
     "loading": {
       "initializing": "Initializing...",
@@ -191,6 +200,10 @@
     "dateLabel": "Dates:",
     "suggestionLabel": "Suggestions:",
     "dateRange": "{start} to {end}",
+    "imageSourceXhs": "Attraction photos from Xiaohongshu travel notes",
+    "imageSourceDouyin": "Attraction photos from Douyin posts",
+    "imageSourceMap": "Attraction photos from AMap",
+    "imageSourceDefault": "Attraction photos from Xiaohongshu / Douyin / AMap",
     "budget": {
       "title": "Budget Breakdown",
       "attraction": "Attractions",

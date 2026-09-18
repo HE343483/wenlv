@@ -13,9 +13,10 @@ import (
 // 定时携带当前 Cookie 访问小红书首页(模拟活跃用户),
 // 把响应下发的 Set-Cookie 合并回运行时配置并持久化,从而延长 Cookie 有效期;
 // 遭遇风控(461)时仅告警不改动 Cookie,由业务请求的降级逻辑兜底。
+// 配置了多个 Cookie(每行一个)时逐个保活,且只回写发生变化的那一行。
 
 const (
-	xhsKeepaliveInterval = 24 * time.Hour // 保活周期
+	xhsKeepaliveInterval = 8 * time.Hour // 保活周期
 	xhsKeepaliveDelay    = 2 * time.Minute
 	xhsHomeURL           = "https://www.xiaohongshu.com/explore"
 )
@@ -54,39 +55,41 @@ func (k *XHSKeepalive) Start() {
 }
 
 func (k *XHSKeepalive) runOnce() {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if err := k.refresh(ctx); err != nil {
-		fmt.Printf("🔄 [Cookie保活] %v\n", err)
+	cookies := splitXHSCookies(k.settings.Snapshot().XHSCookie)
+	if len(cookies) == 0 {
+		// 未配置 Cookie,保活无意义,静默跳过
+		return
+	}
+	for idx, cookie := range cookies {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		err := k.refreshAt(ctx, idx, cookie)
+		cancel()
+		if err != nil {
+			fmt.Printf("🔄 [Cookie保活] 第 %d/%d 个 Cookie: %v\n", idx+1, len(cookies), err)
+		}
 	}
 }
 
-// refresh 访问小红书首页并合并 Set-Cookie。
-func (k *XHSKeepalive) refresh(ctx context.Context) error {
-	cookie := NormalizeXHSCookie(k.settings.Snapshot().XHSCookie)
-	if cookie == "" {
-		// 未配置 Cookie,保活无意义,静默跳过
-		return nil
-	}
-
+// refreshAt 访问小红书首页并合并 Set-Cookie;只回写第 idx 行,不影响其它 Cookie。
+func (k *XHSKeepalive) refreshAt(ctx context.Context, idx int, cookie string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, xhsHomeURL, nil)
 	if err != nil {
 		return fmt.Errorf("保活请求构造失败: %w", err)
 	}
 	headers := map[string]string{
-		"accept":                  "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-		"accept-language":         "zh-CN,zh;q=0.9,en;q=0.8",
-		"cache-control":           "no-cache",
-		"pragma":                  "no-cache",
-		"sec-ch-ua":               `"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"`,
-		"sec-ch-ua-mobile":        "?0",
-		"sec-ch-ua-platform":      `"Windows"`,
-		"sec-fetch-dest":          "document",
-		"sec-fetch-mode":          "navigate",
-		"sec-fetch-site":          "none",
-		"sec-fetch-user":          "?1",
+		"accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+		"accept-language":           "zh-CN,zh;q=0.9,en;q=0.8",
+		"cache-control":             "no-cache",
+		"pragma":                    "no-cache",
+		"sec-ch-ua":                 `"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"`,
+		"sec-ch-ua-mobile":          "?0",
+		"sec-ch-ua-platform":        `"Windows"`,
+		"sec-fetch-dest":            "document",
+		"sec-fetch-mode":            "navigate",
+		"sec-fetch-site":            "none",
+		"sec-fetch-user":            "?1",
 		"upgrade-insecure-requests": "1",
-		"user-agent":              xhsUserAgent,
+		"user-agent":                xhsUserAgent,
 	}
 	for key, val := range headers {
 		req.Header.Set(key, val)
@@ -108,14 +111,14 @@ func (k *XHSKeepalive) refresh(ctx context.Context) error {
 
 	// 合并服务端下发的 Set-Cookie(新值覆盖同名旧值,新增字段追加)
 	updated := mergeSetCookie(cookie, resp.Cookies())
-	if updated == "" {
+	if updated == "" || updated == cookie {
 		return nil
 	}
-	if updated == cookie {
-		return nil
-	}
-	k.settings.Update(map[string]string{"xhs_cookie": updated})
-	fmt.Printf("🔄 [Cookie保活] 已从小红书响应续期 Cookie 并持久化 (旧长度=%d 新长度=%d)\n", len(cookie), len(updated))
+	// 只替换该 Cookie 所在行,避免覆盖配置里的其它 Cookie
+	raw := k.settings.Snapshot().XHSCookie
+	k.settings.Update(map[string]string{"xhs_cookie": replaceXHSCookieAt(raw, idx, updated)})
+	fmt.Printf("🔄 [Cookie保活] 第 %d 个 Cookie 已从小红书响应续期并持久化 (旧长度=%d 新长度=%d)\n",
+		idx+1, len(cookie), len(updated))
 	return nil
 }
 

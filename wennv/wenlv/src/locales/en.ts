@@ -360,6 +360,32 @@ export default {
     unfavorite: 'Unfavorite',
     viewDetail: 'View Details',
   },
+  trip: {
+    badge: 'AI Planning',
+    title: 'AI Trip Planner',
+    subtitle: 'One sentence, a Chengdu itinerary made for you',
+    intro: 'Tell us your travel days, companions and preferences. Our AI combines real traveler stories from Xiaohongshu and Douyin with Amap data to arrange each day, estimate the budget, and generate a shareable itinerary.',
+    features: {
+      route: {
+        name: 'Smart Routing',
+        desc: 'Sights are ordered day by day to cut detours and backtracking.',
+      },
+      reviews: {
+        name: 'Real Reviews',
+        desc: 'Based on real traveler notes and short videos from Xiaohongshu and Douyin.',
+      },
+      budget: {
+        name: 'Clear Budget',
+        desc: 'Tickets, hotels, dining and transport listed item by item.',
+      },
+      map: {
+        name: 'Map View',
+        desc: 'Sights, hotels and routes on one map at a glance.',
+      },
+    },
+    cta: 'Try AI Planning',
+    ctaHint: 'Log in to generate your itinerary for free',
+  },
   mineMenu: {
     profile: 'Profile',
     favorites: 'My Favorites',

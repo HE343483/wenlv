@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,14 +9,10 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
-
-	"wenlv-backend/model"
 )
 
 // ============ 小红书服务 ============
@@ -29,7 +23,6 @@ const (
 	xhsBaseURL       = "https://edith.xiaohongshu.com"
 	xhsSearchAPI     = "/api/sns/web/v1/search/notes"
 	xhsFeedAPI       = "/api/sns/web/v1/feed"
-	xhsImageCacheTTL = 24 * time.Hour
 	xhsImageMaxBytes = 10 * 1024 * 1024
 	xhsUserAgent     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
 	xhsBrowserUA     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -62,11 +55,11 @@ type XHSService struct {
 	llm      *TripLLM
 	amap     *AmapService
 	client   *http.Client
+	cache    *imageDiskCache
+	pool     *xhsCookiePool
 
 	photoMu    sync.Mutex
 	photoCache map[string]photoCacheEntry
-
-	imgMu sync.Mutex
 }
 
 type photoCacheEntry struct {
@@ -90,6 +83,8 @@ func NewXHSService(settings *TripSettings, llm *TripLLM, amap *AmapService, sign
 			Timeout:   15 * time.Second,
 			Transport: &http.Transport{Proxy: nil},
 		},
+		cache:      newImageDiskCache(settings.DataDir(), settings.ImageCacheTTL(), settings.ImageCacheMaxBytes()),
+		pool:       newXHSCookiePool(),
 		photoCache: map[string]photoCacheEntry{},
 	}
 }
@@ -148,14 +143,6 @@ func randomHex(length int) string {
 		b[i] = chars[rand.Intn(len(chars))]
 	}
 	return string(b)
-}
-
-func (s *XHSService) cookie() (string, error) {
-	cookie := NormalizeXHSCookie(s.settings.Snapshot().XHSCookie)
-	if cookie == "" {
-		return "", &XHSNotConfiguredError{Msg: "小红书 Cookie 未配置,请先在前端设置页完成配置"}
-	}
-	return cookie, nil
 }
 
 // signedRequest 生成签名并请求小红书接口。
@@ -322,54 +309,56 @@ var langNames = map[string]string{
 // SearchAttractionsText 搜索小红书游记并经 LLM 提纯为结构化景点文本。
 func (s *XHSService) SearchAttractionsText(ctx context.Context, city, keywords, language string) (string, error) {
 	fmt.Printf("🔍 [XHS] 正在搜索小红书: %s %s\n", city, keywords)
-	cookie, err := s.cookie()
-	if err != nil {
-		return "", err
-	}
 	query := fmt.Sprintf("%s %s 旅游 景点攻略", city, keywords)
 
-	resJSON, err := s.searchNotes(ctx, cookie, query, 0)
+	// 搜索 + 逐条取详情整体纳入 Cookie 轮换:某个 Cookie 被风控时换下一个重试
+	combined, err := withXHSCookie(s, ctx, func(cookie string) (string, error) {
+		resJSON, err := s.searchNotes(ctx, cookie, query, 0)
+		if err != nil {
+			return "", err
+		}
+		items := extractItems(resJSON)
+		if len(items) > 4 {
+			items = items[:4]
+		}
+
+		var b strings.Builder
+		for i, note := range items {
+			if modelType, _ := note["model_type"].(string); modelType != "note" {
+				continue
+			}
+			noteCard, _ := note["note_card"].(map[string]any)
+			title := stringValue(noteCard["display_title"])
+
+			desc := ""
+			noteID := stringValue(note["id"])
+			xsecToken := stringValue(note["xsec_token"])
+			if noteID != "" {
+				if detail, derr := s.getNoteDetail(ctx, cookie, noteID, xsecToken); derr == nil {
+					detailItems := extractItems(detail)
+					if len(detailItems) > 0 {
+						card, _ := detailItems[0]["note_card"].(map[string]any)
+						desc = stringValue(card["desc"])
+					}
+				}
+				if desc == "" {
+					if ssr := s.getNoteDetailSSR(ctx, noteID); ssr != nil {
+						desc = stringValue(ssr["desc"])
+					}
+				}
+			}
+			fmt.Fprintf(&b, "\n笔记%d:\n标题: %s\n正文内容: %s\n", i+1, title, desc)
+		}
+		return b.String(), nil
+	})
 	if err != nil {
 		return "", err
 	}
-	items := extractItems(resJSON)
-	if len(items) > 4 {
-		items = items[:4]
-	}
 
-	var combined strings.Builder
-	for i, note := range items {
-		if modelType, _ := note["model_type"].(string); modelType != "note" {
-			continue
-		}
-		noteCard, _ := note["note_card"].(map[string]any)
-		title := stringValue(noteCard["display_title"])
-
-		desc := ""
-		noteID := stringValue(note["id"])
-		xsecToken := stringValue(note["xsec_token"])
-		if noteID != "" {
-			if detail, derr := s.getNoteDetail(ctx, cookie, noteID, xsecToken); derr == nil {
-				detailItems := extractItems(detail)
-				if len(detailItems) > 0 {
-					card, _ := detailItems[0]["note_card"].(map[string]any)
-					desc = stringValue(card["desc"])
-				}
-			}
-			if desc == "" {
-				if ssr := s.getNoteDetailSSR(ctx, noteID); ssr != nil {
-					desc = stringValue(ssr["desc"])
-				}
-			}
-		}
-		fmt.Fprintf(&combined, "\n笔记%d:\n标题: %s\n正文内容: %s\n", i+1, title, desc)
-	}
-
-	if combined.Len() == 0 {
+	if combined == "" {
 		return fmt.Sprintf("未在小红书检索到关于 %s %s 的内容。", city, keywords), nil
 	}
-
-	return s.extractAttractions(ctx, city, combined.String(), language), nil
+	return s.extractAttractions(ctx, city, combined, language), nil
 }
 
 func extractItems(res map[string]any) []map[string]any {
@@ -395,98 +384,9 @@ func stringValue(v any) string {
 }
 
 // extractAttractions 调用 LLM 从游记杂文中提纯景点,并补齐经纬度。
+// 提纯逻辑与抖音等其它内容平台共用(见 trip_attraction_extract.go)。
 func (s *XHSService) extractAttractions(ctx context.Context, city, content, language string) string {
-	lang := model.NormalizeLang(language)
-	translation := ""
-	if name, ok := langNames[lang]; ok && lang != "zh" {
-		translation = fmt.Sprintf(`
-**极其重要的翻译要求:**
-目标语言为 %s。你必须将提取结果中的 "name", "reason", "reservation_tips" 字段的内容翻译为 %s。
-- "name" 字段使用目标语言 %s 的景点名称(例如中文"故宫博物院" → English "The Palace Museum")。
-- "reason" 和 "reservation_tips" 也必须翻译为 %s。
-- "duration" 和 "reservation_required" 保持原始数值/布尔值不变。
-- **注意**: "name_zh" 必须始终保持简体中文名称,"name_en" 必须始终保持英文名称,不受目标语言影响!
-- 严格保持 JSON schema 格式不变!
-`, name, name, name, name)
-	}
-
-	prompt := fmt.Sprintf(`请从以下真实的素人小红书打卡游记中,提纯出真实存在的【游玩景点】。
-要求返回严格的 JSON 数组格式(哪怕只提取到了1个),切勿返回除了JSON以外的任何冗余 markdown 文字!
-%s
-数组中每个对象必须包含以下字段:
-"name": 景点官方名称(用于前端展示,按目标语言填写;若目标语言为中文则与 name_zh 相同)
-"name_zh": 景点的中文简体名称(必须是简体中文,例如 "故宫博物院"。此字段始终为中文,不受目标语言影响)
-"name_en": 景点的英文名称(必须是英文,使用景点在国际上通用的官方英文名。此字段始终为英文,不受目标语言影响)
-"reason": 小红书用户的真实评价/避坑指南
-"duration": 游玩时长(数字, 分钟)
-"reservation_required": 是否需要提前预约(布尔值 true/false)。请根据游记中提到的"需要预约"、"提前预约"、"抢票"、"约满"、"官方预约"等关键词判断,如果游记未提及则默认为 false
-"reservation_tips": 预约相关提示(字符串)。如果需要预约,请提取预约渠道、提前天数等具体信息;如果不需要预约则填空字符串
-
-游记杂文内容如下:
-%s
-
-JSON 返回示例:
-[{"name": "故宫博物院", "name_zh": "故宫博物院", "name_en": "The Palace Museum", "reason": "必去打卡,建议走中轴线。", "duration": 240, "reservation_required": true, "reservation_tips": "需要提前7天在故宫官网或微信小程序预约"},
- {"name": "老君山金顶", "name_zh": "老君山金顶", "name_en": "Laojun Mountain Golden Summit", "reason": "网红打卡点,夜景绝美。", "duration": 180, "reservation_required": false, "reservation_tips": ""}]
-`, translation, content)
-
-	reply, err := s.llm.Chat(ctx, UserMessage(prompt), 0.1, 4000)
-	if err != nil {
-		fmt.Printf(" 大模型提纯小红书数据异常: %v\n", err)
-		return "尝试提取小红书结构化数据失败,降级回常规处理。"
-	}
-	jsonText := extractJSONArray(reply)
-	if jsonText == "" {
-		return "尝试提取小红书结构化数据失败,降级回常规处理。"
-	}
-	var extracted []map[string]any
-	if err := json.Unmarshal([]byte(jsonText), &extracted); err != nil {
-		fmt.Printf("❌ 小红书提纯 JSON 解析失败: %v\n", err)
-		return "尝试提取小红书结构化数据失败,降级回常规处理。"
-	}
-
-	valid := make([]map[string]any, 0, len(extracted))
-	for _, item := range extracted {
-		if stringValue(item["name"]) != "" {
-			valid = append(valid, item)
-		}
-	}
-	if len(valid) == 0 {
-		return fmt.Sprintf("未在小红书检索到关于 %s 的有效景点信息。", city)
-	}
-
-	// 并发补齐经纬度(最多 3 个并发)
-	locations := make([]*model.Location, len(valid))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, 3)
-	for i, item := range valid {
-		wg.Add(1)
-		go func(idx int, it map[string]any) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			name := stringValue(it["name"])
-			locations[idx] = GeocodeUnified(ctx, s.settings, s.amap, name, city,
-				firstNonEmpty(stringValue(it["name_zh"]), name),
-				firstNonEmpty(stringValue(it["name_en"]), name))
-		}(i, item)
-	}
-	wg.Wait()
-
-	var out strings.Builder
-	out.WriteString("这是小红书热门精选游记的提取结果,附带确切坐标(图片由前端单独搜索获取):\n")
-	for i, item := range valid {
-		if loc := locations[i]; loc != nil {
-			item["location"] = map[string]float64{"longitude": loc.Longitude, "latitude": loc.Latitude}
-		}
-		line, err := json.Marshal(item)
-		if err == nil {
-			out.Write(line)
-			out.WriteString("\n")
-		}
-	}
-	fmt.Println("✅ [XHS] 小红书数据挖掘完毕,已装载进上下文。")
-	return out.String()
+	return extractAttractionsFromNotes(ctx, s.llm, s.settings, s.amap, city, content, language, "小红书")
 }
 
 var jsonArrayRe = regexp.MustCompile(`(?s)\[.*\]`)
@@ -529,22 +429,28 @@ func (s *XHSService) photoURLFromXHS(ctx context.Context, keyword string) string
 	if url != "" {
 		// 搜索结果直链带时效签名,必须立即代取落盘,否则前端稍后访问会 403
 		if content, contentType, err := s.downloadImage(ctx, url); err == nil {
-			s.writeImageCache("kw:"+keyword, content, contentType)
+			s.cache.Write("kw:"+keyword, content, contentType)
 		}
 	}
 	return url
 }
 
 func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
-	cookie, err := s.cookie()
+	// 搜图属尽力而为:某个 Cookie 被风控时自动换下一个,全部不可用则返回空
+	url, err := withXHSCookie(s, ctx, func(cookie string) (string, error) {
+		return s.fetchPhotoURLWithCookie(ctx, cookie, keyword)
+	})
 	if err != nil {
-		return ""
+		fmt.Printf("小红书单图抓取失败 (%s): %v\n", keyword, err)
 	}
+	return url
+}
+
+func (s *XHSService) fetchPhotoURLWithCookie(ctx context.Context, cookie, keyword string) (string, error) {
 	// 搜图强制按"最新"排序,避开综合高赞的含文字攻略图
 	resJSON, err := s.searchNotes(ctx, cookie, keyword, 1)
 	if err != nil {
-		fmt.Printf("小红书单图抓取失败 (%s): %v\n", keyword, err)
-		return ""
+		return "", err
 	}
 	items := extractItems(resJSON)
 	// 诊断日志:便于排查某关键词为何搜不到图(返回条数与类型分布)
@@ -570,7 +476,7 @@ func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
 		}
 	}
 	if len(cands) == 0 {
-		return ""
+		return "", nil
 	}
 	for _, cand := range cands {
 
@@ -589,13 +495,13 @@ func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
 							}
 							if m, ok := pick.(map[string]any); ok {
 								if u := stringValue(m["url"]); u != "" {
-									return u
+									return u, nil
 								}
 							}
 						}
 						for _, key := range []string{"url_default", "url_pre", "url"} {
 							if u := stringValue(first[key]); u != "" {
-								return u
+								return u, nil
 							}
 						}
 					}
@@ -609,14 +515,14 @@ func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
 				if first, ok := imgList[0].(map[string]any); ok {
 					for _, key := range []string{"urlDefault", "urlPattern", "url"} {
 						if u := stringValue(first[key]); u != "" {
-							return u
+							return u, nil
 						}
 					}
 				}
 			}
 		}
 	}
-	return ""
+	return "", nil
 }
 
 var allowedImageHosts = []string{"xiaohongshu.com", "xhscdn.com"}
@@ -673,49 +579,6 @@ func (s *XHSService) downloadImage(ctx context.Context, rawURL string) ([]byte, 
 	return content, contentType, nil
 }
 
-func (s *XHSService) imageCachePaths(cacheKey string) (string, string) {
-	sum := sha256.Sum256([]byte(cacheKey))
-	digest := hex.EncodeToString(sum[:])
-	dir := filepath.Join(s.settings.DataDir(), "photo_cache")
-	return filepath.Join(dir, digest+".img"), filepath.Join(dir, digest+".meta")
-}
-
-func (s *XHSService) readImageCache(cacheKey string) ([]byte, string, bool) {
-	imgPath, metaPath := s.imageCachePaths(cacheKey)
-	info, err := os.Stat(imgPath)
-	if err != nil || time.Since(info.ModTime()) >= xhsImageCacheTTL {
-		return nil, "", false
-	}
-	content, err := os.ReadFile(imgPath)
-	if err != nil {
-		return nil, "", false
-	}
-	contentType := "image/jpeg"
-	if raw, err := os.ReadFile(metaPath); err == nil {
-		if t := strings.TrimSpace(string(raw)); t != "" {
-			contentType = t
-		}
-	}
-	return content, contentType, true
-}
-
-func (s *XHSService) writeImageCache(cacheKey string, content []byte, contentType string) {
-	imgPath, metaPath := s.imageCachePaths(cacheKey)
-	s.imgMu.Lock()
-	defer s.imgMu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(imgPath), 0o755); err != nil {
-		return
-	}
-	if err := os.WriteFile(imgPath+".tmp", content, 0o644); err != nil {
-		return
-	}
-	if err := os.Rename(imgPath+".tmp", imgPath); err != nil {
-		return
-	}
-	_ = os.WriteFile(metaPath+".tmp", []byte(contentType), 0o644)
-	_ = os.Rename(metaPath+".tmp", metaPath)
-}
-
 // PhotoURL 返回景点图片直链(前端仅作兜底展示,推荐直接用 PhotoBytes 代理)。
 // 与 PhotoBytes 相同的多级关键词回退:"最新"流下单词条经常搜不到带封面的笔记。
 func (s *XHSService) PhotoURL(ctx context.Context, name, city string) string {
@@ -733,7 +596,7 @@ func (s *XHSService) PhotoBytes(ctx context.Context, name, city string) ([]byte,
 	keywords := []string{name + " 风景", name + " 旅游", name, name + " 攻略"}
 	kwCacheKey := func(kw string) string { return "kw:" + kw }
 	for _, kw := range keywords {
-		if content, contentType, ok := s.readImageCache(kwCacheKey(kw)); ok {
+		if content, contentType, ok := s.cache.Read(kwCacheKey(kw)); ok {
 			return content, contentType, nil
 		}
 	}
@@ -748,7 +611,7 @@ func (s *XHSService) PhotoBytes(ctx context.Context, name, city string) ([]byte,
 		}
 		content, contentType, err := s.downloadImage(ctx, rawURL)
 		if err == nil {
-			s.writeImageCache(kwCacheKey(kw), content, contentType)
+			s.cache.Write(kwCacheKey(kw), content, contentType)
 			return content, contentType, nil
 		}
 		// 直链多为限时签名,失败后换下一个关键词重搜全新直链
@@ -762,13 +625,13 @@ func (s *XHSService) FetchImageBytes(ctx context.Context, rawURL string) ([]byte
 	if err := validateImageURL(rawURL); err != nil {
 		return nil, "", err
 	}
-	if content, contentType, ok := s.readImageCache("url:" + rawURL); ok {
+	if content, contentType, ok := s.cache.Read("url:" + rawURL); ok {
 		return content, contentType, nil
 	}
 	content, contentType, err := s.downloadImage(ctx, rawURL)
 	if err != nil {
 		return nil, "", err
 	}
-	s.writeImageCache("url:"+rawURL, content, contentType)
+	s.cache.Write("url:"+rawURL, content, contentType)
 	return content, contentType, nil
 }

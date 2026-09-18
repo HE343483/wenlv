@@ -1,20 +1,38 @@
 <script setup lang="ts">
 /**
  * HomeView.vue — 成都文旅推广首页
- * 布局：Hero → 轮播图 → 文化数据统计 → 文化名片 → 文明脉络 → 非遗传承 → Footer
+ * 布局：Hero → 轮播图 → 文化数据统计 → 文化名片 → 文明脉络 → 非遗传承 → AI 智能行程 → Footer
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { hasToken } from '@/utils/token'
 import NavBar from '@/components/NavBar.vue'
 import PandaCursor from '@/components/PandaCursor.vue'
 import Carousel from '@/components/Carousel.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
 
+const router = useRouter()
 const langStore = useLanguageStore()
 
 function scrollToExplore() {
   document.getElementById('explore')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+/* ──── AI 智能行程 ──── */
+
+/* 能力卡片：路线 / 真实口碑(小红书 + 抖音) / 预算 / 地图 */
+const tripFeatures = [
+  { key: 'route', icon: 'map' },
+  { key: 'reviews', icon: 'star' },
+  { key: 'budget', icon: 'ticket' },
+  { key: 'map', icon: 'pin' },
+]
+
+/** 体验 AI 智能规划：已登录直接进入行程页，未登录先跳转登录页 */
+function startAiTrip() {
+  router.push(hasToken() ? '/trip' : '/login')
 }
 
 const carouselItems: CarouselItem[] = [
@@ -393,6 +411,58 @@ function setSectionRef(el: unknown, index: number) {
       </div>
     </section>
 
+    <!-- ──── AI 智能行程 ──── -->
+    <section
+      id="ai-trip"
+      :ref="(el) => setSectionRef(el, 4)"
+      class="ai-trip reveal"
+    >
+      <div class="container">
+        <div class="ai-trip__inner">
+          <!-- 左：文案 + 入口按钮 -->
+          <div class="ai-trip__intro">
+            <div class="ai-trip__badge">
+              <span class="ai-trip__badge-diamond">◈</span>
+              <span>{{ langStore.t('trip.badge') }}</span>
+            </div>
+            <h2 class="section-title ai-trip__title">{{ langStore.t('trip.title') }}</h2>
+            <p class="section-subtitle">{{ langStore.t('trip.subtitle') }}</p>
+            <p class="ai-trip__desc">{{ langStore.t('trip.intro') }}</p>
+
+            <button class="ai-trip__cta" @click="startAiTrip">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+                <path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+              </svg>
+              {{ langStore.t('trip.cta') }}
+              <span class="ai-trip__cta-arrow">→</span>
+            </button>
+            <p class="ai-trip__hint">{{ langStore.t('trip.ctaHint') }}</p>
+          </div>
+
+          <!-- 右：能力卡片 -->
+          <div class="ai-trip__features">
+            <article
+              v-for="(feature, i) in tripFeatures"
+              :key="feature.key"
+              class="ai-trip__feature"
+              :style="{ '--delay': `${i * 0.08}s` }"
+            >
+              <div class="ai-trip__feature-icon">
+                <AppIcon :name="feature.icon" :size="22" />
+              </div>
+              <h3 class="ai-trip__feature-name">
+                {{ langStore.t(`trip.features.${feature.key}.name`) }}
+              </h3>
+              <p class="ai-trip__feature-desc">
+                {{ langStore.t(`trip.features.${feature.key}.desc`) }}
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ──── Footer ──── -->
     <footer class="footer">
       <div class="container">
@@ -675,7 +745,8 @@ function setSectionRef(el: unknown, index: number) {
 .reveal.is-leaving .culture-stat,
 .reveal.is-leaving .culture-card,
 .reveal.is-leaving .culture-timeline__item,
-.reveal.is-leaving .heritage-card {
+.reveal.is-leaving .heritage-card,
+.reveal.is-leaving .ai-trip__feature {
   transition: opacity 0.35s ease, transform 0.35s ease;
   opacity: 0;
   transform: translateY(14px);
@@ -1035,6 +1106,169 @@ function setSectionRef(el: unknown, index: number) {
 }
 
 /* ========================================
+   AI 智能行程
+   ======================================== */
+.ai-trip {
+  position: relative;
+  padding: var(--space-20) 0;
+  background: var(--color-bg-alt);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+/* 背景蜀锦纹理 + 金色光晕 */
+.ai-trip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 70% at 15% 30%, rgba(201, 169, 110, 0.07) 0%, transparent 65%),
+    repeating-conic-gradient(
+      transparent 0deg 89deg,
+      rgba(201, 169, 110, 0.02) 90deg 91deg,
+      transparent 91deg 179deg,
+      rgba(201, 169, 110, 0.02) 180deg 181deg
+    );
+  background-size: 100% 100%, 72px 72px;
+  pointer-events: none;
+}
+
+.ai-trip__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: var(--space-12);
+  align-items: center;
+}
+
+.ai-trip__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-gold-dark);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  margin-bottom: var(--space-4);
+}
+
+.ai-trip__badge-diamond {
+  color: var(--color-gold);
+  opacity: 0.7;
+}
+
+.ai-trip__title {
+  margin-bottom: var(--space-3);
+}
+
+.ai-trip__desc {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+  max-width: 520px;
+}
+
+/* 主行动点：全页金色最强按钮 */
+.ai-trip__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-sm);
+  background: var(--color-gold);
+  color: var(--color-bg);
+  font-size: var(--text-base);
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
+  transition: all var(--transition-base);
+}
+
+.ai-trip__cta svg {
+  flex-shrink: 0;
+}
+
+.ai-trip__cta:hover {
+  background: var(--color-gold-light);
+  box-shadow: 0 0 32px var(--color-gold-glow);
+  transform: translateY(-1px);
+}
+
+.ai-trip__cta-arrow {
+  transition: transform var(--transition-fast);
+}
+
+.ai-trip__cta:hover .ai-trip__cta-arrow {
+  transform: translateX(4px);
+}
+
+.ai-trip__hint {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+}
+
+/* 能力卡片：2×2 */
+.ai-trip__features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.ai-trip__feature {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  transition: all var(--transition-base);
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.reveal.is-visible .ai-trip__feature {
+  animation: card-fade-in 0.6s ease forwards;
+  animation-delay: var(--delay);
+}
+
+.ai-trip__feature:hover {
+  border-color: var(--color-gold-dark);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px var(--color-gold-glow);
+}
+
+.ai-trip__feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-gold-glow);
+  color: var(--color-gold);
+  margin-bottom: var(--space-2);
+}
+
+.ai-trip__feature-name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wide);
+}
+
+.ai-trip__feature-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+/* ========================================
    FOOTER
    ======================================== */
 .footer {
@@ -1100,6 +1334,10 @@ function setSectionRef(el: unknown, index: number) {
   .culture-heritage__grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .ai-trip__inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-10);
+  }
 }
 
 @media (max-width: 768px) {
@@ -1126,6 +1364,16 @@ function setSectionRef(el: unknown, index: number) {
   }
   .culture-intro__text {
     font-size: var(--text-base);
+  }
+  .ai-trip {
+    padding: var(--space-16) 0;
+  }
+  .ai-trip__features {
+    grid-template-columns: 1fr;
+  }
+  .ai-trip__cta {
+    width: 100%;
+    justify-content: center;
   }
   .footer__inner {
     flex-direction: column;

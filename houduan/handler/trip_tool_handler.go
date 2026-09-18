@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,11 +21,19 @@ type distEntry struct {
 	exp  time.Time
 }
 
+// poiImgEntry 高德图片兜底的内存缓存条目(空 content 表示负缓存:该景点无图)。
+type poiImgEntry struct {
+	content     []byte
+	contentType string
+	exp         time.Time
+}
+
 // TripToolHandler 行程模块的配套工具接口(POI / 地图 / 运行时配置 / 用户记忆)。
 type TripToolHandler struct {
 	settings *service.TripSettings
 	amap     *service.AmapService
 	xhs      *service.XHSService
+	douyin   *service.DouyinService
 	memory   *service.TripMemoryService
 	// 区名→adcode 缓存(非标准区名天气兜底用)
 	admu    sync.Mutex
@@ -30,12 +41,23 @@ type TripToolHandler struct {
 	// 行政区划查询缓存(keywords|subdistrict → 响应,24h)
 	distMu    sync.Mutex
 	distCache map[string]distEntry
+	// 高德图片兜底缓存(name|city → 图片字节,24h;负缓存 10min)
+	amapImgMu    sync.Mutex
+	amapImgCache map[string]poiImgEntry
 }
 
 // NewTripToolHandler 构造工具处理器。
 func NewTripToolHandler(settings *service.TripSettings, amap *service.AmapService,
-	xhs *service.XHSService, memory *service.TripMemoryService) *TripToolHandler {
-	return &TripToolHandler{settings: settings, amap: amap, xhs: xhs, memory: memory}
+	xhs *service.XHSService, douyin *service.DouyinService, memory *service.TripMemoryService) *TripToolHandler {
+	return &TripToolHandler{
+		settings:     settings,
+		amap:         amap,
+		xhs:          xhs,
+		douyin:       douyin,
+		memory:       memory,
+		distCache:    map[string]distEntry{},
+		amapImgCache: map[string]poiImgEntry{},
+	}
 }
 
 // googleService 按当前配置返回 Google 地图服务(未配置则为 nil)。
@@ -88,17 +110,24 @@ func (h *TripToolHandler) POISearch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": len(pois) > 0, "message": "搜索成功", "data": pois})
 }
 
-// POIImage 代理小红书图片:
+// POIImage 代理景点图片:
 //   - name: 按景点名取图(缓存 miss 时自动重搜新直链并立即下载)
-//   - url:  代理白名单内的小红书稳定直链
+//   - url:  代理白名单内的小红书/抖音稳定直链
+//   - source: 图片来源(xhs=小红书 / douyin=抖音 / map=高德);缺省按 xhs 处理,保持旧客户端兼容
 func (h *TripToolHandler) POIImage(c *gin.Context) {
 	name := c.Query("name")
 	rawURL := c.Query("url")
+	source := normalizeImageSource(c.Query("source"))
 	ctx := c.Request.Context()
 
 	if name != "" {
-		content, contentType, err := h.xhs.PhotoBytes(ctx, name, c.Query("city"))
+		content, contentType, err := h.photoBytesBySource(ctx, source, name, c.Query("city"))
 		if err != nil {
+			// 所选内容源不可用(风控/Cookie 失效/无结果)时回退高德 POI 图片
+			if fbContent, fbType, fbErr := h.amapPhotoBytes(ctx, name, c.Query("city")); fbErr == nil {
+				writeImageResponse(c, fbContent, fbType)
+				return
+			}
 			c.JSON(http.StatusNotFound, gin.H{"detail": "未能获取 " + name + " 的景点图片"})
 			return
 		}
@@ -106,7 +135,14 @@ func (h *TripToolHandler) POIImage(c *gin.Context) {
 		return
 	}
 	if rawURL != "" {
-		content, contentType, err := h.xhs.FetchImageBytes(ctx, rawURL)
+		var content []byte
+		var contentType string
+		var err error
+		if source == "douyin" {
+			content, contentType, err = h.douyin.FetchImageBytes(ctx, rawURL)
+		} else {
+			content, contentType, err = h.xhs.FetchImageBytes(ctx, rawURL)
+		}
 		if err != nil {
 			status := http.StatusBadGateway
 			if strings.Contains(err.Error(), "仅允许") || strings.Contains(err.Error(), "协议") {
@@ -121,14 +157,110 @@ func (h *TripToolHandler) POIImage(c *gin.Context) {
 	c.JSON(http.StatusBadRequest, gin.H{"detail": "必须提供 name 或 url 查询参数"})
 }
 
-// POIPhoto 按景点名返回小红书图片直链(前端兜底展示用)。
+// normalizeImageSource 归一化图片来源参数:仅 douyin/map 例外,其余(含空值)按 xhs 处理。
+func normalizeImageSource(source string) string {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case "douyin", "map":
+		return strings.ToLower(strings.TrimSpace(source))
+	default:
+		return "xhs"
+	}
+}
+
+// photoBytesBySource 按图片来源取景点图片字节。
+func (h *TripToolHandler) photoBytesBySource(ctx context.Context, source, name, city string) ([]byte, string, error) {
+	if source == "douyin" {
+		return h.douyin.PhotoBytes(ctx, name, city)
+	}
+	return h.xhs.PhotoBytes(ctx, name, city)
+}
+
+// amapPhotoBytes 高德图片兜底:按名称+城市检索 POI,取详情首图并下载字节。
+// 结果带内存缓存(命中 24h,负缓存 10min),避免同一景点反复调用高德接口。
+func (h *TripToolHandler) amapPhotoBytes(ctx context.Context, name, city string) ([]byte, string, error) {
+	key := name + "|" + city
+	h.amapImgMu.Lock()
+	if e, ok := h.amapImgCache[key]; ok && time.Now().Before(e.exp) {
+		h.amapImgMu.Unlock()
+		if len(e.content) == 0 {
+			return nil, "", fmt.Errorf("负缓存:该景点无高德图片")
+		}
+		return e.content, e.contentType, nil
+	}
+	h.amapImgMu.Unlock()
+
+	content, contentType, err := h.fetchAmapPhotoBytes(ctx, name, city)
+
+	h.amapImgMu.Lock()
+	if err != nil {
+		// 负缓存 10 分钟,避免前端并发重试放大高德调用量
+		h.amapImgCache[key] = poiImgEntry{exp: time.Now().Add(10 * time.Minute)}
+	} else {
+		h.amapImgCache[key] = poiImgEntry{content: content, contentType: contentType, exp: time.Now().Add(24 * time.Hour)}
+	}
+	// 控制缓存条目数
+	if len(h.amapImgCache) > 1024 {
+		for k, v := range h.amapImgCache {
+			if time.Now().After(v.exp) {
+				delete(h.amapImgCache, k)
+			}
+		}
+	}
+	h.amapImgMu.Unlock()
+	return content, contentType, err
+}
+
+func (h *TripToolHandler) fetchAmapPhotoBytes(ctx context.Context, name, city string) ([]byte, string, error) {
+	pois := h.amap.SearchPOI(ctx, name, city, true)
+	if len(pois) == 0 {
+		return nil, "", fmt.Errorf("高德未检索到该景点")
+	}
+	detail, err := h.amap.GetPOIDetail(ctx, pois[0].ID)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(detail.Photos) == 0 {
+		return nil, "", fmt.Errorf("高德 POI 无图片")
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	for _, photoURL := range detail.Photos {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, photoURL, nil)
+		if err != nil {
+			continue
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+		data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK || len(data) == 0 {
+			continue
+		}
+		contentType := resp.Header.Get("Content-Type")
+		if strings.Contains(contentType, "text/") || contentType == "" {
+			contentType = "image/jpeg"
+		}
+		return data, contentType, nil
+	}
+	return nil, "", fmt.Errorf("高德图片下载失败")
+}
+
+// POIPhoto 按景点名返回景点图片直链(前端兜底展示用)。
 func (h *TripToolHandler) POIPhoto(c *gin.Context) {
 	name := c.Query("name")
 	if strings.TrimSpace(name) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"detail": "name 必填"})
 		return
 	}
-	photoURL := h.xhs.PhotoURL(c.Request.Context(), name, c.Query("city"))
+	ctx := c.Request.Context()
+	city := c.Query("city")
+	var photoURL string
+	if normalizeImageSource(c.Query("source")) == "douyin" {
+		photoURL = h.douyin.PhotoURL(ctx, name, city)
+	} else {
+		photoURL = h.xhs.PhotoURL(ctx, name, city)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "获取图片成功",
@@ -307,8 +439,8 @@ func (h *TripToolHandler) MapRoute(c *gin.Context) {
 // MapHealth 地图服务健康检查。
 func (h *TripToolHandler) MapHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "healthy",
-		"service": "map-service",
+		"status":   "healthy",
+		"service":  "map-service",
 		"provider": service.CurrentMapProvider(h.settings),
 	})
 }

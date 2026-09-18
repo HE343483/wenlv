@@ -3,7 +3,7 @@
  * NavBar.vue — 成都文旅导航栏（页眉）
  * 布局：左Logo + 中锚点导航 + 右元素聚合
  *   左：蜀韵·成都 Logo + 名称
- *   中：首页 / 景点 / 文化 / 非遗（滚动到对应区块）
+ *   中：首页 / 景点 / 文化 / 非遗 / AI 行程（滚动到对应区块）
  *   右：天气按钮 / 语言切换 / 登录·注册 或 进入主页·退出登录（右对齐聚合，按登录状态切换）
  */
 import { ref, watch, onMounted, onUnmounted } from 'vue'
@@ -23,7 +23,8 @@ const navItems = [
   { key: 'spots', href: '/#explore' },
   { key: 'culture', href: '/#culture-cards' },
   { key: 'heritage', href: '/#culture-heritage' },
-  { key: 'trip', href: '/trip' },
+  // AI 行程：与景点/文化/非遗一致，滚动到首页对应区块，再由区块内按钮进入行程页
+  { key: 'trip', href: '/#ai-trip' },
 ] as const
 
 

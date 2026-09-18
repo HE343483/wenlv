@@ -142,7 +142,7 @@ func (s *TripTaskStore) Create(taskID string, payload *model.TripRequest) *TripT
 	task := &TripTask{
 		TaskID: taskID, PlanID: taskID,
 		Status: TripTaskProcessing, Stage: "submitted", Progress: 0,
-		Message: "任务已提交,等待执行...",
+		Message:        "任务已提交,等待执行...",
 		RequestPayload: payload, UpdatedAt: time.Now(),
 	}
 	s.mu.Lock()
@@ -181,19 +181,58 @@ func (s *TripTaskStore) Update(taskID string, mutate func(*TripTask)) {
 	s.broadcast(task, event)
 }
 
-// savePlanRecord 规划成功后将完整行程落库到 trip_plans(按 plan_id 幂等覆盖)。
+// savePlanRecord 任务终态落库到 trip_plans:成功存完整行程,失败存错误信息(按 plan_id 幂等覆盖)。
 func (s *TripTaskStore) savePlanRecord(task *TripTask) {
-	if s.db == nil || task.Result == nil || task.Result.Data == nil {
+	if s.db == nil {
 		return
 	}
-	plan := task.Result.Data
-	planJSON, err := json.Marshal(plan)
-	if err != nil {
+	// 仅终态写入,处理中的任务不落库
+	if task.Status != TripTaskCompleted && task.Status != TripTaskFailed {
 		return
 	}
-	graphJSON, err := json.Marshal(task.Result.GraphData)
-	if err != nil {
-		graphJSON = []byte("null")
+	if task.Status == TripTaskCompleted && (task.Result == nil || task.Result.Data == nil) {
+		return
+	}
+	// 城市与日期:优先取行程结果,失败时回退到原始请求
+	city, citiesCSV, startDate, endDate := "", "", "", ""
+	travelDays := 0
+	overallSuggestions := ""
+	planJSON, graphJSON := []byte("null"), []byte("null")
+	if task.Status == TripTaskCompleted {
+		plan := task.Result.Data
+		var err error
+		if planJSON, err = json.Marshal(plan); err != nil {
+			planJSON = []byte("null")
+		}
+		if graphJSON, err = json.Marshal(task.Result.GraphData); err != nil {
+			graphJSON = []byte("null")
+		}
+		city = plan.City
+		citiesCSV = strings.Join(plan.Cities, ",")
+		startDate, endDate = plan.StartDate, plan.EndDate
+		travelDays = len(plan.Days)
+		overallSuggestions = plan.OverallSuggestions
+	}
+	if req := task.RequestPayload; req != nil {
+		if city == "" && len(req.Cities) > 0 {
+			names := make([]string, 0, len(req.Cities))
+			for _, cs := range req.Cities {
+				names = append(names, cs.City)
+			}
+			city = names[0]
+			if citiesCSV == "" {
+				citiesCSV = strings.Join(names, ",")
+			}
+		}
+		if startDate == "" {
+			startDate = req.StartDate
+		}
+		if endDate == "" {
+			endDate = req.EndDate
+		}
+		if travelDays == 0 {
+			travelDays = req.TravelDays
+		}
 	}
 	reqJSON := "null"
 	if task.RequestPayload != nil {
@@ -201,25 +240,35 @@ func (s *TripTaskStore) savePlanRecord(task *TripTask) {
 			reqJSON = string(b)
 		}
 	}
+	status := task.Status
+	if status == "" {
+		status = TripTaskCompleted
+	}
 	record := model.TripPlanRecord{
 		PlanID:             firstNonEmpty(task.PlanID, task.TaskID),
 		TaskID:             task.TaskID,
 		UserID:             reqUserID(task.RequestPayload),
-		City:               plan.City,
-		Cities:             strings.Join(plan.Cities, ","),
-		StartDate:          plan.StartDate,
-		EndDate:            plan.EndDate,
-		TravelDays:         len(plan.Days),
-		OverallSuggestions: plan.OverallSuggestions,
+		City:               city,
+		Cities:             citiesCSV,
+		StartDate:          startDate,
+		EndDate:            endDate,
+		TravelDays:         travelDays,
+		OverallSuggestions: overallSuggestions,
 		PlanJSON:           string(planJSON),
 		GraphJSON:          string(graphJSON),
 		RequestJSON:        reqJSON,
+		Status:             status,
+		ErrorMessage:       task.Error,
 	}
 	if err := s.db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&record).Error; err != nil {
 		fmt.Printf("⚠️  行程计划落库失败 plan_id=%s: %v\n", record.PlanID, err)
 		return
 	}
-	fmt.Printf("💾 行程计划已落库 plan_id=%s city=%s days=%d\n", record.PlanID, record.City, record.TravelDays)
+	if status == TripTaskFailed {
+		fmt.Printf("💾 失败任务已记录 plan_id=%s city=%s err=%s\n", record.PlanID, record.City, task.Error)
+	} else {
+		fmt.Printf("💾 行程计划已落库 plan_id=%s city=%s days=%d\n", record.PlanID, record.City, record.TravelDays)
+	}
 }
 
 // reqUserID 提取请求里的用户标识(前端匿名 ID 或登录用户 ID)。
@@ -344,6 +393,10 @@ func (s *TripTaskStore) History(limit int) []model.TripHistoryItem {
 				if len(cities) > 1 {
 					displayCity = strings.Join(cities, " → ")
 				}
+				status := r.Status
+				if status == "" {
+					status = TripTaskCompleted
+				}
 				items = append(items, model.TripHistoryItem{
 					PlanID:             r.PlanID,
 					TaskID:             r.TaskID,
@@ -354,6 +407,8 @@ func (s *TripTaskStore) History(limit int) []model.TripHistoryItem {
 					TravelDays:         r.TravelDays,
 					UpdatedAt:          r.UpdatedAt.Format("2006-01-02T15:04:05"),
 					OverallSuggestions: r.OverallSuggestions,
+					Status:             status,
+					ErrorMessage:       r.ErrorMessage,
 				})
 			}
 			if len(items) > 0 {
@@ -396,18 +451,35 @@ func (s *TripTaskStore) historyFromMemory(limit int) []model.TripHistoryItem {
 
 	items := make([]model.TripHistoryItem, 0, limit)
 	for _, task := range tasks {
-		if task.Status != TripTaskCompleted || task.Result == nil || task.Result.Data == nil {
+		// 失败任务也进入历史(带错误信息);处理中的任务跳过
+		if task.Status != TripTaskCompleted && task.Status != TripTaskFailed {
 			continue
 		}
-		plan := task.Result.Data
+		isFailed := task.Status == TripTaskFailed
+		if !isFailed && (task.Result == nil || task.Result.Data == nil) {
+			continue
+		}
 		req := task.RequestPayload
-		city := plan.City
+		city, cities := "", []string(nil)
+		startDate, endDate, travelDays := "", "", 0
+		overallSuggestions := ""
+		if !isFailed {
+			plan := task.Result.Data
+			city = plan.City
+			cities = plan.Cities
+			startDate, endDate = plan.StartDate, plan.EndDate
+			travelDays = len(plan.Days)
+			overallSuggestions = plan.OverallSuggestions
+		}
 		if city == "" && req != nil {
 			city = req.City
 		}
-		cities := plan.Cities
-		startDate := plan.StartDate
-		endDate := plan.EndDate
+		if len(cities) == 0 && req != nil && len(req.Cities) > 0 {
+			cities = make([]string, 0, len(req.Cities))
+			for _, cs := range req.Cities {
+				cities = append(cities, cs.City)
+			}
+		}
 		if req != nil {
 			if startDate == "" {
 				startDate = req.StartDate
@@ -415,10 +487,9 @@ func (s *TripTaskStore) historyFromMemory(limit int) []model.TripHistoryItem {
 			if endDate == "" {
 				endDate = req.EndDate
 			}
-		}
-		travelDays := len(plan.Days)
-		if req != nil && req.TravelDays > 0 {
-			travelDays = req.TravelDays
+			if travelDays == 0 {
+				travelDays = req.TravelDays
+			}
 		}
 		if city == "" && len(cities) == 0 {
 			continue
@@ -436,7 +507,9 @@ func (s *TripTaskStore) historyFromMemory(limit int) []model.TripHistoryItem {
 			EndDate:            endDate,
 			TravelDays:         travelDays,
 			UpdatedAt:          task.UpdatedAt.Format("2006-01-02T15:04:05"),
-			OverallSuggestions: plan.OverallSuggestions,
+			OverallSuggestions: overallSuggestions,
+			Status:             task.Status,
+			ErrorMessage:       task.Error,
 		})
 		if len(items) >= limit {
 			break

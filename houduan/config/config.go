@@ -46,8 +46,12 @@ type Config struct {
 		GoogleMapsAPIKey string
 		GoogleMapsProxy  string
 		XHSCookie        string
+		DouyinCookie     string
 		EnableUserMemory bool
 		DataDir          string
+		// 景点图片磁盘缓存的有效期(小时)与容量上限(MB)
+		ImageCacheTTLHours int
+		ImageCacheMaxMB    int
 
 		// 用户偏好记忆模块参数(对应原项目 MEMORY_* 环境变量)
 		MemoryDecayFactor      float64
@@ -69,7 +73,7 @@ func Load() *Config {
 
 	c.JWT.AccessSecret = getEnv("JWT_ACCESS_SECRET", "dev-access-secret")
 	c.JWT.RefreshSecret = getEnv("JWT_REFRESH_SECRET", "dev-refresh-secret")
-	c.JWT.AccessTTL = getEnvInt("JWT_ACCESS_TTL", 900)     // 15 分钟
+	c.JWT.AccessTTL = getEnvInt("JWT_ACCESS_TTL", 900)      // 15 分钟
 	c.JWT.RefreshTTL = getEnvInt("JWT_REFRESH_TTL", 604800) // 7 天
 	c.JWT.Issuer = getEnv("JWT_ISSUER", "wenlv-backend")
 
@@ -101,9 +105,13 @@ func Load() *Config {
 	c.Trip.GoogleMapsAPIKey = getEnv("GOOGLE_MAPS_API_KEY", "")
 	c.Trip.GoogleMapsProxy = getEnv("GOOGLE_MAPS_PROXY", "")
 	c.Trip.XHSCookie = getEnv("XHS_COOKIE", "")
+	c.Trip.DouyinCookie = getEnv("DOUYIN_COOKIE", "")
 	c.Trip.EnableUserMemory = getEnv("ENABLE_USER_MEMORY", "false") == "true" ||
 		getEnv("ENABLE_USER_MEMORY", "false") == "1"
 	c.Trip.DataDir = getEnv("TRIP_DATA_DIR", "data")
+	// 图片缓存存的是图片字节而非时效直链,TTL 放宽可显著降低上游搜图频率(风控主因)
+	c.Trip.ImageCacheTTLHours = getEnvInt("TRIP_IMAGE_CACHE_TTL_HOURS", 168) // 7 天
+	c.Trip.ImageCacheMaxMB = getEnvInt("TRIP_IMAGE_CACHE_MAX_MB", 512)
 
 	// 用户偏好记忆参数(与原项目 MEMORY_* 环境变量一一对应)
 	c.Trip.MemoryDecayFactor = getEnvFloat("MEMORY_DECAY_FACTOR", 0.97)

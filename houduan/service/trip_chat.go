@@ -33,14 +33,12 @@ func NewTripChatService(llm *TripLLM) *TripChatService {
 	return &TripChatService{llm: llm}
 }
 
-// ChatWithTripContext 结合行程上下文回答用户提问。
-func (s *TripChatService) ChatWithTripContext(ctx context.Context, message string, tripPlan map[string]any, history []model.ChatMessage) (string, error) {
-	if !s.llm.Available() {
-		return "抱歉,AI 服务尚未配置 API Key,请先在设置页面中完成配置。", nil
-	}
-	planJSON, err := json.MarshalIndent(tripPlan, "", "  ")
+// buildTripChatMessages 组装问答消息列表:系统人设 + 行程计划上下文 + 历史对话 + 本次提问。
+func (s *TripChatService) buildTripChatMessages(message string, tripPlan map[string]any, history []model.ChatMessage) ([]llmMessage, error) {
+	// 紧凑序列化(无缩进):相比 MarshalIndent 可减少大量 token,显著降低首字延迟
+	planJSON, err := json.Marshal(tripPlan)
 	if err != nil {
-		return "", fmt.Errorf("行程上下文序列化失败: %w", err)
+		return nil, fmt.Errorf("行程上下文序列化失败: %w", err)
 	}
 	contextMsg := fmt.Sprintf("【当前旅行计划】\n```json\n%s\n```", string(planJSON))
 
@@ -56,10 +54,34 @@ func (s *TripChatService) ChatWithTripContext(ctx context.Context, message strin
 		messages = append(messages, llmMessage{Role: role, Content: h.Content})
 	}
 	messages = append(messages, llmMessage{Role: "user", Content: message})
+	return messages, nil
+}
 
+// ChatWithTripContext 结合行程上下文回答用户提问。
+func (s *TripChatService) ChatWithTripContext(ctx context.Context, message string, tripPlan map[string]any, history []model.ChatMessage) (string, error) {
+	if !s.llm.Available() {
+		return "抱歉,AI 服务尚未配置 API Key,请先在设置页面中完成配置。", nil
+	}
+	messages, err := s.buildTripChatMessages(message, tripPlan, history)
+	if err != nil {
+		return "", err
+	}
 	reply, err := s.llm.Chat(ctx, messages, 0.7, 1024)
 	if err != nil {
 		return "", err
 	}
 	return reply, nil
+}
+
+// ChatWithTripContextStream 流式结合行程上下文回答用户提问,每收到增量文本回调 onDelta。
+func (s *TripChatService) ChatWithTripContextStream(ctx context.Context, message string, tripPlan map[string]any, history []model.ChatMessage, onDelta func(string)) error {
+	if !s.llm.Available() {
+		onDelta("抱歉,AI 服务尚未配置 API Key,请先在设置页面中完成配置。")
+		return nil
+	}
+	messages, err := s.buildTripChatMessages(message, tripPlan, history)
+	if err != nil {
+		return err
+	}
+	return s.llm.ChatStream(ctx, messages, 0.7, 1024, onDelta)
 }

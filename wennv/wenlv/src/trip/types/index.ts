@@ -85,6 +85,8 @@ export interface TripPlan {
   weather_info: WeatherInfo[]
   overall_suggestions: string
   budget?: Budget
+  /** 景点数据来源: xhs=小红书真人推荐(默认) / douyin=抖音真人分享 / map=高德地图检索 */
+  attraction_source?: 'xhs' | 'douyin' | 'map' | string
 }
 
 export interface TripFormData {
@@ -99,8 +101,8 @@ export interface TripFormData {
   free_text_input: string
   language?: string
   user_id?: string
-  /** 景点数据来源:xhs=小红书真人推荐(默认) / map=高德地图检索 */
-  attraction_source?: 'xhs' | 'map'
+  /** 景点数据来源:xhs=小红书真人推荐(默认) / douyin=抖音真人分享 / map=高德地图检索 */
+  attraction_source?: 'xhs' | 'douyin' | 'map'
 }
 
 export interface TripPlanResponse {
@@ -120,6 +122,8 @@ export interface TripHistoryItem {
   travel_days: number
   updated_at: string
   overall_suggestions?: string
+  status?: 'completed' | 'failed'
+  error_message?: string
 }
 
 export type TripTaskStatus = 'processing' | 'completed' | 'failed'
@@ -152,6 +156,7 @@ export interface BackendRuntimeSettings {
   google_maps_api_key: string
   google_maps_proxy: string
   xhs_cookie: string
+  douyin_cookie: string
   openai_api_key: string
   openai_base_url: string
   openai_model: string
@@ -164,6 +169,7 @@ export interface RuntimeSettings {
   google_maps_api_key: string
   google_maps_proxy: string
   xhs_cookie: string
+  douyin_cookie: string
   openai_api_key: string
   openai_base_url: string
   openai_model: string

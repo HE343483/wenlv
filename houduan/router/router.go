@@ -110,6 +110,7 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 		chat := api.Group("/chat")
 		{
 			chat.POST("/ask", h.Trip.Ask)
+			chat.POST("/ask/stream", h.Trip.AskStream) // SSE 流式问答
 		}
 		settings := api.Group("/settings")
 		{
