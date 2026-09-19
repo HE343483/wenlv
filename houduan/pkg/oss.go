@@ -1,11 +1,19 @@
 package pkg
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -28,10 +36,18 @@ type OssSigner struct {
 	CdnHost   string
 }
 
+// normalizeEndpoint 去掉 Endpoint 可能带的协议前缀与尾斜杠,
+// 统一按虚拟主机风格 <bucket>.<endpoint> 拼接,保证请求 URL 与返回 URL 一致。
+func normalizeEndpoint(host string) string {
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	return strings.TrimSuffix(host, "/")
+}
+
 // NewOssSigner 构造签名器。
 func NewOssSigner(cfg *OssConfig) *OssSigner {
 	return &OssSigner{
-		Endpoint:  cfg.Endpoint,
+		Endpoint:  normalizeEndpoint(cfg.Endpoint),
 		Bucket:    cfg.Bucket,
 		AccessKey: cfg.AccessKey,
 		SecretKey: cfg.SecretKey,
@@ -105,4 +121,66 @@ func (s *OssSigner) ResolveURL(key string) string {
 		base = fmt.Sprintf("https://%s.%s", s.Bucket, s.Endpoint)
 	}
 	return fmt.Sprintf("%s/%s", base, key)
+}
+
+// Configured OSS 配置是否完整(四项必填)。
+func (s *OssSigner) Configured() bool {
+	return s.Endpoint != "" && s.AccessKey != "" && s.SecretKey != "" && s.Bucket != ""
+}
+
+// endpointHost 返回归一化后的 Endpoint(与 NewOssSigner 共用同一套归一化逻辑)。
+func (s *OssSigner) endpointHost() string {
+	return normalizeEndpoint(s.Endpoint)
+}
+
+// PutObject 以 OSS V1 Header 签名直传本地文件,返回公开访问 URL。
+// 与上传接口的前端直传 Policy 不同,这里是服务端批处理(爬虫/采集任务)使用。
+func (s *OssSigner) PutObject(localPath, key string) (string, error) {
+	data, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", err
+	}
+	ct := mime.TypeByExtension(strings.ToLower(filepath.Ext(localPath)))
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	return s.PutObjectBytes(data, key, ct)
+}
+
+// PutObjectBytes 直传字节内容,contentType 为空时按 key 后缀推断。
+func (s *OssSigner) PutObjectBytes(data []byte, key, contentType string) (string, error) {
+	if !s.Configured() {
+		return "", errors.New("OSS 未配置")
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	date := time.Now().UTC().Format(http.TimeFormat)
+	// StringToSign = VERB \n Content-MD5 \n Content-Type \n Date \n /Bucket/Key
+	stringToSign := fmt.Sprintf("PUT\n\n%s\n%s\n/%s/%s", contentType, date, s.Bucket, key)
+	mac := hmac.New(sha1.New, []byte(s.SecretKey))
+	mac.Write([]byte(stringToSign))
+	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+
+	u := fmt.Sprintf("https://%s.%s/%s", s.Bucket, s.endpointHost(), key)
+	req, err := http.NewRequest(http.MethodPut, u, bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Date", date)
+	req.Header.Set("Content-Type", contentType)
+	// 浏览器缓存 24h:看过的图片不再重复回源 OSS
+	req.Header.Set("Cache-Control", "public, max-age=86400")
+	req.Header.Set("Authorization", "OSS "+s.AccessKey+":"+signature)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return "", fmt.Errorf("OSS 返回 HTTP %d: %s", resp.StatusCode, string(body))
+	}
+	return s.ResolveURL(key), nil
 }

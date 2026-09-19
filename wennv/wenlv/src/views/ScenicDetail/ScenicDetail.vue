@@ -4,11 +4,14 @@
  * 说明：当前为纯布局骨架（图片占位 / 文案占位），
  *       后期由后端接口按路由参数 :id 拉取景点详情数据填充。
  */
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import { getScenic } from '@/api/content'
-import type { ScenicItem } from '@/api/content'
+import { getScenic, getScenicAround, getScenicTransport } from '@/api/content'
+import type { ScenicItem, ScenicAroundItem, ScenicTransitStop } from '@/api/content'
+import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
+import { getRuntimeMapJsKey } from '@/trip/services/api'
+import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
@@ -49,6 +52,14 @@ onMounted(async () => {
   } catch {
     /* 加载失败时保持占位展示 */
   }
+  await initMap()
+  /* 两个接口相互独立:任一失败仅清空自身字段,不影响另一个 */
+  const [aroundRes, transitRes] = await Promise.allSettled([
+    getScenicAround(numericId.value, 6),
+    getScenicTransport(numericId.value),
+  ])
+  around.value = aroundRes.status === 'fulfilled' ? (aroundRes.value || []) : []
+  transit.value = transitRes.status === 'fulfilled' ? (transitRes.value || []) : []
 })
 
 const displayName = computed(() => {
@@ -56,7 +67,7 @@ const displayName = computed(() => {
   return langStore.lang === 'zh' ? scenic.value.name_zh : (scenic.value.name_en || scenic.value.name_zh)
 })
 const subName = computed(() => {
-  if (!scenic.value) return langStore.t('scenicDetail.loading')
+  if (!scenic.value) return ''
   return langStore.lang === 'zh' ? (scenic.value.name_en || '') : scenic.value.name_zh
 })
 const spotTags = computed(() =>
@@ -64,6 +75,68 @@ const spotTags = computed(() =>
 )
 const spotDesc = computed(() => scenic.value?.desc || '')
 const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? scenic.value.images : '')
+
+/* ── 详情扩展数据:图文详情 / 精彩瞬间 / 参考值标注 ── */
+const sections = computed(() => parseSections(scenic.value?.detail_sections))
+const galleryImages = computed(() => splitList(scenic.value?.gallery_images))
+const estimated = computed(() => estimatedSet(scenic.value?.estimated_fields))
+const noData = computed(() => langStore.t('scenicDetail.noData'))
+const isEstimated = (field: string) => estimated.value.has(field)
+
+/* ── 周边推荐 / 交通站点:运行时查询高德,失败降级为空数组 ── */
+const around = ref<ScenicAroundItem[]>([])
+const transit = ref<ScenicTransitStop[]>([])
+
+/**
+ * 距离文案:后端返回单位为米,按量级切换 米/km 并走 i18n。
+ * 空值 / 0 / 非正数返回空串,调用方据此隐藏该段文案。
+ */
+function formatDistance(meters?: number): string {
+  if (!meters || meters <= 0) return ''
+  if (meters < 1000) return langStore.t('scenicDetail.distanceM', { m: Math.round(meters) })
+  return langStore.t('scenicDetail.distanceKm', { km: (meters / 1000).toFixed(1) })
+}
+
+const transportText = computed(() => {
+  if (!transit.value.length) return ''
+  return transit.value
+    .slice(0, 2)
+    .map((s) => `${s.name} ${formatDistance(s.distance)}`.trim())
+    .join(' / ')
+})
+
+/* ── 景区位置:高德 JS 地图,Key 缺失或加载失败时回退占位 ── */
+/* Key 与行程页保持一致:优先取运行时配置(设置页保存到 localStorage),缺失再回退构建期 env。
+   @amap/amap-jsapi-loader 为单例,两处 key 不一致会导致后加载方 reject。 */
+const mapKey = getRuntimeMapJsKey() || import.meta.env.VITE_AMAP_WEB_JS_KEY || ''
+const mapReady = ref(false)
+let amapInstance: { destroy: () => void } | null = null
+
+async function initMap() {
+  const spot = scenic.value
+  if (!mapKey || !spot?.lng || !spot?.lat) return
+  try {
+    const AMap = await AMapLoader.load({ key: mapKey, version: '2.0', plugins: ['AMap.Marker'] })
+    const map = new AMap.Map('scenic-map', {
+      zoom: 15,
+      center: [spot.lng, spot.lat],
+      viewMode: '3D',
+    })
+    new AMap.Marker({ position: [spot.lng, spot.lat], title: displayName.value, map })
+    amapInstance = map
+    // 容器始终占位可见(占位块绝对定位覆盖其上),此处仅等待渲染完成并重算尺寸
+    mapReady.value = true
+    await nextTick()
+    if (typeof map.resize === 'function') map.resize()
+  } catch (err) {
+    mapReady.value = false
+    console.warn('高德地图初始化失败', err)
+  }
+}
+
+onBeforeUnmount(() => {
+  if (amapInstance) amapInstance.destroy()
+})
 </script>
 
 <template>
@@ -171,11 +244,17 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
             </div>
             <div class="detail-scorebar__fact">
               <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.visits') }}</span>
-              <span class="detail-scorebar__fact-value">—</span>
+              <span class="detail-scorebar__fact-value">
+                {{ displayFact(scenic?.yearly_visitors, noData) }}
+                <em v-if="isEstimated('yearly_visitors')" class="detail-est">{{ langStore.t('scenicDetail.estimated') }}</em>
+              </span>
             </div>
             <div class="detail-scorebar__fact">
               <span class="detail-scorebar__fact-key">{{ langStore.t('scenicDetail.recommendTime') }}</span>
-              <span class="detail-scorebar__fact-value">—</span>
+              <span class="detail-scorebar__fact-value">
+                {{ displayFact(scenic?.recommend_hours, noData) }}
+                <em v-if="isEstimated('recommend_hours')" class="detail-est">{{ langStore.t('scenicDetail.estimated') }}</em>
+              </span>
             </div>
           </div>
 
@@ -199,22 +278,30 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="clock" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.openHours') }}</h3>
-            <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
+            <p class="detail-info__value">
+              {{ displayFact(scenic?.open_hours, noData) }}
+              <em v-if="isEstimated('open_hours')" class="detail-est">{{ langStore.t('scenicDetail.estimated') }}</em>
+            </p>
           </div>
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="ticket" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.ticket') }}</h3>
-            <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
+            <p class="detail-info__value">
+              {{ displayFact(scenic?.ticket_price, noData) }}
+              <em v-if="isEstimated('ticket_price')" class="detail-est">{{ langStore.t('scenicDetail.estimated') }}</em>
+            </p>
           </div>
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="bus" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.transport') }}</h3>
-            <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
+            <p class="detail-info__value">
+              {{ transportText || langStore.t('scenicDetail.transportEmpty') }}
+            </p>
           </div>
           <div class="detail-info__card">
             <span class="detail-info__icon"><AppIcon name="pin" :size="24" /></span>
             <h3 class="detail-info__title">{{ langStore.t('scenicDetail.address') }}</h3>
-            <p class="detail-info__value">{{ langStore.t('common.loading') }}</p>
+            <p class="detail-info__value">{{ displayFact(scenic?.address, noData) }}</p>
           </div>
         </div>
       </section>
@@ -226,11 +313,22 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
           <p class="section-subtitle">{{ langStore.t('scenicDetail.detailSubtitle') }}</p>
         </header>
 
-        <div class="detail-content">
-          <!-- 长图占位块 — 后期替换为后端富文本/段落+配图 -->
-          <div class="detail-content__row">
+        <div v-if="sections.length" class="detail-content">
+          <div
+            v-for="(sec, i) in sections"
+            :key="sec.title"
+            class="detail-content__row"
+            :class="{ 'detail-content__row--reverse': i % 2 === 1 }"
+          >
             <div class="detail-content__figure">
-              <div class="detail-content__img detail-content__img--empty">
+              <img
+                v-if="sec.image"
+                class="detail-content__img detail-content__img--photo"
+                :src="sec.image"
+                :alt="sec.title"
+                referrerpolicy="no-referrer"
+              />
+              <div v-else class="detail-content__img detail-content__img--empty">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
                   <rect x="3" y="3" width="18" height="18" rx="2"/>
                   <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -239,28 +337,12 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
               </div>
             </div>
             <div class="detail-content__text">
-              <h3 class="detail-content__caption">{{ langStore.t('common.loading') }}</h3>
-              <p class="detail-content__para">{{ langStore.t('scenicDetail.paraPlaceholder') }}</p>
-              <p class="detail-content__para">{{ langStore.t('scenicDetail.paraPlaceholder') }}</p>
-            </div>
-          </div>
-
-          <div class="detail-content__row detail-content__row--reverse">
-            <div class="detail-content__figure">
-              <div class="detail-content__img detail-content__img--empty">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <path d="M21 15l-5-5L5 21"/>
-                </svg>
-              </div>
-            </div>
-            <div class="detail-content__text">
-              <h3 class="detail-content__caption">{{ langStore.t('common.loading') }}</h3>
-              <p class="detail-content__para">{{ langStore.t('scenicDetail.paraPlaceholder') }}</p>
+              <h3 class="detail-content__caption">{{ sec.title }}</h3>
+              <p class="detail-content__para">{{ sec.text }}</p>
             </div>
           </div>
         </div>
+        <p v-else class="detail-empty">{{ langStore.t('scenicDetail.noData') }}</p>
       </section>
 
       <!-- ──── 相册 ──── -->
@@ -270,16 +352,15 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
           <p class="section-subtitle">{{ langStore.t('scenicDetail.gallerySubtitle') }}</p>
         </header>
 
-        <div class="detail-gallery">
-          <div v-for="n in 6" :key="n" class="detail-gallery__item">
-            <div class="detail-gallery__img">
-              <span class="detail-gallery__num">{{ String(n).padStart(2, '0') }}</span>
-            </div>
+        <div v-if="galleryImages.length" class="detail-gallery">
+          <div v-for="(img, i) in galleryImages" :key="img" class="detail-gallery__item">
+            <img class="detail-gallery__photo" :src="img" :alt="`${displayName} ${i + 1}`" referrerpolicy="no-referrer" />
           </div>
         </div>
+        <p v-else class="detail-empty">{{ langStore.t('scenicDetail.noData') }}</p>
       </section>
 
-      <!-- ──── 地图（占位）──── -->
+      <!-- ──── 地图 ──── -->
       <section class="detail-section container">
         <header class="detail-block-head">
           <h2 class="section-title">{{ langStore.t('scenicDetail.mapTitle') }}</h2>
@@ -287,9 +368,10 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
         </header>
 
         <div class="detail-map">
-          <div class="detail-map__placeholder">
+          <div id="scenic-map" class="detail-map__canvas" />
+          <div v-if="!mapReady" class="detail-map__placeholder">
             <span class="detail-map__pin"><AppIcon name="pin" :size="40" /></span>
-            <span class="detail-map__hint">{{ langStore.t('scenicDetail.mapPlaceholder') }}</span>
+            <span class="detail-map__hint">{{ langStore.t('scenicDetail.noData') }}</span>
           </div>
         </div>
       </section>
@@ -301,21 +383,23 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
           <p class="section-subtitle">{{ langStore.t('scenicDetail.aroundSubtitle') }}</p>
         </header>
 
-        <div class="detail-around">
-          <div v-for="n in 3" :key="n" class="detail-around__card">
-            <div class="detail-around__img">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <path d="M21 15l-5-5L5 21"/>
-              </svg>
-            </div>
+        <div v-if="around.length" class="detail-around">
+          <div v-for="item in around" :key="item.id" class="detail-around__card">
             <div class="detail-around__body">
-              <h3 class="detail-around__name">{{ langStore.t('common.loading') }}</h3>
-              <p class="detail-around__desc">{{ langStore.t('scenicDetail.nearbyPlaceholder') }}</p>
+              <h3 class="detail-around__name">{{ item.name }}</h3>
+              <p class="detail-around__desc">
+                {{ item.address || item.type || '' }}
+                <span v-if="formatDistance(item.distance)">· {{ formatDistance(item.distance) }}</span>
+              </p>
             </div>
           </div>
         </div>
+        <p v-else class="detail-empty">{{ langStore.t('scenicDetail.aroundEmpty') }}</p>
+
+        <p class="detail-source">
+          {{ langStore.t('scenicDetail.dataSource') }}
+          <template v-if="estimated.size">· {{ langStore.t('scenicDetail.estimatedTip') }}</template>
+        </p>
       </section>
     </main>
   </div>
@@ -737,6 +821,12 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
   opacity: 0.7;
 }
 
+/* 非 4:3 的配图裁切填充,避免拉伸变形(占位 div 不受 object-fit 影响) */
+.detail-content__img--photo {
+  display: block;
+  object-fit: cover;
+}
+
 .detail-content__text {
   display: flex;
   flex-direction: column;
@@ -755,6 +845,7 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
   font-size: var(--text-base);
   color: var(--color-text-secondary);
   line-height: var(--leading-relaxed);
+  white-space: pre-line;
 }
 
 /* ========================================
@@ -801,13 +892,16 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
    地图占位
    ======================================== */
 .detail-map {
+  position: relative;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--color-border);
 }
 
+/* 占位块绝对定位覆盖在地图容器之上:未就绪时看到占位,就绪后占位消失露出地图 */
 .detail-map__placeholder {
-  aspect-ratio: 16 / 6;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -900,6 +994,48 @@ const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? sc
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   line-height: var(--leading-relaxed);
+}
+
+/* ========================================
+   数据来源标注 / 参考值徽标 / 空数据
+   ======================================== */
+.detail-est {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+  font-style: normal;
+  color: var(--color-gold);
+  border: 1px solid color-mix(in srgb, var(--color-gold) 45%, transparent);
+  border-radius: var(--radius-full);
+  vertical-align: middle;
+}
+
+.detail-empty {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+}
+
+.detail-gallery__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  aspect-ratio: 4 / 3;
+}
+
+.detail-map__canvas {
+  width: 100%;
+  aspect-ratio: 16 / 6;
+}
+
+.detail-source {
+  margin-top: var(--space-8);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
 /* ========================================

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -43,11 +44,12 @@ type llmMessage struct {
 }
 
 type llmRequest struct {
-	Model       string       `json:"model"`
-	Messages    []llmMessage `json:"messages"`
-	Temperature float64      `json:"temperature"`
-	MaxTokens   int          `json:"max_tokens,omitempty"`
-	Stream      bool         `json:"stream"`
+	Model           string       `json:"model"`
+	Messages        []llmMessage `json:"messages"`
+	Temperature     float64      `json:"temperature"`
+	MaxTokens       int          `json:"max_tokens,omitempty"`
+	Stream          bool         `json:"stream"`
+	ReasoningEffort string       `json:"reasoning_effort,omitempty"`
 }
 
 type llmResponse struct {
@@ -68,6 +70,14 @@ func (l *TripLLM) Chat(ctx context.Context, messages []llmMessage, temperature f
 
 // ChatWithTimeout 以指定超时(秒)调用对话补全接口;行程规划等长任务使用 PlannerTimeout。
 func (l *TripLLM) ChatWithTimeout(ctx context.Context, timeoutSeconds int, messages []llmMessage, temperature float64, maxTokens int) (string, error) {
+	return l.ChatWithEffort(ctx, timeoutSeconds, messages, temperature, maxTokens, "")
+}
+
+// ChatWithEffort 与 ChatWithTimeout 相同,额外附加 reasoning_effort。
+// GLM 等"始终思考"的推理模型(如 glm-5.3-flash)在长文本生成任务上会把 max_tokens
+// 全部消耗在思考上,导致 content 为空、finish_reason=length;显式指定 reasoning_effort
+// (low/high/max) 才能拿到正文。effort 为空时不发送该字段。
+func (l *TripLLM) ChatWithEffort(ctx context.Context, timeoutSeconds int, messages []llmMessage, temperature float64, maxTokens int, effort string) (string, error) {
 	cfg := l.settings.Snapshot()
 	if cfg.OpenAIAPIKey == "" {
 		return "", errors.New("LLM API Key 未配置,请先在设置页完成配置")
@@ -82,10 +92,11 @@ func (l *TripLLM) ChatWithTimeout(ctx context.Context, timeoutSeconds int, messa
 	}
 
 	body, err := json.Marshal(llmRequest{
-		Model:       model,
-		Messages:    messages,
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
+		Model:           model,
+		Messages:        messages,
+		Temperature:     temperature,
+		MaxTokens:       maxTokens,
+		ReasoningEffort: effort,
 	})
 	if err != nil {
 		return "", err
@@ -130,7 +141,23 @@ func (l *TripLLM) ChatWithTimeout(ctx context.Context, timeoutSeconds int, messa
 	if len(parsed.Choices) == 0 {
 		return "", errors.New("LLM 未返回任何内容")
 	}
-	return parsed.Choices[0].Message.Content, nil
+	content := parsed.Choices[0].Message.Content
+	// 仅在显式指定 effort 时校验空内容:ChatWithTimeout(effort 为空)保持"空串照常返回"的既有行为。
+	if content == "" && effort != "" {
+		return "", errors.New("LLM 返回内容为空(可能是思考 token 耗尽 max_tokens,可调大 max_tokens 或设置 LLM_THINKING_LEVEL)")
+	}
+	return content, nil
+}
+
+// llmThinkingLevel 读取 LLM_THINKING_LEVEL(取值 low/high/max,其它值视为未配置)。
+// 用于"始终思考"的推理模型:不设置时长文本生成的 content 会是空的。
+func llmThinkingLevel() string {
+	switch v := strings.ToLower(strings.TrimSpace(os.Getenv("LLM_THINKING_LEVEL"))); v {
+	case "low", "high", "max":
+		return v
+	default:
+		return ""
+	}
 }
 
 // llmStreamChunk OpenAI 兼容流式响应的单个 SSE 分片。

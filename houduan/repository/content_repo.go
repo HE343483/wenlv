@@ -67,6 +67,23 @@ func (r *ScenicRepo) GetByID(id uint) (*model.ScenicSpot, error) {
 	return &s, nil
 }
 
+// ListAll 返回全部景点(采集批处理使用,不分页)。
+func (r *ScenicRepo) ListAll() ([]model.ScenicSpot, error) {
+	var items []model.ScenicSpot
+	if err := r.db.Order("id asc").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// UpdateFields 按主键更新指定字段(字段名 → 新值),用于采集结果落库。
+func (r *ScenicRepo) UpdateFields(id uint, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.ScenicSpot{}).Where("id = ?", id).Updates(updates).Error
+}
+
 // FoodRepo 美食数据访问。
 type FoodRepo struct {
 	db *gorm.DB

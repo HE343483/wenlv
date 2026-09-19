@@ -52,6 +52,8 @@ type Config struct {
 		// 景点图片磁盘缓存的有效期(小时)与容量上限(MB)
 		ImageCacheTTLHours int
 		ImageCacheMaxMB    int
+		// ScenicCacheTTLHours 景点详情页实时数据(周边推荐/交通站点)的 Redis 缓存小时数。
+		ScenicCacheTTLHours int
 
 		// 用户偏好记忆模块参数(对应原项目 MEMORY_* 环境变量)
 		MemoryDecayFactor      float64
@@ -112,6 +114,7 @@ func Load() *Config {
 	// 图片缓存存的是图片字节而非时效直链,TTL 放宽可显著降低上游搜图频率(风控主因)
 	c.Trip.ImageCacheTTLHours = getEnvInt("TRIP_IMAGE_CACHE_TTL_HOURS", 168) // 7 天
 	c.Trip.ImageCacheMaxMB = getEnvInt("TRIP_IMAGE_CACHE_MAX_MB", 512)
+	c.Trip.ScenicCacheTTLHours = getEnvInt("SCENIC_CACHE_TTL_HOURS", 24)
 
 	// 用户偏好记忆参数(与原项目 MEMORY_* 环境变量一一对应)
 	c.Trip.MemoryDecayFactor = getEnvFloat("MEMORY_DECAY_FACTOR", 0.97)

@@ -28,6 +28,29 @@ export interface ScenicItem {
   lng?: number
   desc?: string
   images?: string
+  // ===== 详情页扩展字段(高德 POI 采集 + LLM 参考值) =====
+  /** 详细地址(高德) */
+  address?: string
+  /** 咨询电话(高德) */
+  tel?: string
+  /** 开放时间(高德,部分为 LLM 参考值) */
+  open_hours?: string
+  /** 门票价格(LLM 参考值) */
+  ticket_price?: string
+  /** 建议游玩时长(LLM 参考值) */
+  recommend_hours?: string
+  /** 年接待游客(LLM 参考值) */
+  yearly_visitors?: string
+  /** 相册图片 URL 列表(逗号分隔) */
+  gallery_images?: string
+  /** 图文详情段落 JSON 串 */
+  detail_sections?: string
+  /** 参考值字段名(逗号分隔,前端加"参考值"标注) */
+  estimated_fields?: string
+  /** 数据来源(amap / amap+llm / wiki / llm / manual) */
+  data_source?: string
+  /** 数据采集时间 */
+  data_updated_at?: string
 }
 
 export function listScenics(params?: QueryParams): Promise<PageResult<ScenicItem>> {
@@ -35,6 +58,39 @@ export function listScenics(params?: QueryParams): Promise<PageResult<ScenicItem
 }
 export function getScenic(id: number): Promise<ScenicItem> {
   return get<ScenicItem>(`/scenic/${id}`)
+}
+
+/** 图文详情的一段(标题 + 正文 + 配图) */
+export interface ScenicDetailSection {
+  title: string
+  text: string
+  image?: string
+}
+
+export interface ScenicAroundItem {
+  id: string
+  name: string
+  type?: string
+  address?: string
+  distance?: number
+  lat?: number
+  lng?: number
+}
+
+export interface ScenicTransitStop {
+  name: string
+  type?: string
+  distance?: number
+}
+
+/** 周边推荐(高德实时查询,后端 Redis 缓存 24h) */
+export function getScenicAround(id: number, limit = 6): Promise<ScenicAroundItem[]> {
+  return get<ScenicAroundItem[]>(`/scenic/${id}/around`, { params: { limit } })
+}
+
+/** 邻近交通站点(地铁站/公交站) */
+export function getScenicTransport(id: number): Promise<ScenicTransitStop[]> {
+  return get<ScenicTransitStop[]>(`/scenic/${id}/transport`)
 }
 
 /** 美食 */

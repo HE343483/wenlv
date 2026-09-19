@@ -13,6 +13,8 @@ type Bootstrap struct {
 	Article  *ArticleHandler
 	Upload   *UploadHandler
 	HotTopic *HotTopicHandler
+	// ScenicExtra 景点详情页实时数据(周边推荐/交通站点)
+	ScenicExtra *ScenicExtraHandler
 
 	// AI 行程规划模块(移植自 TripStar)
 	Trip     *TripHandler

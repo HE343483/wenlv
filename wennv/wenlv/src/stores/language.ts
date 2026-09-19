@@ -41,8 +41,11 @@ export const useLanguageStore = defineStore('language', () => {
     setLang(next)
   }
 
-  /** 获取多语言文本：t('nav.home') => '首页' / 'Home' / 'ホーム' */
-  function t(key: string): string {
+  /**
+   * 获取多语言文本：t('nav.home') => '首页' / 'Home' / 'ホーム'
+   * 支持 {name} 占位符插值：t('scenicDetail.distanceM', { m: 20 }) => '约20米'
+   */
+  function t(key: string, params?: Record<string, string | number>): string {
     const locale = locales[lang.value] as Record<string, unknown>
     const parts = key.split('.')
     let result: unknown = locale
@@ -53,7 +56,11 @@ export const useLanguageStore = defineStore('language', () => {
         return key
       }
     }
-    return typeof result === 'string' ? result : key
+    if (typeof result !== 'string') return key
+    if (!params) return result
+    return result.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+      name in params ? String(params[name]) : placeholder
+    )
   }
 
   // AI 行程模块内切换语言时,反向同步主站语言

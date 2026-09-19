@@ -11,16 +11,11 @@
 package main
 
 import (
-	"bytes"
-	"crypto/hmac"
-	"crypto/sha1"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,6 +30,7 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 
 	"wenlv-backend/model"
+	"wenlv-backend/pkg"
 )
 
 // ──── 前端 chengdu.ts 中的景点条目 ────
@@ -60,14 +56,6 @@ type district struct {
 	Name2 string
 }
 
-// ossCfg OSS 连接配置(读取 .env 中 OSS_* 变量)
-type ossCfg struct {
-	Endpoint  string
-	AccessKey string
-	SecretKey string
-	Bucket    string
-}
-
 func main() {
 	proxy := flag.String("proxy", "", "HTTP 代理地址(维基百科需代理),留空则直连")
 	source := flag.String("source", filepath.Join("..", "wennv", "wenlv", "src", "data", "chengdu.ts"), "前端数据文件路径")
@@ -76,6 +64,7 @@ func main() {
 	delay := flag.Int("delay", 1500, "每次维基百科请求的间隔毫秒数")
 	upload := flag.Bool("upload", false, "图片下载后同步上传 OSS,并把数据库图片地址替换为 OSS URL")
 	uploadOnly := flag.Bool("upload-only", false, "跳过爬取,仅把本地已下载图片上传 OSS 并更新数据库(无需代理)")
+	descOnly := flag.Bool("desc-only", false, "仅回填景点简介:从数据库读取景点,用维基百科简体正文只更新 desc 字段")
 	food := flag.Bool("food", false, "爬取成都美食(写入 foods 表),配合 -upload 上传 OSS")
 	only := flag.String("only", "", "美食模式下仅处理名称包含该关键字的条目")
 	flag.Parse()
@@ -83,20 +72,33 @@ func main() {
 	_ = godotenv.Load()
 
 	// OSS 配置:启用上传相关功能时必须齐全
-	var oss *ossCfg
+	var signer *pkg.OssSigner
 	if *upload || *uploadOnly {
-		oss = &ossCfg{
+		signer = pkg.NewOssSigner(&pkg.OssConfig{
 			Endpoint:  os.Getenv("OSS_ENDPOINT"),
 			AccessKey: os.Getenv("OSS_ACCESS_KEY"),
 			SecretKey: os.Getenv("OSS_SECRET_KEY"),
 			Bucket:    os.Getenv("OSS_BUCKET"),
-		}
-		if oss.Endpoint == "" || oss.AccessKey == "" || oss.SecretKey == "" || oss.Bucket == "" {
+		})
+		if !signer.Configured() {
 			log.Fatal("已启用 OSS 上传,但 .env 中 OSS_* 配置不完整")
 		}
 	}
 
 	client := newHTTPClient(*proxy)
+
+	db := mustConnectDB()
+	defer func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}()
+
+	// ── 仅回填简介模式:景点列表取自数据库,不依赖 chengdu.ts,只更新 desc ──
+	if *descOnly {
+		runDescOnly(client, db, *delay)
+		return
+	}
 
 	spots, dists := parseChengduTS(*source)
 	if len(spots) == 0 {
@@ -111,23 +113,16 @@ func main() {
 		log.Fatalf("创建图片目录失败: %v", err)
 	}
 
-	db := mustConnectDB()
-	defer func() {
-		if sqlDB, err := db.DB(); err == nil {
-			_ = sqlDB.Close()
-		}
-	}()
-
 	// ── 仅上传模式:本地图片 → OSS → 更新数据库,不访问维基百科 ──
 	if *uploadOnly {
-		uploadLocalToOSS(db, oss, *outDir, spots)
+		uploadLocalToOSS(db, signer, *outDir, spots)
 		return
 	}
 
 	// ── 美食模式:爬取成都经典美食写入 foods 表 ──
 	if *food {
 		foodOut := filepath.Join(filepath.Dir(*outDir), "food") // images/food/,与景点图片分开存放
-		runFoodCrawl(client, db, oss, foodOut, *delay, *only)
+		runFoodCrawl(client, db, signer, foodOut, *delay, *only)
 		return
 	}
 
@@ -165,10 +160,11 @@ func main() {
 				if sum.Type == "disambiguation" {
 					continue
 				}
-				extract := sum.Extract
+				// 正文优先取 Action API(带 variant=zh-cn,返回简体);REST summary 实测
+				// 忽略 variant 可能返回繁体,仅在 intro 为空时兜底。sum 仍用于主图/消歧义。
+				extract, _ := fetchIntro(client, t)
 				if extract == "" {
-					// REST summary 对部分词条返回空 extract,回退 Action API
-					extract, _ = fetchIntro(client, t)
+					extract = sum.Extract
 				}
 				if !strings.Contains(extract, "成都") && !strings.Contains(extract, "四川") &&
 					!strings.Contains(extract, "川菜") && !strings.Contains(extract, "川味") {
@@ -217,9 +213,9 @@ func main() {
 			} else {
 				s.LocalPath = local
 				log.Printf("    图片已保存: %s", local)
-				if oss != nil {
+				if signer != nil {
 					key := "scenic/" + s.ID + ext
-					if ossURL, err := ossUpload(oss, local, key); err != nil {
+					if ossURL, err := signer.PutObject(local, key); err != nil {
 						log.Printf("    OSS 上传失败: %v", err)
 					} else {
 						s.ImageURL = ossURL
@@ -435,18 +431,20 @@ func commonsImage(client *http.Client, nameZH, nameEN string) string {
 }
 
 // fetchSummary 获取词条摘要结构(含正文提取、主图 URL)。
+// 注:实测 REST summary 会忽略 variant 参数(仍返回条目原文,常为繁体),
+// 简繁转换只在 Action API(见 fetchIntro)生效,此处带上仅为尝试。
 func fetchSummary(client *http.Client, title string) (wikiSummary, error) {
-	u := "https://zh.wikipedia.org/api/rest_v1/page/summary/" + url.PathEscape(title)
+	u := "https://zh.wikipedia.org/api/rest_v1/page/summary/" + url.PathEscape(title) + "?variant=zh-cn"
 	var sum wikiSummary
 	err := httpGetJSON(client, u, &sum)
 	return sum, err
 }
 
-// fetchIntro 通过 Action API 获取词条导言纯文本。
+// fetchIntro 通过 Action API 获取词条导言纯文本(已做简体转换)。
 // REST summary 对部分词条 extract 返回空,用此接口兜底。
 func fetchIntro(client *http.Client, title string) (string, error) {
 	u := fmt.Sprintf(
-		"https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&utf8=1&titles=%s",
+		"https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&utf8=1&variant=zh-cn&titles=%s",
 		url.QueryEscape(title))
 	var res struct {
 		Query struct {
@@ -462,6 +460,98 @@ func fetchIntro(client *http.Client, title string) (string, error) {
 		return strings.TrimSpace(p.Extract), nil
 	}
 	return "", nil
+}
+
+// mentionsChengdu 地域校验:正文须提及成都/四川/川菜/川味,防止跨地域误配。
+func mentionsChengdu(text string) bool {
+	return strings.Contains(text, "成都") || strings.Contains(text, "四川") ||
+		strings.Contains(text, "川菜") || strings.Contains(text, "川味")
+}
+
+// runDescOnly 仅回填景点简介:景点列表直接取自数据库(不依赖 chengdu.ts),
+// 取维基百科简体导言后只更新 desc 字段,绝不触碰 images/gallery_images/
+// detail_sections/estimated_fields/address/tel/open_hours/tags/score/lat/lng。
+func runDescOnly(client *http.Client, db *gorm.DB, delayMs int) {
+	type dbSpot struct {
+		ID     uint
+		NameZH string
+		NameEN string
+	}
+	var spots []dbSpot
+	if err := db.Model(&model.ScenicSpot{}).
+		Select("id, name_zh, name_en").Order("id").Find(&spots).Error; err != nil {
+		log.Fatalf("读取景点列表失败: %v", err)
+	}
+	log.Printf("从数据库读取到 %d 个景点,开始回填简介(仅更新 desc 字段)", len(spots))
+
+	okCnt, skipCnt, failCnt := 0, 0, 0
+	for i, s := range spots {
+		// 1. 搜索候选词条(无结果时去掉常见后缀重搜)
+		titles, err := searchWiki(client, s.NameZH)
+		if err != nil {
+			log.Printf("[%d/%d] %s → 搜索失败: %v", i+1, len(spots), s.NameZH, err)
+			failCnt++
+			continue
+		}
+		if len(titles) == 0 {
+			for _, alt := range altNames(s.NameZH) {
+				if titles, err = searchWiki(client, alt); err != nil || len(titles) > 0 {
+					break
+				}
+			}
+		}
+
+		// 2. 依次尝试候选:优先 Action API(带 variant=zh-cn 的简体正文),
+		//    REST summary 仅作 extract 为空时的兜底(实测其变体参数无效)
+		text, fetchFail, evaluated := "", false, false
+		for _, t := range titles {
+			extract, err := fetchIntro(client, t)
+			if err != nil {
+				log.Printf("    候选 [%s] 正文获取失败: %v", t, err)
+				fetchFail = true
+				continue
+			}
+			if extract == "" {
+				sum, err := fetchSummary(client, t)
+				if err != nil {
+					log.Printf("    候选 [%s] 摘要获取失败: %v", t, err)
+					fetchFail = true
+					continue
+				}
+				if sum.Type == "disambiguation" {
+					continue
+				}
+				extract = strings.TrimSpace(sum.Extract)
+			}
+			evaluated = true
+			if !mentionsChengdu(extract) {
+				log.Printf("    候选 [%s] 与成都/四川无关,跳过", t)
+				continue
+			}
+			text = extract
+			break
+		}
+
+		// 3. 只更新 desc 一个字段
+		switch {
+		case text != "":
+			if err := db.Model(&model.ScenicSpot{}).Where("id = ?", s.ID).Update("desc", text).Error; err != nil {
+				log.Printf("[%d/%d] %s → 入库失败: %v", i+1, len(spots), s.NameZH, err)
+				failCnt++
+				continue
+			}
+			log.Printf("[%d/%d] %s → 已更新(前 40 字: %s)", i+1, len(spots), s.NameZH, truncate(text, 40))
+			okCnt++
+		case !evaluated && fetchFail:
+			log.Printf("[%d/%d] %s → 取正文失败，保留原简介", i+1, len(spots), s.NameZH)
+			failCnt++
+		default:
+			log.Printf("[%d/%d] %s → 未匹配，保留原简介", i+1, len(spots), s.NameZH)
+			skipCnt++
+		}
+		time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	}
+	log.Printf("完成: 更新 %d / 未匹配 %d / 失败 %d", okCnt, skipCnt, failCnt)
 }
 
 func downloadImage(client *http.Client, imgURL, dest string) error {
@@ -490,51 +580,8 @@ func downloadImage(client *http.Client, imgURL, dest string) error {
 	return err
 }
 
-// ossUpload 以 OSS 签名 V1(Header 签名)直传本地文件,返回公开访问 URL。
-// OSS 国内端点可直连,不走维基百科代理。
-func ossUpload(cfg *ossCfg, localPath, key string) (string, error) {
-	data, err := os.ReadFile(localPath)
-	if err != nil {
-		return "", err
-	}
-	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(localPath)))
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	date := time.Now().UTC().Format(http.TimeFormat)
-
-	// StringToSign = VERB \n Content-MD5 \n Content-Type \n Date \n /Bucket/Key
-	stringToSign := fmt.Sprintf("PUT\n\n%s\n%s\n/%s/%s", contentType, date, cfg.Bucket, key)
-	mac := hmac.New(sha1.New, []byte(cfg.SecretKey))
-	mac.Write([]byte(stringToSign))
-	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
-
-	// Endpoint 已含域名(如 oss-cn-chengdu.aliyuncs.com),采用虚拟主机风格
-	ossURL := fmt.Sprintf("https://%s.%s/%s", cfg.Bucket, cfg.Endpoint, key)
-	req, err := http.NewRequest(http.MethodPut, ossURL, bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Date", date)
-	req.Header.Set("Content-Type", contentType)
-	// 浏览器缓存 24h:看过的图片不再重复回源 OSS;图片被替换后最长隔天生效(强刷立即生效)
-	req.Header.Set("Cache-Control", "public, max-age=86400")
-	req.Header.Set("Authorization", "OSS "+cfg.AccessKey+":"+signature)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", fmt.Errorf("OSS 返回 HTTP %d: %s", resp.StatusCode, string(body))
-	}
-	return ossURL, nil
-}
-
 // uploadLocalToOSS 仅上传模式:遍历本地图片目录,按文件名(景点ID)匹配景点并更新数据库。
-func uploadLocalToOSS(db *gorm.DB, cfg *ossCfg, dir string, spots []spot) {
+func uploadLocalToOSS(db *gorm.DB, signer *pkg.OssSigner, dir string, spots []spot) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		log.Fatalf("读取图片目录失败: %v", err)
@@ -554,7 +601,7 @@ func uploadLocalToOSS(db *gorm.DB, cfg *ossCfg, dir string, spots []spot) {
 			continue
 		}
 		key := "scenic/" + filepath.Base(local)
-		ossURL, err := ossUpload(cfg, local, key)
+		ossURL, err := signer.PutObject(local, key)
 		if err != nil {
 			log.Printf("[%s] OSS 上传失败: %v", s.NameZH, err)
 			failCnt++
@@ -639,7 +686,9 @@ func upsertSpot(db *gorm.DB, s spot, dists map[string]district) error {
 	if d, ok := dists[s.DistID]; ok {
 		updates["district"] = d.Name
 	}
-	if images != "" {
+	// 仅当本次拿到的是 OSS 地址,或库中原封面为空时才覆盖 images:
+	// 避免不带 -upload 的常规抓取用维基外链覆盖已上传的 OSS 封面。
+	if images != "" && (strings.Contains(images, "aliyuncs.com") || existing.Images == "") {
 		updates["images"] = images
 	}
 	return db.Model(&existing).Updates(updates).Error
@@ -689,7 +738,7 @@ func foodSeeds() []foodSeed {
 
 // runFoodCrawl 爬取美食词条文本与图片,写入 foods 表。
 // only 非空时仅处理名称包含该关键字的条目(用于单条重爬)。
-func runFoodCrawl(client *http.Client, db *gorm.DB, oss *ossCfg, outDir string, delayMs int, only string) {
+func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDir string, delayMs int, only string) {
 	seeds := foodSeeds()
 	if only != "" {
 		filtered := make([]foodSeed, 0, 1)
@@ -730,10 +779,11 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, oss *ossCfg, outDir string, 
 			if sum.Type == "disambiguation" {
 				continue
 			}
-			cur := sum.Extract
+			// 正文优先取 Action API(带 variant=zh-cn,返回简体);REST summary 实测
+			// 忽略 variant 可能返回繁体,仅在 intro 为空时兜底。sum 仍用于主图/消歧义。
+			cur, _ := fetchIntro(client, t)
 			if cur == "" {
-				// REST summary 空文本时回退 Action API
-				cur, _ = fetchIntro(client, t)
+				cur = sum.Extract
 			}
 			if !strings.Contains(cur, "成都") && !strings.Contains(cur, "四川") &&
 				!strings.Contains(cur, "川菜") && !strings.Contains(cur, "川味") {
@@ -776,8 +826,8 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, oss *ossCfg, outDir string, 
 				noImg++
 			} else {
 				log.Printf("    图片已保存: %s", local)
-				if oss != nil {
-					if ossURL, err := ossUpload(oss, local, "food/"+f.ID+ext); err != nil {
+				if signer != nil {
+					if ossURL, err := signer.PutObject(local, "food/"+f.ID+ext); err != nil {
 						log.Printf("    OSS 上传失败: %v", err)
 					} else {
 						imgURL = ossURL
