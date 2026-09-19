@@ -80,6 +80,7 @@
     "cityStayDays": "停留天数",
     "cityNLabel": "城市 {n}",
     "atLeastOneCity": "请至少添加一个城市",
+    "prefillApplied": "已根据精选路线「{name}」预填表单，选好出发日期即可生成",
     "totalDays": "总计 {n} 天",
     "step1": "去哪儿玩",
     "step2": "怎么走与住",

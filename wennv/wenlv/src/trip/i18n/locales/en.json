@@ -80,6 +80,7 @@
     "cityStayDays": "Stay Days",
     "cityNLabel": "City {n}",
     "atLeastOneCity": "Please add at least one city",
+    "prefillApplied": "Form prefilled from curated route \"{name}\" — pick a start date and generate",
     "totalDays": "Total {n} days",
     "step1": "Where to go",
     "step2": "Getting around & stay",

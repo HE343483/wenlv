@@ -343,12 +343,14 @@
 // 行程模块自带的全局样式(Paper Kit 暗色玻璃风格),随路由懒加载注入
 import '@/trip/styles/global.css'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { getTripHistory, deleteTripPlan, isMemoryEnabled, setMemoryEnabled } from '@/trip/services/api'
 import { getCurrentLocale } from '@/trip/i18n'
 import { useTripTaskStore } from '@/trip/stores/tripTask'
+import { findCuratedRoute, stopName } from '@/data/curatedRoutes'
+import { useLanguageStore } from '@/stores/language'
 import NavBar from '@/components/NavBar.vue'
 import type { TripHistoryItem, CityStay } from '@/trip/types'
 import type { Dayjs } from 'dayjs'
@@ -364,7 +366,9 @@ type LandingFormData = {
 }
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
+const langStore = useLanguageStore()
 const tripTask = useTripTaskStore()
 
 const scrollY = ref(0)
@@ -405,6 +409,21 @@ const formData = reactive<LandingFormData>({
 })
 
 const totalDays = computed(() => formData.cities.reduce((sum, cs) => sum + (cs.days || 1), 0))
+
+/**
+ * 精选路线预填：路线页「用 AI 生成同款行程」跳转 /trip?prefill=<路线id> 时，
+ * 按精选路线填充城市天数、旅行偏好与自由文本，用户只需选出发日期。
+ */
+const applyCuratedRoutePrefill = () => {
+  const prefillId = route.query.prefill
+  const curated = findCuratedRoute(typeof prefillId === 'string' ? prefillId : undefined)
+  if (!curated) return
+  const routeTitle = langStore.t(`routes.items.${curated.id}.title`)
+  formData.cities = [{ city: '成都', days: curated.days }]
+  formData.preferences = [...curated.interests]
+  formData.free_text_input = `参考精选路线「${routeTitle}」：${curated.stops.map(s => stopName(s, 'zh')).join(' → ')}`
+  message.info(t('home.prefillApplied', { name: routeTitle }))
+}
 
 /**
  * 景点来源切换:抖音真人分享暂未实现,点击时保持原选项并提示开发中
@@ -528,6 +547,7 @@ const removeHistoryPlan = async (planId: string) => {
 
 onMounted(() => {
   onScroll()
+  applyCuratedRoutePrefill()
   window.addEventListener('scroll', onScroll, { passive: true })
   void loadHistoryPlans()
 })

@@ -191,22 +191,54 @@ export function getFoodCategory(key: string): Promise<FoodCategoryItem> {
   return get<FoodCategoryItem>(`/food-category/${key}`)
 }
 
-/** 路线 */
+/** 路线站点(Stops JSON 解析后的结构,爬虫从维基百科采集) */
+export interface RouteStop {
+  name_zh: string
+  name_en?: string
+  name_ja?: string
+  /** 站点简介(维基百科导言,无词条时为运营文案) */
+  desc?: string
+  /** 站点配图 OSS 地址 */
+  image?: string
+}
+
+/** 精选路线(数据由爬虫采集,图片存 OSS) */
 export interface RouteItem {
   id: number
+  /** 路线标识(classic/panda/food/culture) */
+  route_key: string
   title_zh: string
   title_en?: string
+  title_ja?: string
   theme?: string
+  description?: string
+  /** 建议游玩天数 */
+  days?: number
+  /** 偏好标签(逗号分隔,与 AI 行程兴趣项一致) */
+  interests?: string
+  /** 封面图 OSS 地址 */
+  cover_image?: string
+  /** 途经站点 JSON 串 */
   stops?: string
-  duration?: string
-  difficulty?: string
+  sort?: number
+}
+
+/** 解析站点 JSON 串(容错:非法 JSON 返回空数组) */
+export function parseRouteStops(stops?: string): RouteStop[] {
+  if (!stops) return []
+  try {
+    const arr = JSON.parse(stops)
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
 }
 
 export function listRoutes(params?: QueryParams): Promise<PageResult<RouteItem>> {
   return get<PageResult<RouteItem>>('/routes', { params })
 }
 export function getRoute(id: number): Promise<RouteItem> {
-  return get<RouteItem>(`/routes/${id}`)
+  return get<PageResult<RouteItem>>('/routes').then(r => r.items.find(it => it.id === id)!)
 }
 
 /** 文旅热点(后端定时抓取官方文旅新闻源) */

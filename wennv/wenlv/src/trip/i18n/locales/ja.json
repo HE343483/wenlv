@@ -80,6 +80,7 @@
     "cityStayDays": "滞在日数",
     "cityNLabel": "都市 {n}",
     "atLeastOneCity": "少なくとも1つの都市を追加してください",
+    "prefillApplied": "厳選ルート「{name}」からフォームを入力しました。出発日を選べば生成できます",
     "totalDays": "合計 {n} 日",
     "step1": "どこへ行く",
     "step2": "移動と宿",

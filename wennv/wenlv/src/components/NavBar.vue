@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * NavBar.vue — 公开顶栏
- * 左：Logo + 天气图标 | 中：首页/探索/美食/路线/AI行程/收藏 | 右：语言 + 登录或我的
+ * 左：Logo + 天气图标 | 中：首页/探索/美食/路线/收藏 | 右：语言 + 登录或我的
+ * AI 行程(/trip)不再单独占导航位，由「路线」页导流进入，/trip 下「路线」保持高亮
  */
 import { ref, watch, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -19,7 +20,6 @@ const navItems = [
   { key: 'explore', path: '/home/explore' },
   { key: 'food', path: '/home/food' },
   { key: 'routes', path: '/home/routes' },
-  { key: 'trip', path: '/trip' },
   { key: 'favorites', path: '/home/favorites' },
 ] as const
 
@@ -91,7 +91,8 @@ function navigate(path: string) {
 
 function isNavActive(path: string) {
   if (path === '/') return route.path === '/'
-  if (path === '/trip') return route.path.startsWith('/trip')
+  // AI 行程(/trip)归入「路线」导航项：在该模块下路线保持高亮
+  if (path === '/home/routes') return route.path.startsWith('/home/routes') || route.path.startsWith('/trip')
   return route.path === path || route.path.startsWith(`${path}/`)
 }
 

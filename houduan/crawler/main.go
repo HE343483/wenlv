@@ -69,6 +69,7 @@ func main() {
 	descOnly := flag.Bool("desc-only", false, "仅回填景点简介:从数据库读取景点,用维基百科简体正文只更新 desc 字段")
 	food := flag.Bool("food", false, "爬取成都美食(写入 foods 表),配合 -upload 上传 OSS")
 	foodCard := flag.Bool("food-card", false, "爬取美食页六大风味名片配图(写入 food_cards 表),配合 -upload 上传 OSS")
+	routes := flag.Bool("routes", false, "爬取精选路线站点简介与配图(写入 routes 表),配合 -upload 上传 OSS")
 	only := flag.String("only", "", "美食/美食名片模式下仅处理名称或标识包含该关键字的条目")
 	flag.Parse()
 
@@ -122,6 +123,13 @@ func main() {
 	// ── 仅上传模式:本地图片 → OSS → 更新数据库,不访问维基百科 ──
 	if *uploadOnly {
 		uploadLocalToOSS(db, signer, *outDir, spots)
+		return
+	}
+
+	// ── 精选路线模式:抓取路线站点简介与配图写入 routes 表 ──
+	if *routes {
+		routeOut := filepath.Join(filepath.Dir(*outDir), "routes") // images/routes/
+		runRoutesCrawl(client, db, signer, routeOut, *delay)
 		return
 	}
 
@@ -784,7 +792,7 @@ func mustConnectDB() *gorm.DB {
 		log.Fatalf("连接数据库失败: %v", err)
 	}
 	// 与主服务保持一致,确保表存在且字段注释齐全
-	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}, &model.FoodCard{}); err != nil {
+	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}, &model.FoodCard{}, &model.Route{}); err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
 	return db

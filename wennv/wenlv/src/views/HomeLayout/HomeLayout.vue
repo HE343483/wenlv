@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * HomeLayout.vue — 登录后内部页面布局
- * 左：Logo + 天气 | 中：首页/探索/美食/路线/AI行程/收藏 | 右：语言 + 我的
+ * 左：Logo + 天气 | 中：首页/探索/美食/路线/收藏 | 右：语言 + 我的
+ * AI 行程(/trip)不单独占导航位，由「路线」页导流进入，/trip 下「路线」保持高亮
  */
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -27,12 +28,12 @@ const quickNavs = [
   { route: '/home/explore', key: 'nav.explore' },
   { route: '/home/food', key: 'nav.food' },
   { route: '/home/routes', key: 'nav.routes' },
-  { route: '/trip', key: 'nav.trip' },
   { route: '/home/favorites', key: 'nav.favorites' },
 ] as const
 
 const isQuickActive = (target: string) => {
-  if (target === '/trip') return route.path.startsWith('/trip')
+  // AI 行程(/trip)归入「路线」导航项：在该模块下路线保持高亮
+  if (target === '/home/routes') return route.path.startsWith('/home/routes') || route.path.startsWith('/trip')
   return route.path === target || route.path.startsWith(`${target}/`)
 }
 
