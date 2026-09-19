@@ -123,6 +123,12 @@ func main() {
 	hotTopicSvc := service.NewHotTopicService(hotTopicRepo, tripLLM, rdb)
 	hotTopicSvc.Start()
 
+	// 景点详情页实时数据:Redis 缓存时长由 SCENIC_CACHE_TTL_HOURS 配置(默认 24h)
+	scenicExtraSvc := service.NewScenicExtraService(
+		scenicRepo, tripAmap, rdb,
+		time.Duration(cfg.Trip.ScenicCacheTTLHours)*time.Hour,
+	)
+
 	// 处理器
 	h := &handler.Bootstrap{
 		Auth:     handler.NewAuthHandler(authSvc),
@@ -136,8 +142,11 @@ func main() {
 		Article:  handler.NewArticleHandler(articleSvc),
 		Upload:   handler.NewUploadHandler(uploadSvc),
 		HotTopic: handler.NewHotTopicHandler(hotTopicSvc),
-		Trip:     handler.NewTripHandler(tripPlanner, tripChat, tripTasks, tripSettings),
-		TripTool: handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripDouyin, tripMemory),
+
+		// ScenicExtra 景点详情页实时数据(周边推荐/交通站点)
+		ScenicExtra: handler.NewScenicExtraHandler(scenicExtraSvc),
+		Trip:        handler.NewTripHandler(tripPlanner, tripChat, tripTasks, tripSettings),
+		TripTool:    handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripDouyin, tripMemory),
 	}
 
 	engine := router.Setup(h, authSvc.ValidateAccess)

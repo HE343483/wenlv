@@ -245,13 +245,17 @@ func (s *AmapService) SearchPOI(ctx context.Context, keywords, city string, city
 
 // POIDetailResult POI 详情。
 type POIDetailResult struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Type     string   `json:"type"`
-	Address  string   `json:"address"`
-	Location Location `json:"location"`
-	Tel      string   `json:"tel,omitempty"`
-	Photos   []string `json:"photos,omitempty"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Type      string         `json:"type"`
+	Address   string         `json:"address"`
+	Location  Location       `json:"location"`
+	Tel       string         `json:"tel,omitempty"`
+	Photos    []string       `json:"photos,omitempty"`
+	Rating    string         `json:"rating,omitempty"`
+	Cost      string         `json:"cost,omitempty"`
+	OpenHours string         `json:"open_hours,omitempty"`
+	BizExt    map[string]any `json:"biz_ext,omitempty"`
 }
 
 // Location 为 POI 详情使用的坐标结构(与 model.Location 字段一致)。
@@ -279,6 +283,7 @@ func (s *AmapService) GetPOIDetail(ctx context.Context, poiID string) (*POIDetai
 			Photos   []struct {
 				URL string `json:"url"`
 			} `json:"photos"`
+			BizExt map[string]any `json:"biz_ext"`
 		} `json:"pois"`
 	}
 	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/place/detail", params, &result); err != nil {
@@ -301,6 +306,10 @@ func (s *AmapService) GetPOIDetail(ctx context.Context, poiID string) (*POIDetai
 			detail.Photos = append(detail.Photos, ph.URL)
 		}
 	}
+	detail.BizExt = p.BizExt
+	detail.Rating = pickBizExt(p.BizExt, "rating")
+	detail.Cost = pickBizExt(p.BizExt, "cost")
+	detail.OpenHours = pickOpenHours(p.BizExt)
 	return detail, nil
 }
 
@@ -472,4 +481,95 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// pickOpenHours 从高德 biz_ext 中提取开放时间。
+// 高德不同 POI 回传的键名不一致,按优先级取第一个非空值;全部为空返回空串,
+// 由人工或 LLM 参考值兜底(高德该字段覆盖率不高是已知情况)。
+func pickOpenHours(bizExt map[string]any) string {
+	for _, k := range []string{"open_time", "opentime_today", "opentime2", "opentime_week"} {
+		v := strings.TrimSpace(toStringValue(bizExt[k]))
+		if v == "" || v == "[]" {
+			continue
+		}
+		return v
+	}
+	return ""
+}
+
+// pickBizExt 读取 biz_ext 中的单个字符串字段。
+func pickBizExt(bizExt map[string]any, key string) string {
+	return strings.TrimSpace(toStringValue(bizExt[key]))
+}
+
+// AroundPOI 周边 POI(含直线距离,单位米)。
+type AroundPOI struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Type     string   `json:"type"`
+	Address  string   `json:"address"`
+	Location Location `json:"location"`
+	Distance int      `json:"distance"`
+	Tel      string   `json:"tel,omitempty"`
+}
+
+// SearchAround 以坐标为中心做周边搜索(高德 place/around)。
+// keywords 与 types 至少给一个;两者都空时用 types 兜底为风景名胜,
+// 避免高德返回参数错误。失败时返回 nil 由调用方降级为空数组。
+func (s *AmapService) SearchAround(ctx context.Context, lng, lat float64, keywords, types string, radius, offset int) []AroundPOI {
+	if s.apiKey() == "" {
+		return nil
+	}
+	if radius <= 0 || radius > 50000 {
+		radius = 3000
+	}
+	if offset <= 0 || offset > 25 {
+		offset = 10
+	}
+	if keywords == "" && types == "" {
+		types = "060000"
+	}
+	params := url.Values{}
+	params.Set("location", fmt.Sprintf("%.6f,%.6f", lng, lat))
+	params.Set("keywords", keywords)
+	params.Set("types", types)
+	params.Set("radius", strconv.Itoa(radius))
+	params.Set("offset", strconv.Itoa(offset))
+	params.Set("page", "1")
+	params.Set("extensions", "base")
+
+	var result struct {
+		Status string `json:"status"`
+		Info   string `json:"info"`
+		Pois   []struct {
+			ID       string `json:"id"`
+			Name     string `json:"name"`
+			Type     string `json:"type"`
+			Address  any    `json:"address"`
+			Location string `json:"location"`
+			Distance any    `json:"distance"`
+			Tel      any    `json:"tel"`
+		} `json:"pois"`
+	}
+	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/place/around", params, &result); err != nil {
+		fmt.Printf("高德周边搜索失败: %v\n", err)
+		return nil
+	}
+	if result.Status != "1" {
+		fmt.Printf("高德周边搜索返回异常: %s\n", result.Info)
+		return nil
+	}
+	out := make([]AroundPOI, 0, len(result.Pois))
+	for _, p := range result.Pois {
+		out = append(out, AroundPOI{
+			ID:       p.ID,
+			Name:     p.Name,
+			Type:     p.Type,
+			Address:  toStringValue(p.Address),
+			Location: parseAmapLocation(p.Location),
+			Distance: int(parseFlexInt(toStringValue(p.Distance))),
+			Tel:      toStringValue(p.Tel),
+		})
+	}
+	return out
 }

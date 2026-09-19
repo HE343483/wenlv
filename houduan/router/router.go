@@ -21,6 +21,8 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 	// 内容(公开)
 	api.GET("/scenic", h.Scenic.List)
 	api.GET("/scenic/:id", h.Scenic.Get)
+	api.GET("/scenic/:id/around", h.ScenicExtra.Around)
+	api.GET("/scenic/:id/transport", h.ScenicExtra.Transport)
 	api.GET("/food", h.Food.List)
 	api.GET("/food/:id", h.Food.Get)
 	api.GET("/routes", h.Route.List)
