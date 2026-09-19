@@ -32,12 +32,12 @@ func (h *UploadHandler) Policy(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	policy, err := h.svc.Policy(uid, req.FileName)
 	if err != nil {
-		pkg.ServerError(c, "生成上传签名失败")
+		pkg.ServerErrorWithErr(c, err, "生成上传签名失败")
 		return
 	}
 	pkg.OK(c, gin.H{
-		"policy":      policy,
-		"object_url":  h.svc.ResolveURL(policy.Key),
-		"expires_in":  15 * 60,
+		"policy":     policy,
+		"object_url": h.svc.ResolveURL(policy.Key),
+		"expires_in": 15 * 60,
 	})
 }

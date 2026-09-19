@@ -3,13 +3,14 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"wenlv-backend/logger"
 )
 
 // ============ 图片字节磁盘缓存(多内容平台共用) ============
@@ -156,7 +157,7 @@ func (c *imageDiskCache) cleanup() {
 		removed++
 	}
 	if removed > 0 {
-		fmt.Printf("🧹 [图片缓存] 超出容量上限,已淘汰 %d 个最久未使用的缓存文件\n", removed)
+		logger.Infof("[图片缓存] 超出容量上限,已淘汰 %d 个最久未使用的缓存文件", removed)
 	}
 }
 

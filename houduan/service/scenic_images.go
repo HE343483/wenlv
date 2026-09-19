@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +17,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 )
@@ -119,7 +119,7 @@ func (e *ScenicEnricher) collectImageCandidates(ctx context.Context, s model.Sce
 			u := strings.TrimSpace(e.xhs.PhotoURL(ctx, kw, "成都"))
 			if u == "" {
 				if e.xhsState.noteEmpty() {
-					log.Printf("    小红书连续 %d 次无结果,判定 Cookie 失效,本次运行后续景点跳过小红书", xhsEmptyStreakLimit)
+					logger.Warnf("小红书连续 %d 次无结果,判定 Cookie 失效,本次运行后续景点跳过小红书", xhsEmptyStreakLimit)
 					break
 				}
 				continue
@@ -149,7 +149,7 @@ func (e *ScenicEnricher) collectImageCandidates(ctx context.Context, s model.Sce
 			commonsRequests++
 			results, err := e.searchCommonsImages(ctx, q, names, want)
 			if err != nil {
-				log.Printf("    Commons 搜索失败 (%s): %v", q, err)
+				logger.Warnf("Commons 搜索失败 (%s): %v", q, err)
 				continue
 			}
 			for _, r := range results {
@@ -276,11 +276,11 @@ func fetchCommonsImageBytes(ctx context.Context, client *http.Client, rawURL str
 	if err == nil || !isRateLimitedError(err) {
 		return body, ct, err
 	}
-	log.Printf("    Commons 图片被限流(429),等待 2 秒后重试一次: %s", rawURL)
+	logger.Warnf("Commons 图片被限流(429),等待 2 秒后重试一次: %s", rawURL)
 	time.Sleep(2 * time.Second)
 	body, ct, retryErr := fetchBytesWithClient(ctx, client, rawURL)
 	if retryErr != nil {
-		log.Printf("    Commons 图片重试仍失败,跳过该张 %s: %v", rawURL, retryErr)
+		logger.Warnf("Commons 图片重试仍失败,跳过该张 %s: %v", rawURL, retryErr)
 	}
 	return body, ct, retryErr
 }
@@ -354,7 +354,7 @@ func newCommonsHTTPClient() *http.Client {
 	if p == "" {
 		transport.Proxy = http.ProxyFromEnvironment
 	} else if u, err := url.Parse(p); err != nil {
-		log.Printf("Commons 代理地址非法 (%s): %v,回退到 HTTPS_PROXY/HTTP_PROXY", p, err)
+		logger.Warnf("Commons 代理地址非法 (%s): %v,回退到 HTTPS_PROXY/HTTP_PROXY", p, err)
 		transport.Proxy = http.ProxyFromEnvironment
 	} else {
 		switch strings.ToLower(u.Scheme) {

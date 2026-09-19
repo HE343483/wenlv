@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -195,7 +196,7 @@ func (s *AmapService) warnOnce(key, msg string) {
 		return
 	}
 	s.warnKeys[key] = true
-	fmt.Println(msg)
+	logger.Warnf("%s", msg)
 }
 
 // SearchPOI POI 关键词搜索。
@@ -225,7 +226,7 @@ func (s *AmapService) SearchPOI(ctx context.Context, keywords, city string, city
 		} `json:"pois"`
 	}
 	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/place/text", params, &result); err != nil {
-		fmt.Printf("高德 POI 搜索失败: %v\n", err)
+		logger.Warnf("高德 POI 搜索失败: %v", err)
 		return nil
 	}
 	out := make([]model.POIInfo, 0, len(result.Pois))
@@ -337,7 +338,7 @@ func (s *AmapService) GetWeather(ctx context.Context, city string) []model.Weath
 		} `json:"forecasts"`
 	}
 	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/weather/weatherInfo", params, &result); err != nil {
-		fmt.Printf("高德天气查询失败: %v\n", err)
+		logger.Warnf("高德天气查询失败: %v", err)
 		return nil
 	}
 	if len(result.Forecasts) == 0 {
@@ -552,11 +553,11 @@ func (s *AmapService) SearchAround(ctx context.Context, lng, lat float64, keywor
 		} `json:"pois"`
 	}
 	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/place/around", params, &result); err != nil {
-		fmt.Printf("高德周边搜索失败: %v\n", err)
+		logger.Warnf("高德周边搜索失败: %v", err)
 		return nil
 	}
 	if result.Status != "1" {
-		fmt.Printf("高德周边搜索返回异常: %s\n", result.Info)
+		logger.Warnf("高德周边搜索返回异常: %s", result.Info)
 		return nil
 	}
 	out := make([]AroundPOI, 0, len(result.Pois))

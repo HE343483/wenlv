@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"wenlv-backend/logger"
 )
 
 // ============ 抖音服务 ============
@@ -228,7 +230,7 @@ func (s *DouyinService) searchAwemes(ctx context.Context, cookie, keyword string
 
 // SearchAttractionsText 搜索抖音真人分享并经 LLM 提纯为结构化景点文本。
 func (s *DouyinService) SearchAttractionsText(ctx context.Context, city, keywords, language string) (string, error) {
-	fmt.Printf("🔍 [抖音] 正在搜索抖音: %s %s\n", city, keywords)
+	logger.Infof("[抖音] 正在搜索抖音: %s %s", city, keywords)
 	cookie, err := s.cookie()
 	if err != nil {
 		return "", err
@@ -304,10 +306,10 @@ func (s *DouyinService) fetchPhotoURL(ctx context.Context, keyword string) strin
 	}
 	awemes, err := s.searchAwemes(ctx, cookie, keyword, 0)
 	if err != nil {
-		fmt.Printf("抖音单图抓取失败 (%s): %v\n", keyword, err)
+		logger.Warnf("抖音单图抓取失败 (%s): %v", keyword, err)
 		return ""
 	}
-	fmt.Printf("🔍 抖音搜图诊断 (%s): items=%d\n", keyword, len(awemes))
+	logger.Infof("抖音搜图诊断 (%s): items=%d", keyword, len(awemes))
 	for _, aweme := range awemes {
 		if u := firstImageURL(aweme); u != "" {
 			return u
@@ -428,7 +430,7 @@ func (s *DouyinService) PhotoBytes(ctx context.Context, name, city string) ([]by
 	for attempt, kw := range keywords {
 		rawURL := s.fetchPhotoURL(ctx, kw)
 		if rawURL == "" {
-			fmt.Printf("⚠️  抖音景点图片搜索无结果(%d/%d): %s\n", attempt+1, len(keywords), kw)
+			logger.Warnf("抖音景点图片搜索无结果(%d/%d): %s", attempt+1, len(keywords), kw)
 			continue
 		}
 		if err := validateDouyinImageURL(rawURL); err != nil {
@@ -439,7 +441,7 @@ func (s *DouyinService) PhotoBytes(ctx context.Context, name, city string) ([]by
 			s.cache.Write(kwCacheKey(kw), content, contentType)
 			return content, contentType, nil
 		}
-		fmt.Printf("⚠️  抖音图片下载失败(%s,第%d次,将换词重取): %v\n", kw, attempt+1, err)
+		logger.Warnf("抖音图片下载失败(%s,第%d次,将换词重取): %v", kw, attempt+1, err)
 	}
 	return nil, "", errors.New("未能获取景点图片")
 }

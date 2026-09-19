@@ -11,10 +11,11 @@ import (
 )
 
 // Setup 构建并返回配置好的 Gin 引擎。
-// validate 用于 access Token 校验。
-func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string) (uint, error)) *gin.Engine {
+// validate 用于 access Token 校验;rl 为用户级限流器(可为 nil,便于测试)。
+func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string) (uint, error), rl *middleware.RateLimiter) *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery(), middleware.CORS())
+	// 顺序:请求 ID → 跨域 → 访问日志 → panic 恢复(最内层,能兜住所有路由 panic)
+	r.Use(middleware.RequestID(), middleware.CORS(), middleware.AccessLogger(), middleware.Recovery())
 
 	api := r.Group("/api")
 
@@ -85,39 +86,65 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 	}
 
 	// ===== AI 行程规划模块(公开访问,与原 TripStar 一致使用匿名 user_id) =====
+	// 各类接口按用户限流:防止共享 LLM/高德额度被打爆、小红书搜图触发风控
 	if h.Trip != nil {
 		trip := api.Group("/trip")
 		{
-			trip.POST("/plan", h.Trip.Plan)
+			if rl != nil {
+				trip.POST("/plan", rl.PlanLimit(), h.Trip.Plan)
+				trip.POST("/chat/ask", rl.ChatLimit(), h.Trip.Ask)
+			} else {
+				trip.POST("/plan", h.Trip.Plan)
+				trip.POST("/chat/ask", h.Trip.Ask)
+			}
+			trip.POST("/story-card", h.Trip.StoryCard) // 旅行故事卡片文案(出海分享)
 			trip.GET("/status/:taskId", h.Trip.Status)
 			trip.GET("/history", h.Trip.History)
 			trip.GET("/plans/:planId", h.Trip.PlanDetail)
 			trip.DELETE("/history/:planId", h.Trip.DeleteHistory)
 			trip.GET("/health", h.Trip.Health)
 			trip.GET("/ws/:taskId", h.Trip.WS)
-			trip.POST("/chat/ask", h.Trip.Ask)
 		}
 	}
 	if h.TripTool != nil {
 		poi := api.Group("/poi")
 		{
-			poi.GET("/detail/:poiId", h.TripTool.POIDetail)
-			poi.GET("/search", h.TripTool.POISearch)
-			poi.GET("/image", h.TripTool.POIImage)
-			poi.GET("/photo", h.TripTool.POIPhoto)
+			if rl != nil {
+				poi.GET("/detail/:poiId", rl.MapLimit(), h.TripTool.POIDetail)
+				poi.GET("/search", rl.MapLimit(), h.TripTool.POISearch)
+				poi.GET("/image", rl.ImageLimit(), h.TripTool.POIImage)
+				poi.GET("/photo", rl.ImageLimit(), h.TripTool.POIPhoto)
+			} else {
+				poi.GET("/detail/:poiId", h.TripTool.POIDetail)
+				poi.GET("/search", h.TripTool.POISearch)
+				poi.GET("/image", h.TripTool.POIImage)
+				poi.GET("/photo", h.TripTool.POIPhoto)
+			}
 		}
 		mapGroup := api.Group("/map")
 		{
-			mapGroup.GET("/poi", h.TripTool.MapPOI)
-			mapGroup.GET("/weather", h.TripTool.MapWeather)
-			mapGroup.GET("/districts", h.TripTool.MapDistricts)
-			mapGroup.POST("/route", h.TripTool.MapRoute)
+			if rl != nil {
+				mapGroup.GET("/poi", rl.MapLimit(), h.TripTool.MapPOI)
+				mapGroup.GET("/weather", rl.MapLimit(), h.TripTool.MapWeather)
+				mapGroup.GET("/districts", rl.MapLimit(), h.TripTool.MapDistricts)
+				mapGroup.POST("/route", rl.MapLimit(), h.TripTool.MapRoute)
+			} else {
+				mapGroup.GET("/poi", h.TripTool.MapPOI)
+				mapGroup.GET("/weather", h.TripTool.MapWeather)
+				mapGroup.GET("/districts", h.TripTool.MapDistricts)
+				mapGroup.POST("/route", h.TripTool.MapRoute)
+			}
 			mapGroup.GET("/health", h.TripTool.MapHealth)
 		}
 		chat := api.Group("/chat")
 		{
-			chat.POST("/ask", h.Trip.Ask)
-			chat.POST("/ask/stream", h.Trip.AskStream) // SSE 流式问答
+			if rl != nil {
+				chat.POST("/ask", rl.ChatLimit(), h.Trip.Ask)
+				chat.POST("/ask/stream", rl.ChatLimit(), h.Trip.AskStream) // SSE 流式问答
+			} else {
+				chat.POST("/ask", h.Trip.Ask)
+				chat.POST("/ask/stream", h.Trip.AskStream) // SSE 流式问答
+			}
 		}
 		settings := api.Group("/settings")
 		{

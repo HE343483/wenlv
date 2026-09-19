@@ -13,6 +13,7 @@ import { useLanguageStore } from '@/stores/language'
 import { getFood, listFoods, getFoodCategory } from '@/api/content'
 import type { FoodItem, FoodCategoryItem } from '@/api/content'
 import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
+import { pickDesc, pickCultureNote, pickName } from '@/utils/storyI18n'
 import { getRuntimeMapJsKey } from '@/trip/services/api'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
@@ -110,7 +111,7 @@ const isCategoryPage = computed(() => isFallback.value && !!category.value)
 
 const displayName = computed(() => {
   if (food.value) {
-    return langStore.lang === 'zh' ? food.value.name_zh : (food.value.name_en || food.value.name_zh)
+    return pickName(food.value, langStore.lang)
   }
   if (isFallback.value) {
     return langStore.lang === 'en' ? fallbackNameEn.value : fallbackNameZh.value
@@ -132,10 +133,13 @@ const heroTags = computed(() => splitList(food.value?.tags))
 const heroImage = computed(() => (food.value?.images && !imgFailed.value) ? food.value.images : '')
 
 const displayDesc = computed(() => {
-  if (food.value) return displayFact(food.value.desc, noData.value)
+  if (food.value) return displayFact(pickDesc(food.value, langStore.lang), noData.value)
   if (isFallback.value) return categoryIntro.value
   return noData.value
 })
+
+/* 文化注解:仅非中文语言且后端已生成时展示(类别页无此字段,自动为空) */
+const cultureNotes = computed(() => pickCultureNote(food.value, langStore.lang))
 
 /* 事实 / 参考值字段：空值统一显示"暂无数据" */
 const ratingText = computed(() => displayFact(food.value?.rating, noData.value))
@@ -148,6 +152,25 @@ const sceneText = computed(() => displayFact(food.value?.recommend_scene, noData
 /* 风味故事 / 美味瞬间 */
 const sections = computed(() => parseSections(food.value?.story_sections))
 const galleryImages = computed(() => splitList(food.value?.gallery_images))
+
+/* ── 国际点菜卡:给外国游客看的菜名/直译/食材/辣度(三语均展示) ── */
+/**
+ * 辣度文本 → 辣椒可视化(0-5 个 🌶)。
+ * 常见值映射:不辣/无辣 0、微辣 1、中辣 2、重辣/特辣 4、变态辣/魔鬼辣 5;
+ * 未知文本原样展示并给 1 个辣椒;空值显示占位文案。
+ */
+function spiceChilies(level: string | undefined, placeholder: string): { count: number; text: string } {
+  const v = (level || '').trim()
+  if (!v) return { count: 0, text: placeholder }
+  if (/(不辣|无辣|免辣|清淡)/.test(v)) return { count: 0, text: v }
+  if (v.includes('微辣')) return { count: 1, text: v }
+  if (v.includes('中辣')) return { count: 2, text: v }
+  if (/(变态辣|魔鬼辣|爆辣)/.test(v)) return { count: 5, text: v }
+  if (/(重辣|特辣|超辣|狠辣)/.test(v)) return { count: 4, text: v }
+  return { count: 1, text: v }
+}
+const menuSpice = computed(() => spiceChilies(food.value?.spice_level, noData.value))
+const hasIngredients = computed(() => !!(food.value?.ingredients_zh || food.value?.ingredients_en))
 
 /* ── 寻味地图：容器常驻可见,占位块绝对定位覆盖；Key/坐标缺失或加载失败时保持占位 ── */
 const mapKey = getRuntimeMapJsKey() || import.meta.env.VITE_AMAP_WEB_JS_KEY || ''
@@ -199,7 +222,7 @@ async function loadRelated() {
 }
 
 function relatedName(item: FoodItem): string {
-  return langStore.lang === 'zh' ? item.name_zh : (item.name_en || item.name_zh)
+  return pickName(item, langStore.lang)
 }
 
 /* 简介截断到 40 字以内 */
@@ -416,6 +439,76 @@ watch(foodId, () => { loadDetail() })
               {{ displayDesc }}
               <em v-if="isFallback && categoryIntroEstimated" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
             </p>
+
+            <!-- 文化注解:外语模式下展示 LLM 生成的当地饮食文化背景 -->
+            <div v-if="cultureNotes.length" class="culture-note">
+              <div class="culture-note__head">
+                <span class="culture-note__icon" aria-hidden="true">📖</span>
+                <div class="culture-note__titles">
+                  <h3 class="culture-note__title">{{ langStore.t('cultureNote.title') }}</h3>
+                  <p class="culture-note__hint">{{ langStore.t('cultureNote.hint') }}</p>
+                </div>
+              </div>
+              <ul class="culture-note__list">
+                <li v-for="(note, i) in cultureNotes" :key="i" class="culture-note__item">
+                  <span class="culture-note__dot" aria-hidden="true" />
+                  <span>{{ note }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ──── 国际点菜卡（仅数字 id 详情页,三语均展示）──── -->
+      <section v-if="food" class="detail-section container">
+        <div class="menu-card">
+          <header class="menu-card__head">
+            <span class="menu-card__icon" aria-hidden="true">🧾</span>
+            <h3 class="menu-card__title">{{ langStore.t('menuCard.title') }}</h3>
+          </header>
+
+          <div class="menu-card__names">
+            <span class="menu-card__name-zh">{{ food.name_zh }}</span>
+            <span v-if="food.name_en" class="menu-card__name-en">{{ food.name_en }}</span>
+          </div>
+
+          <div v-if="food.name_literal_en" class="menu-card__literal">
+            <span class="menu-card__literal-text">
+              {{ langStore.t('menuCard.literal') }}: {{ food.name_literal_en }}
+            </span>
+            <span class="menu-card__literal-tip">{{ langStore.t('menuCard.literalTip') }}</span>
+          </div>
+
+          <div class="menu-card__rows">
+            <div class="menu-card__row">
+              <span class="menu-card__key">{{ langStore.t('menuCard.ingredients') }}</span>
+              <span v-if="hasIngredients" class="menu-card__val">
+                <span v-if="food.ingredients_zh" class="menu-card__ing">
+                  <i class="menu-card__ing-label">{{ langStore.t('menuCard.ingredientsZh') }}</i>
+                  {{ food.ingredients_zh }}
+                </span>
+                <span v-if="food.ingredients_en" class="menu-card__ing">
+                  <i class="menu-card__ing-label">{{ langStore.t('menuCard.ingredientsEn') }}</i>
+                  {{ food.ingredients_en }}
+                </span>
+              </span>
+              <span v-else class="menu-card__val menu-card__val--empty">{{ noData }}</span>
+            </div>
+            <div class="menu-card__row">
+              <span class="menu-card__key">{{ langStore.t('menuCard.spice') }}</span>
+              <span class="menu-card__val">
+                <span class="menu-card__chilies" aria-hidden="true">
+                  <span
+                    v-for="i in 5"
+                    :key="i"
+                    class="menu-card__chili"
+                    :class="{ 'menu-card__chili--dim': i > menuSpice.count }"
+                  >🌶</span>
+                </span>
+                <span class="menu-card__spice-text">{{ menuSpice.text }}</span>
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -994,6 +1087,229 @@ watch(foodId, () => { loadDetail() })
 }
 
 /* ========================================
+   文化注解卡(外语模式:琥珀色渐变)
+   ======================================== */
+.culture-note {
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(201, 138, 43, 0.35);
+  background: linear-gradient(135deg, rgba(243, 224, 178, 0.6) 0%, rgba(252, 246, 230, 0.9) 60%, rgba(250, 236, 205, 0.55) 100%);
+}
+
+.culture-note__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.culture-note__icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-xl);
+}
+
+.culture-note__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #8a5a12;
+  letter-spacing: var(--tracking-wide);
+}
+
+.culture-note__hint {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: rgba(138, 90, 18, 0.72);
+  letter-spacing: var(--tracking-wide);
+}
+
+.culture-note__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.culture-note__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: #6b4f26;
+}
+
+.culture-note__dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: var(--radius-full);
+  background: #c98a2b;
+}
+
+/* ========================================
+   国际点菜卡(给外国游客点菜用,三语均展示)
+   ======================================== */
+.menu-card {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-8);
+  background:
+    linear-gradient(135deg, rgba(243, 224, 178, 0.35) 0%, rgba(252, 246, 230, 0.65) 100%),
+    var(--color-surface);
+  border: 1px solid rgba(201, 138, 43, 0.4);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 6px 24px rgba(201, 138, 43, 0.12);
+}
+
+.menu-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px dashed rgba(201, 138, 43, 0.45);
+}
+
+.menu-card__icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-lg);
+}
+
+.menu-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #8a5a12;
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+}
+
+.menu-card__names {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-5) 0 var(--space-2);
+}
+
+.menu-card__name-zh {
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-3xl), 5vw, var(--text-5xl));
+  font-weight: 900;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wide);
+  line-height: 1.15;
+}
+
+.menu-card__name-en {
+  font-family: var(--font-en-display);
+  font-style: italic;
+  font-size: var(--text-base);
+  color: var(--color-cinnabar);
+  letter-spacing: var(--tracking-wider);
+}
+
+.menu-card__literal {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.menu-card__literal-text {
+  font-family: var(--font-en-body);
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: #8a5a12;
+  letter-spacing: var(--tracking-wide);
+}
+
+.menu-card__literal-tip {
+  font-size: var(--text-xs);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(201, 138, 43, 0.5);
+  background: rgba(255, 255, 255, 0.55);
+  color: #8a5a12;
+  letter-spacing: var(--tracking-wide);
+}
+
+.menu-card__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.menu-card__row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: start;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(201, 138, 43, 0.25);
+  border-radius: var(--radius-md);
+}
+
+.menu-card__key {
+  font-size: var(--text-xs);
+  color: #8a5a12;
+  letter-spacing: var(--tracking-wide);
+  padding-top: 2px;
+}
+
+.menu-card__val {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.menu-card__val--empty {
+  color: var(--color-text-muted);
+}
+
+.menu-card__ing {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.menu-card__ing-label {
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: var(--text-xs);
+  color: rgba(138, 90, 18, 0.72);
+}
+
+.menu-card__chilies {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+.menu-card__chili--dim {
+  opacity: 0.18;
+  filter: grayscale(1);
+}
+
+.menu-card__spice-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-wide);
+}
+
+/* ========================================
    实用信息
    ======================================== */
 .detail-info {
@@ -1426,6 +1742,13 @@ watch(foodId, () => { loadDetail() })
   }
   .detail-hero__overlay {
     padding: var(--space-6) var(--space-4);
+  }
+  .menu-card {
+    padding: var(--space-5) var(--space-4);
+  }
+  .menu-card__row {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
   }
 }
 </style>

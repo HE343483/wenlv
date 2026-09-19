@@ -31,6 +31,7 @@
     "queryTaskStatusFailed": "タスク状態の取得に失敗しました",
     "deleteTripPlanFailed": "履歴プランの削除に失敗しました",
     "generateTripPlanFailed": "旅行プランの生成に失敗しました",
+    "generateStoryCardFailed": "ストーリーカードの生成に失敗しました",
     "healthCheckFailed": "ヘルスチェックに失敗しました"
   },
   "settings": {
@@ -38,6 +39,7 @@
     "title": "設定",
     "saveApply": "保存して適用",
     "cancel": "キャンセル",
+    "notice": "設定は不要です。システム内蔵のサービスをそのまま利用できます。以下は独自の API Key / Cookie を使いたい上級者向けの項目です。",
     "labels": {
       "apiBaseUrl": "バックエンド URL",
       "amapJsKey": "AMap JS Key",
@@ -186,6 +188,7 @@
     "exportTrip": "旅程をエクスポート",
     "exportImage": "旅のしおりを出力",
     "exportPdf": "PDF として保存",
+    "planLangNotice": "この旅程は{lang}で生成・保存されたため、内容の言語が現在の表示言語と異なります",
     "side": {
       "overview": "旅程概要",
       "budget": "予算内訳",
@@ -335,5 +338,27 @@
     "mapInfo": {
       "dayAttraction": "{day} 日目 スポット {index}"
     }
+  },
+  "storyCard": {
+    "title": "ストーリーカード",
+    "generate": "生成",
+    "regenerate": "再生成",
+    "save": "画像を保存",
+    "download": "ダウンロード",
+    "tip": "カードは Canvas で描画され、保存して共有できます",
+    "generating": "あなたの成都ストーリーを生成中…",
+    "fallbackNotice": "AI 文案を利用できないため、ローカルテンプレートを適用しました",
+    "saveSuccess": "ストーリーカードを保存しました",
+    "saveFailed": "保存に失敗しました: {error}",
+    "close": "閉じる",
+    "cityName": "成都",
+    "cityNameEn": "CHENGDU",
+    "brand": "蜀韻スマート旅 · AI 文化旅",
+    "routeLabel": "旅程ルート",
+    "daysMeta": "{count} 日間の旅",
+    "scanTip": "扫码开启你的成都故事",
+    "scanTipEn": "Scan to start your Chengdu story",
+    "scanTipJa": "QRコードであなたの成都の物語を",
+    "filePrefix": "成都ストーリーカード"
   }
 }

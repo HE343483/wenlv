@@ -3,10 +3,11 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
+
+	"wenlv-backend/logger"
 )
 
 // Config 汇总整个应用所需的运行配置。
@@ -62,12 +63,28 @@ type Config struct {
 		MemoryMinInitWeight    float64
 		MemoryMaxSingleContent int
 	}
+	// RateLimit 面向用户的限流参数(<=0 表示关闭该项限制)
+	RateLimit struct {
+		PlanPer10Min      int
+		PlanPerDay        int
+		PlanMaxConcurrent int
+		ChatPerMin        int
+		MapPerMin         int
+		ImagePerMin       int
+	}
+	// Log 日志模块:按级别分文件落盘到 logs/ 目录,报错带错误 ID
+	Log struct {
+		Dir           string
+		Level         string
+		Console       bool
+		RetentionDays int
+	}
 }
 
 // Load 加载配置:优先读取工区目录 .env 文件,未命中时回退到系统环境变量。
 func Load() *Config {
 	if err := godotenv.Load(); err != nil {
-		log.Println("未找到 .env 文件,将使用系统环境变量")
+		logger.Infof("未找到 .env 文件,将使用系统环境变量")
 	}
 
 	c := &Config{}
@@ -123,6 +140,20 @@ func Load() *Config {
 	c.Trip.MemoryMinInitWeight = getEnvFloat("MIN_INIT_WEIGHT", 4.0)
 	c.Trip.MemoryMaxSingleContent = getEnvInt("MEMORY_MAX_SINGLE_CONTENT", 120)
 
+	// 用户级限流:防止共享的 LLM/高德额度被打爆、小红书搜图触发风控
+	c.RateLimit.PlanPer10Min = getEnvInt("RL_PLAN_PER_10MIN", 3)
+	c.RateLimit.PlanPerDay = getEnvInt("RL_PLAN_PER_DAY", 10)
+	c.RateLimit.PlanMaxConcurrent = getEnvInt("RL_PLAN_MAX_CONCURRENT", 3)
+	c.RateLimit.ChatPerMin = getEnvInt("RL_CHAT_PER_MIN", 10)
+	c.RateLimit.MapPerMin = getEnvInt("RL_MAP_PER_MIN", 60)
+	c.RateLimit.ImagePerMin = getEnvInt("RL_IMAGE_PER_MIN", 30)
+
+	// 日志模块:分级分文件落盘,报错带错误 ID
+	c.Log.Dir = getEnv("LOG_DIR", "logs")
+	c.Log.Level = getEnv("LOG_LEVEL", "info")
+	c.Log.Console = getEnv("LOG_CONSOLE", "true") != "false"
+	c.Log.RetentionDays = getEnvInt("LOG_RETENTION_DAYS", 30)
+
 	return c
 }
 
@@ -146,7 +177,7 @@ func getEnvInt(key string, def int) int {
 	}
 	n := 0
 	if _, err := fmt.Sscanf(v, "%d", &n); err != nil {
-		log.Printf("配置项 %s 解析失败,使用默认值 %d: %v", key, def, err)
+		logger.Warnf("配置项 %s 解析失败,使用默认值 %d: %v", key, def, err)
 		return def
 	}
 	return n
@@ -159,7 +190,7 @@ func getEnvFloat(key string, def float64) float64 {
 	}
 	f := 0.0
 	if _, err := fmt.Sscanf(v, "%f", &f); err != nil {
-		log.Printf("配置项 %s 解析失败,使用默认值 %v: %v", key, def, err)
+		logger.Warnf("配置项 %s 解析失败,使用默认值 %v: %v", key, def, err)
 		return def
 	}
 	return f

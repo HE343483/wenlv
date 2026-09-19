@@ -14,6 +14,7 @@ import { districts } from '@/data/chengdu'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 import type { ScenicSpot } from '@/types'
+import { pickName } from '@/utils/storyI18n'
 
 const router = useRouter()
 const langStore = useLanguageStore()
@@ -44,7 +45,7 @@ function mapScenic(item: ScenicItem): ScenicSpot {
     id: `scenic-${item.id}`,
     districtId: d?.id ?? '',
     nameZh: item.name_zh,
-    nameEn: item.name_en || item.name_zh,
+    nameEn: pickName(item, langStore.lang),
     shortDescZh: desc.length > 30 ? desc.slice(0, 30) + '…' : desc,
     shortDescEn: desc.length > 60 ? desc.slice(0, 60) + '…' : desc,
     descriptionZh: desc,

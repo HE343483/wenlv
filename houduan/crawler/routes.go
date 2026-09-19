@@ -10,7 +10,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 )
@@ -127,17 +127,17 @@ type routeStopResult struct {
 func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDir string, delayMs int) {
 	seeds := routeSeeds()
 	if signer == nil {
-		log.Printf("开始爬取精选路线(%d 条),图片保存目录: %s(未配置 -upload,仅本地留档)", len(seeds), outDir)
+		logger.Infof("开始爬取精选路线(%d 条),图片保存目录: %s(未配置 -upload,仅本地留档)", len(seeds), outDir)
 		if err := os.MkdirAll(outDir, 0o755); err != nil {
-			log.Fatalf("创建图片目录失败: %v", err)
+			logger.Fatalf("创建图片目录失败: %v", err)
 		}
 	} else {
-		log.Printf("开始爬取精选路线(%d 条),站点图片直接上传 OSS", len(seeds))
+		logger.Infof("开始爬取精选路线(%d 条),站点图片直接上传 OSS", len(seeds))
 	}
 
 	okCnt, failCnt := 0, 0
 	for _, r := range seeds {
-		log.Printf("── 路线 [%s] %s(%d 个站点)", r.Key, r.TitleZH, len(r.Stops))
+		logger.Infof("── 路线 [%s] %s(%d 个站点)", r.Key, r.TitleZH, len(r.Stops))
 
 		// 已入库站点:OSS 图片跳过重传,失败站点仅补图(避免反复重爬触发限流)
 		existingStops := loadRouteStops(db, r.Key)
@@ -149,13 +149,13 @@ func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, out
 		var stops []routeStopResult
 		cover := ""
 		for i, st := range r.Stops {
-			log.Printf("  [%d/%d] %s", i+1, len(r.Stops), st.NameZH)
+			logger.Infof("  [%d/%d] %s", i+1, len(r.Stops), st.NameZH)
 			res := routeStopResult{NameZH: st.NameZH, NameEN: st.NameEN, NameJA: st.NameJA, Desc: st.Desc}
 			prev, hasPrev := existingByName[st.NameZH]
 
 			// 0. 已有 OSS 配图的历史站点:整站复用,不再访问维基百科/OSS
 			if hasPrev && strings.Contains(prev.Image, "aliyuncs.com") {
-				log.Printf("      已有 OSS 配图,跳过")
+				logger.Infof("      已有 OSS 配图,跳过")
 				if prev.Desc != "" {
 					res.Desc = prev.Desc
 				}
@@ -174,12 +174,12 @@ func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, out
 			}
 			titles, err := searchWiki(client, searchName)
 			if err != nil {
-				log.Printf("      搜索失败: %v", err)
+				logger.Warnf("      搜索失败: %v", err)
 			}
 			for _, t := range titles {
 				extract, err := fetchIntro(client, t)
 				if err != nil {
-					log.Printf("      正文获取失败: %v", err)
+					logger.Warnf("      正文获取失败: %v", err)
 					break
 				}
 				if extract == "" {
@@ -190,7 +190,7 @@ func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, out
 					extract = strings.TrimSpace(sum.Extract)
 				}
 				if !mentionsChengdu(extract) {
-					log.Printf("      候选 [%s] 与成都/四川无关,跳过", t)
+					logger.Infof("      候选 [%s] 与成都/四川无关,跳过", t)
 					continue
 				}
 				res.Desc = extract
@@ -206,7 +206,7 @@ func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, out
 			if res.Image == "" {
 				if img := commonsImage(client, st.NameZH, st.NameEN); img != "" {
 					res.Image = img
-					log.Printf("      Commons 图库补图")
+					logger.Infof("      Commons 图库补图")
 				}
 			}
 
@@ -219,33 +219,33 @@ func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, out
 				if signer != nil {
 					ossURL := signer.ResolveURL(key)
 					if ossObjectExists(ossURL) {
-						log.Printf("      OSS 已有同名对象,直接复用: %s", ossURL)
+						logger.Infof("      OSS 已有同名对象,直接复用: %s", ossURL)
 						res.Image = ossURL
 					} else {
 						uploaded, err := uploadImageToOSSWithRetry(client, signer, res.Image, key)
 						if err != nil {
-							log.Printf("      OSS 上传失败(已重试): %v", err)
+							logger.Warnf("      OSS 上传失败(已重试): %v", err)
 							if hasPrev && strings.Contains(prev.Image, "aliyuncs.com") {
 								res.Image = prev.Image
-								log.Printf("      保留原有 OSS 配图")
+								logger.Warnf("      保留原有 OSS 配图")
 							} else {
 								res.Image = ""
 							}
 						} else {
-							log.Printf("      已上传 OSS: %s", uploaded)
+							logger.Infof("      已上传 OSS: %s", uploaded)
 							res.Image = uploaded
 						}
 					}
 				} else {
 					local := filepath.Join(outDir, r.Key+"-"+st.Key+ext)
 					if err := downloadImage(client, res.Image, local); err != nil {
-						log.Printf("      图片下载失败: %v", err)
+						logger.Warnf("      图片下载失败: %v", err)
 					} else {
-						log.Printf("      图片已保存: %s", local)
+						logger.Infof("      图片已保存: %s", local)
 					}
 				}
 			} else {
-				log.Printf("      未获取到配图,保留空")
+				logger.Infof("      未获取到配图,保留空")
 			}
 			if cover == "" && strings.Contains(res.Image, "aliyuncs.com") {
 				cover = res.Image // 封面取第一张已上传 OSS 的站点图
@@ -257,19 +257,19 @@ func runRoutesCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, out
 		// 4. 组装站点 JSON 并入库
 		stopsJSON, err := json.Marshal(stops)
 		if err != nil {
-			log.Printf("  站点 JSON 序列化失败: %v", err)
+			logger.Errorf("  站点 JSON 序列化失败: %v", err)
 			failCnt++
 			continue
 		}
 		if err := upsertRoute(db, r, string(stopsJSON), cover); err != nil {
-			log.Printf("  入库失败: %v", err)
+			logger.Errorf("  入库失败: %v", err)
 			failCnt++
 			continue
 		}
-		log.Printf("  已入库(封面: %s)", truncate(cover, 60))
+		logger.Infof("  已入库(封面: %s)", truncate(cover, 60))
 		okCnt++
 	}
-	log.Printf("路线爬取完成: 成功 %d / 失败 %d", okCnt, failCnt)
+	logger.Infof("路线爬取完成: 成功 %d / 失败 %d", okCnt, failCnt)
 }
 
 // upsertRoute 按 route_key 写入 routes 表;已有记录仅在拿到新内容时覆盖。
@@ -342,7 +342,7 @@ func uploadImageToOSSWithRetry(client *http.Client, signer *pkg.OssSigner, image
 	for attempt := 0; attempt < 3; attempt++ {
 		if attempt > 0 {
 			wait := time.Duration(2<<uint(attempt-1)) * time.Second // 2s/4s→5s 近似退避
-			log.Printf("      OSS 限流,第 %d 次重试(等待 %v)", attempt, wait)
+			logger.Warnf("      OSS 限流,第 %d 次重试(等待 %v)", attempt, wait)
 			time.Sleep(wait)
 		}
 		ossURL, err := uploadImageToOSS(client, signer, imageURL, key)

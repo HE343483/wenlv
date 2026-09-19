@@ -36,7 +36,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			pkg.Fail(c, 422, 1001, err.Error())
 			return
 		}
-		pkg.ServerError(c, "注册失败")
+		pkg.ServerErrorWithErr(c, err, "注册失败")
 		return
 	}
 	pkg.OK(c, nil)
@@ -48,8 +48,8 @@ type loginReq struct {
 }
 
 type loginResp struct {
-	TokenType string          `json:"token_type"`
-	User      map[string]any  `json:"user"`
+	TokenType string            `json:"token_type"`
+	User      map[string]any    `json:"user"`
 	Tokens    service.TokenPair `json:"tokens"`
 }
 
@@ -66,7 +66,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			pkg.Fail(c, 401, 1002, err.Error())
 			return
 		}
-		pkg.ServerError(c, "登录失败")
+		pkg.ServerErrorWithErr(c, err, "登录失败")
 		return
 	}
 	pkg.OK(c, loginResp{
@@ -97,7 +97,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 			pkg.Fail(c, 401, 1003, err.Error())
 			return
 		}
-		pkg.ServerError(c, "刷新失败")
+		pkg.ServerErrorWithErr(c, err, "刷新失败")
 		return
 	}
 	pkg.OK(c, pair)
@@ -121,7 +121,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		refreshJTI, _ = h.svc.ParseRefreshJTI(req.RefreshToken)
 	}
 	if err := h.svc.Logout(c.Request.Context(), accessJTI, refreshJTI); err != nil {
-		pkg.ServerError(c, "登出失败")
+		pkg.ServerErrorWithErr(c, err, "登出失败")
 		return
 	}
 	pkg.OK(c, nil)
@@ -132,7 +132,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	u, err := h.svc.GetUser(c.Request.Context(), uid)
 	if err != nil {
-		pkg.ServerError(c, "获取用户失败")
+		pkg.ServerErrorWithErr(c, err, "获取用户失败")
 		return
 	}
 	pkg.OK(c, map[string]any{

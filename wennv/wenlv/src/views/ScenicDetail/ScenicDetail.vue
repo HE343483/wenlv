@@ -10,6 +10,7 @@ import { useLanguageStore } from '@/stores/language'
 import { getScenic, getScenicAround, getScenicTransport } from '@/api/content'
 import type { ScenicItem, ScenicAroundItem, ScenicTransitStop } from '@/api/content'
 import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
+import { pickDesc, pickCultureNote, pickName } from '@/utils/storyI18n'
 import { getRuntimeMapJsKey } from '@/trip/services/api'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
@@ -64,7 +65,7 @@ onMounted(async () => {
 
 const displayName = computed(() => {
   if (!scenic.value) return placeholderName.value
-  return langStore.lang === 'zh' ? scenic.value.name_zh : (scenic.value.name_en || scenic.value.name_zh)
+  return pickName(scenic.value, langStore.lang)
 })
 const subName = computed(() => {
   if (!scenic.value) return ''
@@ -73,7 +74,10 @@ const subName = computed(() => {
 const spotTags = computed(() =>
   (scenic.value?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
 )
-const spotDesc = computed(() => scenic.value?.desc || '')
+/* 简介正文:外语模式取故事版多语种介绍(未生成回落中文),中文模式维持原展示 */
+const spotDesc = computed(() => pickDesc(scenic.value, langStore.lang))
+/* 文化注解:仅非中文语言且后端已生成时展示 */
+const cultureNotes = computed(() => pickCultureNote(scenic.value, langStore.lang))
 const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? scenic.value.images : '')
 
 /* ── 详情扩展数据:图文详情 / 精彩瞬间 / 参考值标注 ── */
@@ -268,6 +272,23 @@ onBeforeUnmount(() => {
             <p class="detail-summary__text">
               {{ spotDesc || langStore.t('scenicDetail.overviewPlaceholder') }}
             </p>
+
+            <!-- 文化注解:外语模式下展示 LLM 生成的当地文化背景 -->
+            <div v-if="cultureNotes.length" class="culture-note">
+              <div class="culture-note__head">
+                <span class="culture-note__icon" aria-hidden="true">📖</span>
+                <div class="culture-note__titles">
+                  <h3 class="culture-note__title">{{ langStore.t('cultureNote.title') }}</h3>
+                  <p class="culture-note__hint">{{ langStore.t('cultureNote.hint') }}</p>
+                </div>
+              </div>
+              <ul class="culture-note__list">
+                <li v-for="(note, i) in cultureNotes" :key="i" class="culture-note__item">
+                  <span class="culture-note__dot" aria-hidden="true" />
+                  <span>{{ note }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -726,6 +747,71 @@ onBeforeUnmount(() => {
   line-height: var(--leading-relaxed);
   letter-spacing: var(--tracking-wide);
   font-weight: 400;
+}
+
+/* ========================================
+   文化注解卡(外语模式:琥珀色渐变)
+   ======================================== */
+.culture-note {
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(201, 138, 43, 0.35);
+  background: linear-gradient(135deg, rgba(243, 224, 178, 0.6) 0%, rgba(252, 246, 230, 0.9) 60%, rgba(250, 236, 205, 0.55) 100%);
+}
+
+.culture-note__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.culture-note__icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-xl);
+}
+
+.culture-note__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #8a5a12;
+  letter-spacing: var(--tracking-wide);
+}
+
+.culture-note__hint {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: rgba(138, 90, 18, 0.72);
+  letter-spacing: var(--tracking-wide);
+}
+
+.culture-note__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.culture-note__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: #6b4f26;
+}
+
+.culture-note__dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: var(--radius-full);
+  background: #c98a2b;
 }
 
 /* ========================================

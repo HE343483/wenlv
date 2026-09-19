@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"wenlv-backend/logger"
 )
 
 // ============ 小红书服务 ============
@@ -320,7 +322,7 @@ var langNames = map[string]string{
 
 // SearchAttractionsText 搜索小红书游记并经 LLM 提纯为结构化景点文本。
 func (s *XHSService) SearchAttractionsText(ctx context.Context, city, keywords, language string) (string, error) {
-	fmt.Printf("🔍 [XHS] 正在搜索小红书: %s %s\n", city, keywords)
+	logger.Infof("[XHS] 正在搜索小红书: %s %s", city, keywords)
 	query := fmt.Sprintf("%s %s 旅游 景点攻略", city, keywords)
 
 	// 搜索 + 逐条取详情整体纳入 Cookie 轮换:某个 Cookie 被风控时换下一个重试
@@ -455,7 +457,7 @@ func (s *XHSService) fetchPhotoURL(ctx context.Context, keyword string) string {
 	// Cookie 未配置属预期状态(由设置页决定),不刷日志
 	var notConfigured *XHSNotConfiguredError
 	if err != nil && !errors.As(err, &notConfigured) {
-		fmt.Printf("小红书单图抓取失败 (%s): %v\n", keyword, err)
+		logger.Warnf("小红书单图抓取失败 (%s): %v", keyword, err)
 	}
 	return url
 }
@@ -473,7 +475,7 @@ func (s *XHSService) fetchPhotoURLWithCookie(ctx context.Context, cookie, keywor
 		mt, _ := note["model_type"].(string)
 		diagTypes[mt]++
 	}
-	fmt.Printf("🔍 搜图诊断 (%s): items=%d types=%v\n", keyword, len(items), diagTypes)
+	logger.Infof("搜图诊断 (%s): items=%d types=%v", keyword, len(items), diagTypes)
 	// 收集前若干条笔记候选:"最新"流里视频笔记没有图片列表,只看第一条经常空手而归
 	type noteCand struct{ id, token string }
 	var cands []noteCand
@@ -617,7 +619,7 @@ func (s *XHSService) PhotoBytes(ctx context.Context, name, city string) ([]byte,
 	for attempt, kw := range keywords {
 		rawURL := s.fetchPhotoURL(ctx, kw)
 		if rawURL == "" {
-			fmt.Printf("⚠️  景点图片搜索无结果(%d/%d): %s\n", attempt+1, len(keywords), kw)
+			logger.Warnf("景点图片搜索无结果(%d/%d): %s", attempt+1, len(keywords), kw)
 			continue
 		}
 		if err := validateImageURL(rawURL); err != nil {
@@ -629,7 +631,7 @@ func (s *XHSService) PhotoBytes(ctx context.Context, name, city string) ([]byte,
 			return content, contentType, nil
 		}
 		// 直链多为限时签名,失败后换下一个关键词重搜全新直链
-		fmt.Printf("⚠️  图片下载失败(%s,第%d次,将换词重取): %v\n", kw, attempt+1, err)
+		logger.Warnf("图片下载失败(%s,第%d次,将换词重取): %v", kw, attempt+1, err)
 	}
 	return nil, "", errors.New("未能获取景点图片")
 }

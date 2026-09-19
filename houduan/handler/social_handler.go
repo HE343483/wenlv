@@ -41,7 +41,7 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		case service.ErrInvalidInput:
 			pkg.BadRequest(c, "评分需在 1-5 且内容不能为空")
 		default:
-			pkg.ServerError(c, "发表评价失败")
+			pkg.ServerErrorWithErr(c, err, "发表评价失败")
 		}
 		return
 	}
@@ -60,7 +60,7 @@ func (h *ReviewHandler) List(c *gin.Context) {
 	}
 	items, total, err := h.svc.ListByTarget(targetType, int(targetID), page, size)
 	if err != nil {
-		pkg.ServerError(c, "查询评价失败")
+		pkg.ServerErrorWithErr(c, err, "查询评价失败")
 		return
 	}
 	listOK(c, items, total, repository.QueryOptions{Page: page, PageSize: size})
@@ -71,7 +71,7 @@ func (h *ReviewHandler) Mine(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	items, err := h.svc.ListByUser(uid)
 	if err != nil {
-		pkg.ServerError(c, "查询评价失败")
+		pkg.ServerErrorWithErr(c, err, "查询评价失败")
 		return
 	}
 	pkg.OK(c, items)
@@ -87,7 +87,7 @@ func (h *ReviewHandler) Summary(c *gin.Context) {
 	}
 	avg, err := h.svc.AvgRating(targetType, targetID)
 	if err != nil {
-		pkg.ServerError(c, "查询评分失败")
+		pkg.ServerErrorWithErr(c, err, "查询评分失败")
 		return
 	}
 	pkg.OK(c, gin.H{"target_type": targetType, "target_id": targetID, "avg_rating": round1(avg)})
@@ -161,7 +161,7 @@ func (h *PhotoHandler) Wall(c *gin.Context) {
 	size := atoiDefault(c.Query("page_size"), repository.DefaultPageSize)
 	items, total, err := h.svc.ListAll(page, size)
 	if err != nil {
-		pkg.ServerError(c, "查询照片失败")
+		pkg.ServerErrorWithErr(c, err, "查询照片失败")
 		return
 	}
 	listOK(c, items, total, repository.QueryOptions{Page: page, PageSize: size})
@@ -204,7 +204,7 @@ func (h *ArticleHandler) List(c *gin.Context) {
 	size := atoiDefault(c.Query("page_size"), repository.DefaultPageSize)
 	items, total, err := h.svc.List(page, size)
 	if err != nil {
-		pkg.ServerError(c, "查询游记失败")
+		pkg.ServerErrorWithErr(c, err, "查询游记失败")
 		return
 	}
 	listOK(c, items, total, repository.QueryOptions{Page: page, PageSize: size})

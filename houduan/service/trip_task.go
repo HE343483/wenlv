@@ -1,8 +1,8 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -61,10 +62,17 @@ type TripTaskStore struct {
 	tasks map[string]*TripTask
 	dir   string
 	db    *gorm.DB // 可选:接入后完成任务落库 trip_plans,历史/回走数据库
+
+	// 可选:行程完成后后台把景点图片上传 OSS 并把直链写回 plan_json
+	imageEnricher *TripImageEnricher
+	enriching     sync.Map // plan_id -> true,防同一计划重复触发上传
 }
 
 // AttachDB 接入 MySQL,行程完成后自动落库,历史接口优先读库。
 func (s *TripTaskStore) AttachDB(db *gorm.DB) { s.db = db }
+
+// AttachImageEnricher 接入 OSS 图片上传器(nil 跳过)。
+func (s *TripTaskStore) AttachImageEnricher(e *TripImageEnricher) { s.imageEnricher = e }
 
 // NewTripTaskStore 构造任务存储并预加载历史任务。
 func NewTripTaskStore(dataDir string) *TripTaskStore {
@@ -133,7 +141,7 @@ func (s *TripTaskStore) loadAll() {
 		loaded++
 	}
 	if loaded > 0 {
-		fmt.Printf("📦 已加载 %d 个持久化旅行任务\n", loaded)
+		logger.Infof("已加载 %d 个持久化旅行任务", loaded)
 	}
 }
 
@@ -197,6 +205,7 @@ func (s *TripTaskStore) savePlanRecord(task *TripTask) {
 	city, citiesCSV, startDate, endDate := "", "", "", ""
 	travelDays := 0
 	overallSuggestions := ""
+	planLanguage := ""
 	planJSON, graphJSON := []byte("null"), []byte("null")
 	if task.Status == TripTaskCompleted {
 		plan := task.Result.Data
@@ -212,6 +221,7 @@ func (s *TripTaskStore) savePlanRecord(task *TripTask) {
 		startDate, endDate = plan.StartDate, plan.EndDate
 		travelDays = len(plan.Days)
 		overallSuggestions = plan.OverallSuggestions
+		planLanguage = plan.Language
 	}
 	if req := task.RequestPayload; req != nil {
 		if city == "" && len(req.Cities) > 0 {
@@ -244,6 +254,11 @@ func (s *TripTaskStore) savePlanRecord(task *TripTask) {
 	if status == "" {
 		status = TripTaskCompleted
 	}
+	// 计划语言:优先取行程结果里记录的生成语言,失败任务回退原始请求语言
+	if planLanguage == "" && task.RequestPayload != nil {
+		planLanguage = task.RequestPayload.Language
+	}
+	planLanguage = model.NormalizeLang(planLanguage)
 	record := model.TripPlanRecord{
 		PlanID:             firstNonEmpty(task.PlanID, task.TaskID),
 		TaskID:             task.TaskID,
@@ -254,6 +269,7 @@ func (s *TripTaskStore) savePlanRecord(task *TripTask) {
 		EndDate:            endDate,
 		TravelDays:         travelDays,
 		OverallSuggestions: overallSuggestions,
+		Language:           planLanguage,
 		PlanJSON:           string(planJSON),
 		GraphJSON:          string(graphJSON),
 		RequestJSON:        reqJSON,
@@ -261,13 +277,14 @@ func (s *TripTaskStore) savePlanRecord(task *TripTask) {
 		ErrorMessage:       task.Error,
 	}
 	if err := s.db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&record).Error; err != nil {
-		fmt.Printf("⚠️  行程计划落库失败 plan_id=%s: %v\n", record.PlanID, err)
+		logger.Errorf("行程计划落库失败 plan_id=%s: %v", record.PlanID, err)
 		return
 	}
 	if status == TripTaskFailed {
-		fmt.Printf("💾 失败任务已记录 plan_id=%s city=%s err=%s\n", record.PlanID, record.City, task.Error)
+		logger.Warnf("失败任务已记录 plan_id=%s city=%s err=%s", record.PlanID, record.City, task.Error)
 	} else {
-		fmt.Printf("💾 行程计划已落库 plan_id=%s city=%s days=%d\n", record.PlanID, record.City, record.TravelDays)
+		logger.Infof("行程计划已落库 plan_id=%s city=%s days=%d", record.PlanID, record.City, record.TravelDays)
+		s.maybeEnrichImages(task)
 	}
 }
 
@@ -277,6 +294,65 @@ func reqUserID(req *model.TripRequest) string {
 		return ""
 	}
 	return strings.TrimSpace(req.UserID)
+}
+
+// maybeEnrichImages completed 行程首次落库后,后台把景点图片上传 OSS 并把直链二次落库。
+// 不阻塞任务返回:用户当次看到的实时页面仍走代理,历史详情随后改用 OSS 直链。
+func (s *TripTaskStore) maybeEnrichImages(task *TripTask) {
+	if s.imageEnricher == nil || task.Result == nil || task.Result.Data == nil {
+		return
+	}
+	planID := firstNonEmpty(task.PlanID, task.TaskID)
+	if _, loaded := s.enriching.LoadOrStore(planID, true); loaded {
+		return
+	}
+	go func() {
+		defer s.enriching.Delete(planID)
+		// 深拷贝后再抓图上传,避免与轮询/WS 广播并发读写同一结构
+		raw, err := json.Marshal(task.Result.Data)
+		if err != nil {
+			return
+		}
+		copied := &model.TripPlan{}
+		if err := json.Unmarshal(raw, copied); err != nil {
+			return
+		}
+		ok, fail := s.imageEnricher.Enrich(context.Background(), copied)
+		if ok == 0 {
+			if fail > 0 {
+				logger.Warnf("[行程图片OSS] plan_id=%s 图片上传全部失败,历史详情继续走代理", planID)
+			}
+			return
+		}
+		// OSS 链接写回内存任务并二次落库(savePlanRecord 按 plan_id 幂等覆盖)
+		s.mu.Lock()
+		if t, exists := s.tasks[task.TaskID]; exists && t.Result != nil && t.Result.Data != nil {
+			applyPlanImages(t.Result.Data, copied)
+		}
+		s.mu.Unlock()
+		s.savePlanRecord(task)
+		logger.Infof("[行程图片OSS] plan_id=%s 成功 %d 张,失败 %d 张,历史详情已改用 OSS 直链", planID, ok, fail)
+	}()
+}
+
+// applyPlanImages 把上传补齐的 image_url 按景点名同步回原 plan。
+func applyPlanImages(dst, src *model.TripPlan) {
+	urlByName := make(map[string]string)
+	for i := range src.Days {
+		for j := range src.Days[i].Attractions {
+			a := &src.Days[i].Attractions[j]
+			if a.Name != "" && a.ImageURL != "" {
+				urlByName[a.Name] = a.ImageURL
+			}
+		}
+	}
+	for i := range dst.Days {
+		for j := range dst.Days[i].Attractions {
+			if url, ok := urlByName[dst.Days[i].Attractions[j].Name]; ok {
+				dst.Days[i].Attractions[j].ImageURL = url
+			}
+		}
+	}
 }
 
 func (s *TripTaskStore) persist(task *TripTask) {
@@ -295,7 +371,7 @@ func (s *TripTaskStore) persist(task *TripTask) {
 	target := s.filePath(task.TaskID)
 	tmp := target + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		fmt.Printf("⚠️  持久化任务 %s 失败: %v\n", task.TaskID, err)
+		logger.Warnf("持久化任务 %s 失败: %v", task.TaskID, err)
 		return
 	}
 	_ = os.Rename(tmp, target)
@@ -407,6 +483,7 @@ func (s *TripTaskStore) History(limit int) []model.TripHistoryItem {
 					TravelDays:         r.TravelDays,
 					UpdatedAt:          r.UpdatedAt.Format("2006-01-02T15:04:05"),
 					OverallSuggestions: r.OverallSuggestions,
+					Language:           r.Language,
 					Status:             status,
 					ErrorMessage:       r.ErrorMessage,
 				})
@@ -417,6 +494,17 @@ func (s *TripTaskStore) History(limit int) []model.TripHistoryItem {
 		}
 	}
 	return s.historyFromMemory(limit)
+}
+
+// memoryPlanLanguage 内存历史回退时提取计划语言:优先行程结果,再回退原始请求。
+func memoryPlanLanguage(task *TripTask, _ string) string {
+	if task.Result != nil && task.Result.Data != nil && strings.TrimSpace(task.Result.Data.Language) != "" {
+		return model.NormalizeLang(task.Result.Data.Language)
+	}
+	if task.RequestPayload != nil {
+		return model.NormalizeLang(task.RequestPayload.Language)
+	}
+	return ""
 }
 
 func splitCSV(s string) []string {
@@ -508,6 +596,7 @@ func (s *TripTaskStore) historyFromMemory(limit int) []model.TripHistoryItem {
 			TravelDays:         travelDays,
 			UpdatedAt:          task.UpdatedAt.Format("2006-01-02T15:04:05"),
 			OverallSuggestions: overallSuggestions,
+			Language:           memoryPlanLanguage(task, overallSuggestions),
 			Status:             task.Status,
 			ErrorMessage:       task.Error,
 		})

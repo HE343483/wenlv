@@ -315,6 +315,19 @@ export default {
     categoryStories: 'この分類の物語',
     contentSource: '内容出典：ウィキペディア（CC BY-SA）',
   },
+  cultureNote: {
+    title: '文化ノート',
+    hint: '現地の文化背景をより深く理解するために',
+  },
+  menuCard: {
+    title: '注文カード',
+    literal: '直訳',
+    literalTip: '直訳すると店員さんが驚くかも 😅',
+    ingredients: '食材 / アレルゲン',
+    ingredientsZh: '食材（中国語）',
+    ingredientsEn: '食材（英語）',
+    spice: '辛さレベル',
+  },
   login: {
     title: 'ログイン',
     backHome: 'ホームへ戻る',

@@ -31,6 +31,7 @@
     "queryTaskStatusFailed": "Failed to query task status",
     "deleteTripPlanFailed": "Failed to delete plan history",
     "generateTripPlanFailed": "Failed to generate trip plan",
+    "generateStoryCardFailed": "Failed to generate story card",
     "healthCheckFailed": "Health check failed"
   },
   "settings": {
@@ -38,6 +39,7 @@
     "title": "Runtime Settings",
     "saveApply": "Save & Apply",
     "cancel": "Cancel",
+    "notice": "No configuration needed — the built-in services work out of the box. The options below are for advanced users who want to use their own API keys / cookies.",
     "labels": {
       "apiBaseUrl": "Backend URL",
       "amapJsKey": "AMap JS Key",
@@ -186,6 +188,7 @@
     "exportTrip": "Export Trip",
     "exportImage": "Export Guide",
     "exportPdf": "Export as PDF",
+    "planLangNotice": "This itinerary was generated in {lang}; its content language differs from the current interface",
     "side": {
       "overview": "Overview",
       "budget": "Budget",
@@ -335,5 +338,27 @@
     "mapInfo": {
       "dayAttraction": "Day {day} Attraction {index}"
     }
+  },
+  "storyCard": {
+    "title": "Story Card",
+    "generate": "Generate",
+    "regenerate": "Regenerate",
+    "save": "Save Image",
+    "download": "Download",
+    "tip": "The card is drawn purely with Canvas — save and share it",
+    "generating": "Composing your Chengdu story…",
+    "fallbackNotice": "AI copy is unavailable — a local template was applied",
+    "saveSuccess": "Story card saved",
+    "saveFailed": "Save failed: {error}",
+    "close": "Close",
+    "cityName": "成都",
+    "cityNameEn": "CHENGDU",
+    "brand": "Shu Journey · AI Cultural Trip",
+    "routeLabel": "Route Highlights",
+    "daysMeta": "{count}-Day Journey",
+    "scanTip": "扫码开启你的成都故事",
+    "scanTipEn": "Scan to start your Chengdu story",
+    "scanTipJa": "QRコードであなたの成都の物語を",
+    "filePrefix": "Chengdu-Story-Card"
   }
 }

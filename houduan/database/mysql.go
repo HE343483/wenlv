@@ -2,21 +2,34 @@
 package database
 
 import (
-	"log"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 
 	"wenlv-backend/config"
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
 // InitMySQL 建立 GORM 连接并自动迁移表结构。
 func InitMySQL(cfg *config.Config) (*gorm.DB, error) {
+	// SQL 日志统一走日志模块(见 logger.GormWriter):
+	// 默认只记录慢 SQL(>=1s)与 SQL 错误,避免远程库常规查询把 warn/error 文件刷满;
+	// 需要逐条 SQL 明细时把 LOG_LEVEL 调成 debug,明细会进 logs/debug-*.log。
+	gormLevel := gormlogger.Warn
+	if logger.ParseLevel(cfg.Log.Level) == logger.LevelDebug {
+		gormLevel = gormlogger.Info
+	}
+
 	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{
-		// 开发期保留 SQL 日志,方便排查
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: gormlogger.New(logger.GormWriter{}, gormlogger.Config{
+			SlowThreshold:             time.Second,
+			LogLevel:                  gormLevel,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  false,
+		}),
 	})
 	if err != nil {
 		return nil, err
@@ -124,6 +137,6 @@ func applyIDComments(db *gorm.DB) error {
 // MustAutoMigrate 迁移失败则直接退出,保证上线前结构一致。
 func MustAutoMigrate(db *gorm.DB) {
 	if err := AutoMigrate(db); err != nil {
-		log.Fatalf("数据库自动迁移失败: %v", err)
+		logger.Fatalf("数据库自动迁移失败: %v", err)
 	}
 }

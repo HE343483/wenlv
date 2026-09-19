@@ -238,6 +238,23 @@ func (r *RouteRepo) GetByID(id uint) (*model.Route, error) {
 	return &rt, nil
 }
 
+// ListAll 返回全部路线(采集批处理使用,不分页)。
+func (r *RouteRepo) ListAll() ([]model.Route, error) {
+	var items []model.Route
+	if err := r.db.Order("id asc").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// UpdateFields 按主键更新指定字段(字段名 → 新值),用于采集结果落库。
+func (r *RouteRepo) UpdateFields(id uint, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.Route{}).Where("id = ?", id).Updates(updates).Error
+}
+
 // applyQuery 复用通用的过滤条件:区县精确、标签包含、关键词模糊匹配中英文名。
 func applyQuery(q *gorm.DB, opts QueryOptions) *gorm.DB {
 	if opts.District != "" {

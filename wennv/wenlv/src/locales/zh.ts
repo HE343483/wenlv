@@ -315,6 +315,19 @@ export default {
     categoryStories: '类别故事',
     contentSource: '内容素材来源：维基百科（CC BY-SA）',
   },
+  cultureNote: {
+    title: '文化注解',
+    hint: '帮你更懂当地文化背景',
+  },
+  menuCard: {
+    title: '国际点菜卡',
+    literal: '直译',
+    literalTip: '这个名字直译会吓到服务员 😅',
+    ingredients: '食材 / 过敏原',
+    ingredientsZh: '食材（中文）',
+    ingredientsEn: 'Ingredients（英文）',
+    spice: '辣度',
+  },
   login: {
     title: '登录',
     backHome: '返回首页',

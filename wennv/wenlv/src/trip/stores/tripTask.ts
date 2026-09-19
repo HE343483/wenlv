@@ -64,7 +64,8 @@ export const useTripTaskStore = defineStore('tripTask', () => {
           if (Number.isFinite(event.progress)) {
             progress.value = Math.max(0, Math.min(100, event.progress))
           }
-          statusText.value = event.message || getStageStatusText(event.stage)
+          // 后端 message 为中文固定文案,优先用 stage 对应的 i18n 三语文案,后端 message 仅作兜底
+          statusText.value = getStageStatusText(event.stage) || event.message || statusText.value
         },
       })
 

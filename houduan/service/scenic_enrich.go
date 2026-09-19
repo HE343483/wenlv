@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 	"wenlv-backend/repository"
@@ -102,8 +102,7 @@ func (e *ScenicEnricher) Enrich(ctx context.Context, s model.ScenicSpot, opts En
 			for _, c := range candidates {
 				counts[c.Source]++
 			}
-			log.Printf("    图片: 高德%d 小红书%d Commons%d",
-				counts[scenicImageSourceAmap], counts[scenicImageSourceXHS], counts[scenicImageSourceCommons])
+			logger.Infof("图片: 高德%d 小红书%d Commons%d", counts[scenicImageSourceAmap], counts[scenicImageSourceXHS], counts[scenicImageSourceCommons])
 			uploaded, err := e.uploadPhotos(ctx, s, candidates)
 			if err != nil {
 				res.Note += "; 图片上传失败: " + err.Error()

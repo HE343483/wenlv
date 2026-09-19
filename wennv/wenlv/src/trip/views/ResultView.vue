@@ -6,6 +6,7 @@
 
     <main class="result-main">
       <div v-if="tripPlan" class="content-wrapper">
+        <div v-if="planLangNotice" class="plan-lang-notice">🌐 {{ planLangNotice }}</div>
         <div class="top-switch-nav">
           <div class="top-switch-menu-wrap">
             <a-menu class="top-switch-menu" mode="horizontal" :selected-keys="[activeSection]" @click="scrollToSection">
@@ -48,9 +49,15 @@
               <a-button v-if="!editMode" type="default" @click="exportAsImage">
                 {{ t('result.exportImage') }}
               </a-button>
+
+              <a-button v-if="!editMode" type="default" @click="storyCardOpen = true">
+                🐼 {{ t('storyCard.title') }}
+              </a-button>
             </a-space>
           </div>
         </div>
+
+        <StoryCardModal v-model:open="storyCardOpen" :plan-id="planId" :summary="storySummary" />
 
       <!-- 主内容区 -->
         <a-card
@@ -593,6 +600,8 @@ import { EffectCoverflow, Keyboard, Mousewheel } from 'swiper/modules'
 import NavBar from '@/trip/components/NavBar.vue'
 import OverviewAttractionCard from '@/trip/components/OverviewAttractionCard.vue'
 import AIChat from '@/trip/components/AIChat.vue'
+import StoryCardModal from '@/trip/components/StoryCardModal.vue'
+import type { TripStorySummary } from '@/trip/components/StoryCardModal.vue'
 import type { TripPlan, TripPlanResponse, KnowledgeGraphData, GraphCategory, Attraction, Meal, Hotel, WeatherInfo } from '@/trip/types'
 import {
   getRuntimeApiBaseUrl,
@@ -609,7 +618,19 @@ const router = useRouter()
 const route = useRoute()
 const { t, locale } = useI18n()
 const tripPlan = ref<TripPlan | null>(null)
+
+/** 历史计划生成语言与当前界面语言不一致时,顶部提示内容语言不同(计划不做自动重译) */
+const PLAN_LANG_LABELS: Record<string, string> = { zh: '中文', en: 'English', ja: '日本語' }
+const planLangNotice = computed(() => {
+  const saved = String(tripPlan.value?.language || '').toLowerCase().split('-')[0]
+  if (!saved) return ''
+  const current = String(locale.value || '').toLowerCase().split('-')[0]
+  if (saved === current) return ''
+  const label = PLAN_LANG_LABELS[saved] || saved
+  return t('result.planLangNotice', { lang: label })
+})
 const planId = ref('')
+const storyCardOpen = ref(false)
 const editMode = ref(false)
 const originalPlan = ref<TripPlan | null>(null)
 const attractionPhotos = ref<Record<string, string>>({})
@@ -683,6 +704,26 @@ const budgetFilterType = ref<'all' | BudgetItemType>('all')
 const budgetSortMode = ref<BudgetSortMode>('amountDesc')
 const pendingBudgetItems = ref<BudgetRestoreItem[]>([])
 const activeWeatherIndex = ref(0)
+
+// 旅行故事卡所需的行程摘要(城市/天数/日期/按日排序的景点名)
+const storySummary = computed<TripStorySummary>(() => {
+  const plan = tripPlan.value
+  const spots: TripStorySummary['spots'] = []
+  plan?.days.forEach((day) => {
+    day.attractions.forEach((attraction) => {
+      if (attraction?.name) {
+        spots.push({ name: attraction.name, day: day.day_index || 0 })
+      }
+    })
+  })
+  return {
+    city: plan?.city ?? '',
+    days: plan?.days?.length ?? 0,
+    startDate: plan?.start_date ?? '',
+    endDate: plan?.end_date ?? '',
+    spots,
+  }
+})
 
 const localeTag = computed(() => {
   const currentLocale = String(locale.value || 'en').toLowerCase()
@@ -1870,8 +1911,10 @@ const restoreBudgetItem = (pendingItem: BudgetRestoreItem) => {
 }
 
 // 将小红书图片直链包装为后端代理地址，规避图片 CDN 的 Referer 防盗链（issue #28）
+// OSS 落库的行程图片(aliyuncs.com)为永久公开直链，直接使用不再包代理
 const toProxiedPhotoUrl = (url?: string | null): string => {
   if (!url) return ''
+  if (url.includes('aliyuncs.com')) return url
   return `${getRuntimeApiBaseUrl()}/api/poi/image?url=${encodeURIComponent(url)}`
 }
 
@@ -1891,22 +1934,40 @@ const loadAttractionPhotos = async () => {
 
   if (uniqueNames.length === 0) return
 
+  // 历史行程里已落 OSS 直链的景点直接使用,不再走后端代理
+  const ossPhotoByName = new Map<string, string>()
+  for (const day of tripPlan.value.days) {
+    for (const attraction of day.attractions) {
+      if (attraction.image_url && attraction.image_url.includes('aliyuncs.com')) {
+        ossPhotoByName.set(attraction.name, attraction.image_url)
+      }
+    }
+  }
+  for (const [name, url] of ossPhotoByName) {
+    if (!attractionPhotos.value[name]) {
+      attractionPhotos.value[name] = url
+    }
+  }
+  const pendingNames = uniqueNames.filter((name) => !ossPhotoByName.has(name))
+
+  if (pendingNames.length === 0) return
+
   // 统一走后端 name 键图片代理(磁盘缓存;miss 时后端多关键词重搜)。
   // 不再预先调 /api/poi/photo 试探——那会多消耗一次内容平台搜索,双倍触发风控
   const concurrencyLimit = 4
   let currentIndex = 0
 
   const loadNextPhoto = async () => {
-    while (currentIndex < uniqueNames.length) {
+    while (currentIndex < pendingNames.length) {
       const index = currentIndex
       currentIndex += 1
-      const name = uniqueNames[index]
+      const name = pendingNames[index]
       attractionPhotos.value[name] = `${apiBase}/api/poi/image?name=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}&source=${encodeURIComponent(source)}`
     }
   }
 
   const workers = Array.from(
-    { length: Math.min(concurrencyLimit, uniqueNames.length) },
+    { length: Math.min(concurrencyLimit, pendingNames.length) },
     () => loadNextPhoto()
   )
   await Promise.all(workers)
@@ -3094,6 +3155,21 @@ const drawRoutes = async (AMap: any, attractions: any[]): Promise<any[]> => {
   gap: 12px;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+/* 历史计划语言提示条:计划以生成时语言保存,不做自动重译 */
+.plan-lang-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(45, 106, 79, 0.1);
+  border: 1px solid rgba(45, 106, 79, 0.25);
+  color: #2d6a4f;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .top-switch-menu-wrap {

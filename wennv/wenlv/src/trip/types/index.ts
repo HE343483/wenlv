@@ -87,6 +87,8 @@ export interface TripPlan {
   budget?: Budget
   /** 景点数据来源: xhs=小红书真人推荐(默认) / douyin=抖音真人分享 / map=高德地图检索 */
   attraction_source?: 'xhs' | 'douyin' | 'map' | string
+  /** 计划生成时的界面语言(zh/en/ja),用于历史回看时提示语言版本 */
+  language?: string
 }
 
 export interface TripFormData {
@@ -122,6 +124,8 @@ export interface TripHistoryItem {
   travel_days: number
   updated_at: string
   overall_suggestions?: string
+  /** 计划生成时的界面语言(zh/en/ja) */
+  language?: string
   status?: 'completed' | 'failed'
   error_message?: string
 }

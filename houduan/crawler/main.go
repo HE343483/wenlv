@@ -15,7 +15,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -31,6 +30,7 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 )
@@ -75,6 +75,9 @@ func main() {
 
 	_ = godotenv.Load()
 
+	logger.ConfigureTool("crawler")
+	defer logger.Close()
+
 	// OSS 配置:启用上传相关功能时必须齐全
 	var signer *pkg.OssSigner
 	if *upload || *uploadOnly {
@@ -85,7 +88,7 @@ func main() {
 			Bucket:    os.Getenv("OSS_BUCKET"),
 		})
 		if !signer.Configured() {
-			log.Fatal("已启用 OSS 上传,但 .env 中 OSS_* 配置不完整")
+			logger.Fatalf("已启用 OSS 上传,但 .env 中 OSS_* 配置不完整")
 		}
 	}
 
@@ -106,17 +109,17 @@ func main() {
 
 	spots, dists := parseChengduTS(*source)
 	if len(spots) == 0 {
-		log.Fatalf("未能从 %s 解析到景点数据", *source)
+		logger.Fatalf("未能从 %s 解析到景点数据", *source)
 	}
 	if *limit > 0 && *limit < len(spots) {
 		spots = spots[:*limit]
 	}
-	log.Printf("解析到 %d 个区县 / %d 个景点,开始爬取(输出目录: %s)", len(dists), len(spots), *outDir)
+	logger.Infof("解析到 %d 个区县 / %d 个景点,开始爬取(输出目录: %s)", len(dists), len(spots), *outDir)
 
 	// 未配置 OSS 时才需要本地目录留档;配置 OSS 后图片直接内存上传,不在本地落盘
 	if signer == nil {
 		if err := os.MkdirAll(*outDir, 0o755); err != nil {
-			log.Fatalf("创建图片目录失败: %v", err)
+			logger.Fatalf("创建图片目录失败: %v", err)
 		}
 	}
 
@@ -149,12 +152,12 @@ func main() {
 
 	okCnt, noWiki, noImg, failCnt := 0, 0, 0, 0
 	for i, s := range spots {
-		log.Printf("[%d/%d] %s", i+1, len(spots), s.NameZH)
+		logger.Infof("[%d/%d] %s", i+1, len(spots), s.NameZH)
 
 		// 1. 维基百科搜索候选词条(无结果时尝试去掉后缀重搜)
 		titles, err := searchWiki(client, s.NameZH)
 		if err != nil {
-			log.Printf("    搜索失败: %v", err)
+			logger.Warnf("    搜索失败: %v", err)
 			failCnt++
 			continue
 		}
@@ -166,7 +169,7 @@ func main() {
 			}
 		}
 		if len(titles) == 0 {
-			log.Printf("    未找到维基百科词条,保留原有简介")
+			logger.Infof("    未找到维基百科词条,保留原有简介")
 			noWiki++
 		} else {
 			// 2. 依次尝试候选,要求摘要内容提及成都/四川/川菜,防止跨地域误配
@@ -174,7 +177,7 @@ func main() {
 			for _, t := range titles {
 				sum, err := fetchSummary(client, t)
 				if err != nil {
-					log.Printf("    摘要获取失败: %v", err)
+					logger.Warnf("    摘要获取失败: %v", err)
 					fetchErr = true
 					break
 				}
@@ -189,7 +192,7 @@ func main() {
 				}
 				if !strings.Contains(extract, "成都") && !strings.Contains(extract, "四川") &&
 					!strings.Contains(extract, "川菜") && !strings.Contains(extract, "川味") {
-					log.Printf("    候选 [%s] 与成都/四川无关,跳过", t)
+					logger.Infof("    候选 [%s] 与成都/四川无关,跳过", t)
 					continue
 				}
 				matched = t
@@ -205,7 +208,7 @@ func main() {
 				break
 			}
 			if matched == "" && !fetchErr {
-				log.Printf("    所有候选均不匹配,保留原有简介")
+				logger.Infof("    所有候选均不匹配,保留原有简介")
 				noWiki++
 			}
 		}
@@ -214,7 +217,7 @@ func main() {
 		if s.ImageURL == "" {
 			if img := commonsImage(client, s.NameZH, s.NameEN); img != "" {
 				s.ImageURL = img
-				log.Printf("    Commons 图库补图")
+				logger.Infof("    Commons 图库补图")
 			}
 		}
 
@@ -224,41 +227,41 @@ func main() {
 			if signer != nil {
 				ossURL, err := uploadImageToOSS(client, signer, s.ImageURL, "scenic/"+s.ID+ext)
 				if err != nil {
-					log.Printf("    OSS 上传失败: %v,仅记录外链", err)
+					logger.Warnf("    OSS 上传失败: %v,仅记录外链", err)
 					noImg++
 				} else {
 					s.ImageURL = ossURL
-					log.Printf("    已上传 OSS: %s", ossURL)
+					logger.Infof("    已上传 OSS: %s", ossURL)
 				}
 			} else {
 				local := filepath.Join(*outDir, s.ID+ext)
 				if err := downloadImage(client, s.ImageURL, local); err != nil {
-					log.Printf("    图片下载失败(%s): %v,仅记录外链", s.ImageURL, err)
+					logger.Warnf("    图片下载失败(%s): %v,仅记录外链", s.ImageURL, err)
 					noImg++
 				} else {
 					s.LocalPath = local
-					log.Printf("    图片已保存: %s", local)
+					logger.Infof("    图片已保存: %s", local)
 				}
 			}
 		} else {
 			noImg++
-			log.Printf("    该词条无主图")
+			logger.Infof("    该词条无主图")
 		}
 
 		// 4. 写入数据库
 		if err := upsertSpot(db, s, dists); err != nil {
-			log.Printf("    入库失败: %v", err)
+			logger.Errorf("    入库失败: %v", err)
 			failCnt++
 			continue
 		}
 		okCnt++
 		if s.Extract != "" {
-			log.Printf("    文本: %s...", truncate(s.Extract, 40))
+			logger.Infof("    文本: %s...", truncate(s.Extract, 40))
 		}
 		time.Sleep(time.Duration(*delay) * time.Millisecond)
 	}
 
-	log.Printf("完成: 成功入库 %d / 无词条 %d / 无主图 %d / 失败 %d", okCnt, noWiki, noImg, failCnt)
+	logger.Infof("完成: 成功入库 %d / 无词条 %d / 无主图 %d / 失败 %d", okCnt, noWiki, noImg, failCnt)
 }
 
 // ──── HTTP ────
@@ -268,7 +271,7 @@ func newHTTPClient(proxy string) *http.Client {
 	if proxy != "" {
 		pu, err := url.Parse(proxy)
 		if err != nil {
-			log.Fatalf("代理地址无效: %v", err)
+			logger.Fatalf("代理地址无效: %v", err)
 		}
 		tr.Proxy = http.ProxyURL(pu)
 	}
@@ -281,7 +284,7 @@ func httpGetJSON(client *http.Client, apiURL string, out any) error {
 	for attempt := 0; attempt < 4; attempt++ {
 		if attempt > 0 {
 			wait := time.Duration(1<<uint(attempt)) * 2 * time.Second // 4s/8s/16s
-			log.Printf("    请求限流/失败,第 %d 次重试(等待 %v): %v", attempt, wait, lastErr)
+			logger.Warnf("    请求限流/失败,第 %d 次重试(等待 %v): %v", attempt, wait, lastErr)
 			time.Sleep(wait)
 		}
 		req, err := http.NewRequest(http.MethodGet, apiURL, nil)
@@ -497,16 +500,16 @@ func runDescOnly(client *http.Client, db *gorm.DB, delayMs int) {
 	var spots []dbSpot
 	if err := db.Model(&model.ScenicSpot{}).
 		Select("id, name_zh, name_en").Order("id").Find(&spots).Error; err != nil {
-		log.Fatalf("读取景点列表失败: %v", err)
+		logger.Fatalf("读取景点列表失败: %v", err)
 	}
-	log.Printf("从数据库读取到 %d 个景点,开始回填简介(仅更新 desc 字段)", len(spots))
+	logger.Infof("从数据库读取到 %d 个景点,开始回填简介(仅更新 desc 字段)", len(spots))
 
 	okCnt, skipCnt, failCnt := 0, 0, 0
 	for i, s := range spots {
 		// 1. 搜索候选词条(无结果时去掉常见后缀重搜)
 		titles, err := searchWiki(client, s.NameZH)
 		if err != nil {
-			log.Printf("[%d/%d] %s → 搜索失败: %v", i+1, len(spots), s.NameZH, err)
+			logger.Infof("[%d/%d] %s → 搜索失败: %v", i+1, len(spots), s.NameZH, err)
 			failCnt++
 			continue
 		}
@@ -524,14 +527,14 @@ func runDescOnly(client *http.Client, db *gorm.DB, delayMs int) {
 		for _, t := range titles {
 			extract, err := fetchIntro(client, t)
 			if err != nil {
-				log.Printf("    候选 [%s] 正文获取失败: %v", t, err)
+				logger.Warnf("    候选 [%s] 正文获取失败: %v", t, err)
 				fetchFail = true
 				continue
 			}
 			if extract == "" {
 				sum, err := fetchSummary(client, t)
 				if err != nil {
-					log.Printf("    候选 [%s] 摘要获取失败: %v", t, err)
+					logger.Warnf("    候选 [%s] 摘要获取失败: %v", t, err)
 					fetchFail = true
 					continue
 				}
@@ -542,7 +545,7 @@ func runDescOnly(client *http.Client, db *gorm.DB, delayMs int) {
 			}
 			evaluated = true
 			if !mentionsChengdu(extract) {
-				log.Printf("    候选 [%s] 与成都/四川无关,跳过", t)
+				logger.Infof("    候选 [%s] 与成都/四川无关,跳过", t)
 				continue
 			}
 			text = extract
@@ -553,22 +556,22 @@ func runDescOnly(client *http.Client, db *gorm.DB, delayMs int) {
 		switch {
 		case text != "":
 			if err := db.Model(&model.ScenicSpot{}).Where("id = ?", s.ID).Update("desc", text).Error; err != nil {
-				log.Printf("[%d/%d] %s → 入库失败: %v", i+1, len(spots), s.NameZH, err)
+				logger.Errorf("[%d/%d] %s → 入库失败: %v", i+1, len(spots), s.NameZH, err)
 				failCnt++
 				continue
 			}
-			log.Printf("[%d/%d] %s → 已更新(前 40 字: %s)", i+1, len(spots), s.NameZH, truncate(text, 40))
+			logger.Infof("[%d/%d] %s → 已更新(前 40 字: %s)", i+1, len(spots), s.NameZH, truncate(text, 40))
 			okCnt++
 		case !evaluated && fetchFail:
-			log.Printf("[%d/%d] %s → 取正文失败，保留原简介", i+1, len(spots), s.NameZH)
+			logger.Warnf("[%d/%d] %s → 取正文失败，保留原简介", i+1, len(spots), s.NameZH)
 			failCnt++
 		default:
-			log.Printf("[%d/%d] %s → 未匹配，保留原简介", i+1, len(spots), s.NameZH)
+			logger.Infof("[%d/%d] %s → 未匹配，保留原简介", i+1, len(spots), s.NameZH)
 			skipCnt++
 		}
 		time.Sleep(time.Duration(delayMs) * time.Millisecond)
 	}
-	log.Printf("完成: 更新 %d / 未匹配 %d / 失败 %d", okCnt, skipCnt, failCnt)
+	logger.Infof("完成: 更新 %d / 未匹配 %d / 失败 %d", okCnt, skipCnt, failCnt)
 }
 
 func downloadImage(client *http.Client, imgURL, dest string) error {
@@ -684,10 +687,10 @@ func removeOldOSSImage(signer *pkg.OssSigner, oldURL, newKey string) {
 		return // 非本桶地址或对象名未变(原地覆盖),无需删除
 	}
 	if err := signer.DeleteObject(oldKey); err != nil {
-		log.Printf("    删除 OSS 旧图失败(%s): %v", oldKey, err)
+		logger.Warnf("    删除 OSS 旧图失败(%s): %v", oldKey, err)
 		return
 	}
-	log.Printf("    已删除 OSS 旧图: %s", oldKey)
+	logger.Infof("    已删除 OSS 旧图: %s", oldKey)
 }
 
 // currentFoodImage 读取菜品当前图片地址(用于替换后清理 OSS 旧对象)。
@@ -738,7 +741,7 @@ func uploadImageToOSS(client *http.Client, signer *pkg.OssSigner, imageURL, key 
 func uploadLocalToOSS(db *gorm.DB, signer *pkg.OssSigner, dir string, spots []spot) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Fatalf("读取图片目录失败: %v", err)
+		logger.Fatalf("读取图片目录失败: %v", err)
 	}
 	byStem := map[string]string{}
 	for _, e := range entries {
@@ -757,20 +760,20 @@ func uploadLocalToOSS(db *gorm.DB, signer *pkg.OssSigner, dir string, spots []sp
 		key := "scenic/" + filepath.Base(local)
 		ossURL, err := signer.PutObject(local, key)
 		if err != nil {
-			log.Printf("[%s] OSS 上传失败: %v", s.NameZH, err)
+			logger.Warnf("[%s] OSS 上传失败: %v", s.NameZH, err)
 			failCnt++
 			continue
 		}
 		if err := db.Model(&model.ScenicSpot{}).Where("name_zh = ?", s.NameZH).
 			Update("images", ossURL).Error; err != nil {
-			log.Printf("[%s] 数据库更新失败: %v", s.NameZH, err)
+			logger.Errorf("[%s] 数据库更新失败: %v", s.NameZH, err)
 			failCnt++
 			continue
 		}
-		log.Printf("[%s] 已上传并更新: %s", s.NameZH, ossURL)
+		logger.Infof("[%s] 已上传并更新: %s", s.NameZH, ossURL)
 		okCnt++
 	}
-	log.Printf("上传完成: 成功 %d / 失败 %d", okCnt, failCnt)
+	logger.Infof("上传完成: 成功 %d / 失败 %d", okCnt, failCnt)
 }
 
 // ──── 数据库 ────
@@ -782,18 +785,18 @@ func mustConnectDB() *gorm.DB {
 	pass := os.Getenv("DB_PASSWORD")
 	name := os.Getenv("DB_NAME")
 	if host == "" || name == "" {
-		log.Fatal("缺少 DB_* 环境变量,请检查 .env")
+		logger.Fatalf("缺少 DB_* 环境变量,请检查 .env")
 	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, pass, host, port, name)
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
 	if err != nil {
-		log.Fatalf("连接数据库失败: %v", err)
+		logger.Fatalf("连接数据库失败: %v", err)
 	}
 	// 与主服务保持一致,确保表存在且字段注释齐全
 	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}, &model.FoodCard{}, &model.Route{}); err != nil {
-		log.Fatalf("数据库迁移失败: %v", err)
+		logger.Fatalf("数据库迁移失败: %v", err)
 	}
 	return db
 }
@@ -905,17 +908,17 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 		seeds = filtered
 	}
 	if signer == nil {
-		log.Printf("开始爬取成都美食(%d 种),图片保存目录: %s", len(seeds), outDir)
+		logger.Infof("开始爬取成都美食(%d 种),图片保存目录: %s", len(seeds), outDir)
 		if err := os.MkdirAll(outDir, 0o755); err != nil {
-			log.Fatalf("创建图片目录失败: %v", err)
+			logger.Fatalf("创建图片目录失败: %v", err)
 		}
 	} else {
-		log.Printf("开始爬取成都美食(%d 种),图片直接上传 OSS", len(seeds))
+		logger.Infof("开始爬取成都美食(%d 种),图片直接上传 OSS", len(seeds))
 	}
 
 	okCnt, noImg, failCnt := 0, 0, 0
 	for i, f := range seeds {
-		log.Printf("[%d/%d] %s", i+1, len(seeds), f.NameZH)
+		logger.Infof("[%d/%d] %s", i+1, len(seeds), f.NameZH)
 
 		// 1. 搜索词条并做地域校验(须提及成都/四川),防止误配其他地域同名食物
 		searchName := f.NameZH
@@ -924,7 +927,7 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 		}
 		titles, err := searchWiki(client, searchName)
 		if err != nil {
-			log.Printf("    搜索失败: %v", err)
+			logger.Warnf("    搜索失败: %v", err)
 			failCnt++
 			continue
 		}
@@ -932,7 +935,7 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 		for _, t := range titles {
 			sum, err := fetchSummary(client, t)
 			if err != nil {
-				log.Printf("    摘要获取失败: %v", err)
+				logger.Warnf("    摘要获取失败: %v", err)
 				break
 			}
 			if sum.Type == "disambiguation" {
@@ -946,7 +949,7 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 			}
 			if !strings.Contains(cur, "成都") && !strings.Contains(cur, "四川") &&
 				!strings.Contains(cur, "川菜") && !strings.Contains(cur, "川味") {
-				log.Printf("    候选 [%s] 与成都/四川无关,跳过", t)
+				logger.Infof("    候选 [%s] 与成都/四川无关,跳过", t)
 				continue
 			}
 			extract = cur
@@ -966,7 +969,7 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 			}
 			if img := commonsImage(client, termZH, termEN); img != "" {
 				imgURL = img
-				log.Printf("    Commons 图库补图")
+				logger.Infof("    Commons 图库补图")
 			}
 		}
 
@@ -975,15 +978,15 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 		if pinned {
 			u, err := commonsFileURL(client, pin.Title)
 			if err != nil {
-				log.Printf("    指定配图获取失败: %v", err)
+				logger.Warnf("    指定配图获取失败: %v", err)
 				failCnt++
 				continue
 			}
 			imgURL = u
-			log.Printf("    使用指定配图: %s", pin.Title)
+			logger.Infof("    使用指定配图: %s", pin.Title)
 		} else if imgURL == "" {
 			noImg++
-			log.Printf("    未获取到图片")
+			logger.Infof("    未获取到图片")
 		}
 
 		// 3. 图片处理:配置 OSS 时直接内存上传(不落盘),否则下载到本地留档
@@ -994,37 +997,37 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 			if signer != nil {
 				ossURL, err := uploadImageToOSS(client, signer, imgURL, key)
 				if err != nil {
-					log.Printf("    OSS 上传失败: %v", err)
+					logger.Warnf("    OSS 上传失败: %v", err)
 					noImg++
 				} else {
 					imgURL = ossURL
-					log.Printf("    已上传 OSS: %s", ossURL)
+					logger.Infof("    已上传 OSS: %s", ossURL)
 					removeOldOSSImage(signer, oldImage, key)
 				}
 			} else {
 				local := filepath.Join(outDir, f.ID+ext)
 				if err := downloadImage(client, imgURL, local); err != nil {
-					log.Printf("    图片下载失败(%s): %v", imgURL, err)
+					logger.Warnf("    图片下载失败(%s): %v", imgURL, err)
 					noImg++
 				} else {
-					log.Printf("    图片已保存: %s", local)
+					logger.Infof("    图片已保存: %s", local)
 				}
 			}
 		}
 
 		// 4. 入库
 		if err := upsertFood(db, f, extract, imgURL); err != nil {
-			log.Printf("    入库失败: %v", err)
+			logger.Errorf("    入库失败: %v", err)
 			failCnt++
 			continue
 		}
 		okCnt++
 		if extract != "" {
-			log.Printf("    文本: %s...", truncate(extract, 40))
+			logger.Infof("    文本: %s...", truncate(extract, 40))
 		}
 		time.Sleep(time.Duration(delayMs) * time.Millisecond)
 	}
-	log.Printf("美食爬取完成: 成功入库 %d / 无图 %d / 失败 %d", okCnt, noImg, failCnt)
+	logger.Infof("美食爬取完成: 成功入库 %d / 无图 %d / 失败 %d", okCnt, noImg, failCnt)
 }
 
 // upsertFood 按 name_zh 匹配写入 foods 表;已有记录仅在拿到新文本/图片时覆盖。
@@ -1143,7 +1146,7 @@ func runFoodCardCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, o
 	used := map[string]bool{}
 	var existing []model.Food
 	if err := db.Select("images").Find(&existing).Error; err != nil {
-		log.Printf("读取已有美食图片失败(将不排除重复): %v", err)
+		logger.Warnf("读取已有美食图片失败(将不排除重复): %v", err)
 	}
 	for _, f := range existing {
 		if f.Images != "" {
@@ -1162,17 +1165,17 @@ func runFoodCardCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, o
 		seeds = filtered
 	}
 	if signer == nil {
-		log.Printf("开始爬取美食名片配图(%d 张),图片保存目录: %s", len(seeds), outDir)
+		logger.Infof("开始爬取美食名片配图(%d 张),图片保存目录: %s", len(seeds), outDir)
 		if err := os.MkdirAll(outDir, 0o755); err != nil {
-			log.Fatalf("创建图片目录失败: %v", err)
+			logger.Fatalf("创建图片目录失败: %v", err)
 		}
 	} else {
-		log.Printf("开始爬取美食名片配图(%d 张),图片直接上传 OSS", len(seeds))
+		logger.Infof("开始爬取美食名片配图(%d 张),图片直接上传 OSS", len(seeds))
 	}
 
 	okCnt, failCnt := 0, 0
 	for i, c := range seeds {
-		log.Printf("[%d/%d] %s", i+1, len(seeds), c.NameZH)
+		logger.Infof("[%d/%d] %s", i+1, len(seeds), c.NameZH)
 
 		// 优先使用人工指定配图,否则按相关度取第一个未被占用的候选图
 		pin, pinned := pinnedFoodCardImages[c.Key]
@@ -1180,12 +1183,12 @@ func runFoodCardCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, o
 		if pinned {
 			u, err := commonsFileURL(client, pin.Title)
 			if err != nil {
-				log.Printf("    指定配图获取失败: %v", err)
+				logger.Warnf("    指定配图获取失败: %v", err)
 				failCnt++
 				continue
 			}
 			picked = u
-			log.Printf("    使用指定配图: %s", pin.Title)
+			logger.Infof("    使用指定配图: %s", pin.Title)
 		} else {
 			for _, u := range commonsSearch(client, c.Query, 12) {
 				if used[u] {
@@ -1196,7 +1199,7 @@ func runFoodCardCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, o
 			}
 		}
 		if picked == "" {
-			log.Printf("    未找到可用配图")
+			logger.Infof("    未找到可用配图")
 			failCnt++
 			continue
 		}
@@ -1210,32 +1213,32 @@ func runFoodCardCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, o
 			// 直接内存上传 OSS,不在本地落盘
 			ossURL, err := uploadImageToOSS(client, signer, picked, key)
 			if err != nil {
-				log.Printf("    OSS 上传失败: %v", err)
+				logger.Warnf("    OSS 上传失败: %v", err)
 				failCnt++
 				continue
 			}
 			imageURL = ossURL
-			log.Printf("    已上传 OSS: %s", ossURL)
+			logger.Infof("    已上传 OSS: %s", ossURL)
 			removeOldOSSImage(signer, oldImage, key)
 		} else {
 			local := filepath.Join(outDir, c.Key+ext)
 			if err := downloadImage(client, picked, local); err != nil {
-				log.Printf("    图片下载失败(%s): %v", picked, err)
+				logger.Warnf("    图片下载失败(%s): %v", picked, err)
 				failCnt++
 				continue
 			}
-			log.Printf("    图片已保存: %s", local)
+			logger.Infof("    图片已保存: %s", local)
 		}
 
 		if err := upsertFoodCard(db, c, imageURL); err != nil {
-			log.Printf("    入库失败: %v", err)
+			logger.Errorf("    入库失败: %v", err)
 			failCnt++
 			continue
 		}
 		okCnt++
 		time.Sleep(time.Duration(delayMs) * time.Millisecond)
 	}
-	log.Printf("美食名片爬取完成: 成功 %d / 失败 %d", okCnt, failCnt)
+	logger.Infof("美食名片爬取完成: 成功 %d / 失败 %d", okCnt, failCnt)
 }
 
 // upsertFoodCard 按 card_key 写入 food_cards 表(存在则更新配图)。
@@ -1288,7 +1291,7 @@ var (
 func parseChengduTS(path string) ([]spot, map[string]district) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("读取数据文件失败: %v", err)
+		logger.Fatalf("读取数据文件失败: %v", err)
 	}
 	content := string(raw)
 

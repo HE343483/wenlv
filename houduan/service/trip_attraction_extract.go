@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -56,7 +57,7 @@ JSON 返回示例:
 
 	reply, err := llm.Chat(ctx, UserMessage(prompt), 0.1, 4000)
 	if err != nil {
-		fmt.Printf(" 大模型提纯%s数据异常: %v\n", platform, err)
+		logger.Warnf("大模型提纯%s数据异常: %v", platform, err)
 		return fmt.Sprintf("尝试提取%s结构化数据失败,降级回常规处理。", platform)
 	}
 	jsonText := extractJSONArray(reply)
@@ -65,7 +66,7 @@ JSON 返回示例:
 	}
 	var extracted []map[string]any
 	if err := json.Unmarshal([]byte(jsonText), &extracted); err != nil {
-		fmt.Printf("❌ %s提纯 JSON 解析失败: %v\n", platform, err)
+		logger.Warnf("%s提纯 JSON 解析失败: %v", platform, err)
 		return fmt.Sprintf("尝试提取%s结构化数据失败,降级回常规处理。", platform)
 	}
 
@@ -109,6 +110,6 @@ JSON 返回示例:
 			out.WriteString("\n")
 		}
 	}
-	fmt.Printf("✅ %s数据挖掘完毕,已装载进上下文。\n", platform)
+	logger.Infof("%s数据挖掘完毕,已装载进上下文。", platform)
 	return out.String()
 }
