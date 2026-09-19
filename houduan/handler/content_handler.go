@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -101,6 +102,54 @@ func (h *FoodHandler) Get(c *gin.Context) {
 	}
 	v, err := h.svc.Get(id)
 	if handleNotFound(c, err) {
+		return
+	}
+	pkg.OK(c, v)
+}
+
+// FoodCardHandler 美食名片查询接口。
+type FoodCardHandler struct {
+	svc *service.FoodCardService
+}
+
+// NewFoodCardHandler 构造美食名片处理器。
+func NewFoodCardHandler(svc *service.FoodCardService) *FoodCardHandler {
+	return &FoodCardHandler{svc: svc}
+}
+
+// List 返回全部美食名片(固定 6 条)。
+func (h *FoodCardHandler) List(c *gin.Context) {
+	items, err := h.svc.List()
+	if err != nil {
+		pkg.ServerError(c, "查询美食名片失败")
+		return
+	}
+	pkg.OK(c, items)
+}
+
+// FoodCategoryHandler 美食大类查询接口。
+type FoodCategoryHandler struct {
+	svc *service.FoodCategoryService
+}
+
+// NewFoodCategoryHandler 构造美食大类处理器。
+func NewFoodCategoryHandler(svc *service.FoodCategoryService) *FoodCategoryHandler {
+	return &FoodCategoryHandler{svc: svc}
+}
+
+// Get 按类别键查询美食大类详情。
+func (h *FoodCategoryHandler) Get(c *gin.Context) {
+	key := strings.TrimSpace(c.Param("key"))
+	if key == "" {
+		pkg.BadRequest(c, "无效的类别键")
+		return
+	}
+	v, err := h.svc.Get(key)
+	if handleNotFound(c, err) {
+		return
+	}
+	if err != nil {
+		pkg.ServerError(c, "查询美食大类失败")
 		return
 	}
 	pkg.OK(c, v)

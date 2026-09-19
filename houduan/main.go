@@ -33,6 +33,8 @@ func main() {
 	userRepo := repository.NewUserRepo(db)
 	scenicRepo := repository.NewScenicRepo(db)
 	foodRepo := repository.NewFoodRepo(db)
+	foodCardRepo := repository.NewFoodCardRepo(db)
+	foodCategoryRepo := repository.NewFoodCategoryRepo(db)
 	routeRepo := repository.NewRouteRepo(db)
 	favoriteRepo := repository.NewFavoriteRepo(db)
 	checkInRepo := repository.NewCheckInRepo(db)
@@ -59,6 +61,8 @@ func main() {
 	)
 	scenicSvc := service.NewScenicService(scenicRepo)
 	foodSvc := service.NewFoodService(foodRepo)
+	foodCardSvc := service.NewFoodCardService(foodCardRepo)
+	foodCategorySvc := service.NewFoodCategoryService(foodCategoryRepo)
 	routeSvc := service.NewRouteService(routeRepo)
 	favoriteSvc := service.NewFavoriteService(favoriteRepo)
 	checkInSvc := service.NewCheckInService(checkInRepo)
@@ -134,14 +138,17 @@ func main() {
 		Auth:     handler.NewAuthHandler(authSvc),
 		Scenic:   handler.NewScenicHandler(scenicSvc),
 		Food:     handler.NewFoodHandler(foodSvc),
-		Route:    handler.NewRouteHandler(routeSvc),
-		Favorite: handler.NewFavoriteHandler(favoriteSvc),
-		CheckIn:  handler.NewCheckInHandler(checkInSvc),
-		Review:   handler.NewReviewHandler(reviewSvc),
-		Photo:    handler.NewPhotoHandler(photoSvc),
-		Article:  handler.NewArticleHandler(articleSvc),
-		Upload:   handler.NewUploadHandler(uploadSvc),
-		HotTopic: handler.NewHotTopicHandler(hotTopicSvc),
+		FoodCard: handler.NewFoodCardHandler(foodCardSvc),
+		// FoodCategory 美食大类(川菜/名小吃/夜宵)详情
+		FoodCategory: handler.NewFoodCategoryHandler(foodCategorySvc),
+		Route:        handler.NewRouteHandler(routeSvc),
+		Favorite:     handler.NewFavoriteHandler(favoriteSvc),
+		CheckIn:      handler.NewCheckInHandler(checkInSvc),
+		Review:       handler.NewReviewHandler(reviewSvc),
+		Photo:        handler.NewPhotoHandler(photoSvc),
+		Article:      handler.NewArticleHandler(articleSvc),
+		Upload:       handler.NewUploadHandler(uploadSvc),
+		HotTopic:     handler.NewHotTopicHandler(hotTopicSvc),
 
 		// ScenicExtra 景点详情页实时数据(周边推荐/交通站点)
 		ScenicExtra: handler.NewScenicExtraHandler(scenicExtraSvc),

@@ -7,7 +7,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import { listFoods } from '@/api/content'
+import { listFoods, listFoodCards } from '@/api/content'
 import type { FoodItem } from '@/api/content'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
@@ -33,7 +33,22 @@ async function loadFoods() {
     foodsLoading.value = false
   }
 }
-onMounted(loadFoods)
+onMounted(() => {
+  loadFoods()
+  loadFoodCards()
+})
+
+/* ── 美食名片配图(后端 food_cards 表,爬虫抓取并上传 OSS) ── */
+const cardImages = ref<Record<string, string>>({})
+
+async function loadFoodCards() {
+  try {
+    const cards = await listFoodCards()
+    cardImages.value = Object.fromEntries(cards.map(c => [c.card_key, c.image || '']))
+  } catch {
+    /* 加载失败时名片回退为图标展示 */
+  }
+}
 
 const foodSectionTitle = computed(() => {
   const map: Record<string, string> = { zh: '成都味道图鉴', en: 'Taste of Chengdu', ja: '成都グルメ図鑑' }
@@ -58,15 +73,63 @@ function foodBrief(desc: string | undefined): string {
   return d.length > 42 ? d.slice(0, 42) + '…' : d
 }
 
+/** 名片配图:按卡片标识取数据库中的 OSS 图片,取不到时回退为图标展示 */
+function cardImage(key: string): string {
+  return cardImages.value[key] || ''
+}
+
 /* ── 美食名片 ── */
-const foodCards = [
-  { key: 'hotpot', icon: 'hotpot' },
-  { key: 'chuanchuan', icon: 'chuanchuan' },
-  { key: 'cuisine', icon: 'cuisine' },
-  { key: 'snacks', icon: 'dumpling' },
-  { key: 'tea', icon: 'tea' },
-  { key: 'nightfood', icon: 'moon' },
+interface FoodCard {
+  key: string
+  icon: string
+  /** 代表菜名(name_zh),点击名片时按此名在已加载菜品中精确匹配数据库 id */
+  nameZh: string
+}
+const foodCards: FoodCard[] = [
+  { key: 'hotpot', icon: 'hotpot', nameZh: '火锅' },
+  { key: 'chuanchuan', icon: 'chuanchuan', nameZh: '串串香' },
+  { key: 'cuisine', icon: 'cuisine', nameZh: '麻婆豆腐' },
+  { key: 'snacks', icon: 'dumpling', nameZh: '担担面' },
+  { key: 'tea', icon: 'tea', nameZh: '盖碗茶' },
+  { key: 'nightfood', icon: 'moon', nameZh: '兔头' },
 ]
+
+/** 大类卡片：川菜 / 名小吃 / 夜宵 介绍的是"一类",直接进类别页(不解析菜品 id) */
+const CATEGORY_CARDS = new Set(['cuisine', 'snacks', 'nightfood'])
+
+/** 名片跳转进行中标志：防止连点造成多次请求/跳转 */
+let cardNavigating = false
+
+/**
+ * 点击名片：
+ * - cuisine/snacks/nightfood 为大类，直接跳 /food/{key} 类别页；
+ * - 其余(火锅/串串香/盖碗茶)先确保菜品列表就绪(复用「成都味道图鉴」的 loadFoods)，
+ *   再按代表菜名匹配真实菜品 id；确实匹配不到时回退分类页(key)。
+ */
+async function goCardDetail(card: FoodCard) {
+  if (cardNavigating) return
+  cardNavigating = true
+  try {
+    if (CATEGORY_CARDS.has(card.key)) {
+      await router.push({ name: 'food-detail', params: { id: card.key } })
+      return
+    }
+    if (foods.value.length === 0) {
+      try {
+        await loadFoods()
+      } catch {
+        /* 列表加载异常：走下方兜底逻辑，不向控制台抛错 */
+      }
+    }
+    const found = foods.value.find((f) => f.name_zh === card.nameZh)
+    if (!found) {
+      console.warn(`[FoodPage] 未匹配到菜品「${card.nameZh}」，回退分类页 /food/${card.key}`)
+    }
+    await router.push({ name: 'food-detail', params: { id: found ? String(found.id) : card.key } })
+  } finally {
+    cardNavigating = false
+  }
+}
 
 /* 统计数值 */
 const stats = [
@@ -257,11 +320,22 @@ const foodStreets = [
           :key="card.key"
           class="food-card"
           tabindex="0"
-          @click="goFoodDetail(card.key)"
-          @keyup.enter="goFoodDetail(card.key)"
+          @click="goCardDetail(card)"
+          @keyup.enter="goCardDetail(card)"
         >
-          <div class="food-card__icon">
-            <AppIcon :name="card.icon" :size="36" />
+          <div class="food-card__media">
+            <!-- 数据库名片配图,取不到时回退为图标 -->
+            <img
+              v-if="cardImage(card.key)"
+              class="food-card__photo"
+              :src="cardImage(card.key)"
+              :alt="langStore.t(`food.card.${card.key}.name`)"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            />
+            <div v-else class="food-card__icon">
+              <AppIcon :name="card.icon" :size="36" />
+            </div>
           </div>
           <h3 class="food-card__name">
             {{ langStore.t(`food.card.${card.key}.name`) }}
@@ -550,12 +624,39 @@ const foodStreets = [
   opacity: 1;
 }
 
+/* 名片配图:圆形徽章,无图时内部回退为图标 */
+.food-card__media {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  border: 2px solid var(--color-gold);
+  background: var(--color-bg-alt, #f5f2ec);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.food-card__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.food-card:hover .food-card__media,
+.food-card:focus-visible .food-card__media {
+  transform: scale(1.06);
+  box-shadow: 0 8px 22px var(--color-gold-glow, rgba(0, 0, 0, 0.15));
+}
+
 .food-card__icon {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--color-gold);
-  margin-bottom: var(--space-1);
 }
 
 .food-card__name {

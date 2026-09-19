@@ -19,6 +19,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"wenlv-backend/model"
+	"wenlv-backend/pkg"
 )
 
 // ScenicImageCandidate 一张待落库的景点图片及其来源(amap/xhs/commons)。
@@ -178,9 +179,14 @@ type commonsImageResult struct {
 	Width int
 }
 
-// searchCommonsImages 按关键词搜索 Commons,过滤后按宽度从大到小返回最多 limit 张。
+// searchCommonsImages 保留原方法签名,内部委托包级函数,供景点采集继续使用。
 func (e *ScenicEnricher) searchCommonsImages(ctx context.Context, keyword string, names []string, limit int) ([]commonsImageResult, error) {
-	if e.commonsClient == nil {
+	return searchCommonsImagesFor(ctx, e.commonsClient, keyword, names, limit)
+}
+
+// searchCommonsImagesFor 按关键词搜索 Commons,过滤后按宽度从大到小返回最多 limit 张。
+func searchCommonsImagesFor(ctx context.Context, client *http.Client, keyword string, names []string, limit int) ([]commonsImageResult, error) {
+	if client == nil {
 		return nil, fmt.Errorf("Commons 客户端未初始化")
 	}
 	apiURL := fmt.Sprintf(
@@ -198,7 +204,7 @@ func (e *ScenicEnricher) searchCommonsImages(ctx context.Context, keyword string
 			} `json:"pages"`
 		} `json:"query"`
 	}
-	if err := commonsGetJSON(ctx, e.commonsClient, apiURL, &res); err != nil {
+	if err := commonsGetJSON(ctx, client, apiURL, &res); err != nil {
 		return nil, err
 	}
 	var out []commonsImageResult
@@ -277,6 +283,40 @@ func fetchCommonsImageBytes(ctx context.Context, client *http.Client, rawURL str
 		log.Printf("    Commons 图片重试仍失败,跳过该张 %s: %v", rawURL, retryErr)
 	}
 	return body, ct, retryErr
+}
+
+// uploadImageCandidates 下载候选图片并上传 OSS,返回 OSS URL 列表与成功张数。
+// keyPrefix 形如 "scenic/12" 或 "food/3";单张失败只记日志并跳过;
+// 达到 galleryCap 张即停止。Commons 来源走专用客户端(可经 COMMONS_PROXY)并带 429 退避。
+func uploadImageCandidates(ctx context.Context, client *http.Client, signer *pkg.OssSigner, keyPrefix string, candidates []ScenicImageCandidate, galleryCap int) ([]string, int) {
+	var out []string
+	for i, c := range candidates {
+		if len(out) >= galleryCap {
+			break
+		}
+		var (
+			body []byte
+			ct   string
+			err  error
+		)
+		// Commons 图走 Commons 客户端(可经 COMMONS_PROXY),其余来源沿用通用下载客户端。
+		if c.Source == scenicImageSourceCommons && client != nil {
+			body, ct, err = fetchCommonsImageBytes(ctx, client, c.URL)
+		} else {
+			body, ct, err = fetchBytes(ctx, c.URL)
+		}
+		if err != nil {
+			continue
+		}
+		ext := extFromContentType(ct, c.URL)
+		key := fmt.Sprintf("%s/g%d%s", keyPrefix, i+1, ext)
+		ossURL, err := signer.PutObjectBytes(body, key, ct)
+		if err != nil {
+			continue
+		}
+		out = append(out, ossURL)
+	}
+	return out, len(out)
 }
 
 // commonsGetJSON 请求 Commons Action API 并解析 JSON。

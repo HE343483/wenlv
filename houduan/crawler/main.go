@@ -16,11 +16,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,7 +68,8 @@ func main() {
 	uploadOnly := flag.Bool("upload-only", false, "跳过爬取,仅把本地已下载图片上传 OSS 并更新数据库(无需代理)")
 	descOnly := flag.Bool("desc-only", false, "仅回填景点简介:从数据库读取景点,用维基百科简体正文只更新 desc 字段")
 	food := flag.Bool("food", false, "爬取成都美食(写入 foods 表),配合 -upload 上传 OSS")
-	only := flag.String("only", "", "美食模式下仅处理名称包含该关键字的条目")
+	foodCard := flag.Bool("food-card", false, "爬取美食页六大风味名片配图(写入 food_cards 表),配合 -upload 上传 OSS")
+	only := flag.String("only", "", "美食/美食名片模式下仅处理名称或标识包含该关键字的条目")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -109,8 +112,11 @@ func main() {
 	}
 	log.Printf("解析到 %d 个区县 / %d 个景点,开始爬取(输出目录: %s)", len(dists), len(spots), *outDir)
 
-	if err := os.MkdirAll(*outDir, 0o755); err != nil {
-		log.Fatalf("创建图片目录失败: %v", err)
+	// 未配置 OSS 时才需要本地目录留档;配置 OSS 后图片直接内存上传,不在本地落盘
+	if signer == nil {
+		if err := os.MkdirAll(*outDir, 0o755); err != nil {
+			log.Fatalf("创建图片目录失败: %v", err)
+		}
 	}
 
 	// ── 仅上传模式:本地图片 → OSS → 更新数据库,不访问维基百科 ──
@@ -123,6 +129,13 @@ func main() {
 	if *food {
 		foodOut := filepath.Join(filepath.Dir(*outDir), "food") // images/food/,与景点图片分开存放
 		runFoodCrawl(client, db, signer, foodOut, *delay, *only)
+		return
+	}
+
+	// ── 美食名片模式:爬取六大风味名片配图写入 food_cards 表 ──
+	if *foodCard {
+		cardOut := filepath.Join(filepath.Dir(*outDir), "food-card") // images/food-card/
+		runFoodCardCrawl(client, db, signer, cardOut, *delay, *only)
 		return
 	}
 
@@ -197,30 +210,26 @@ func main() {
 			}
 		}
 
-		// 3. 下载图片到本地(无图时保留原占位路径);启用 -upload 时同步上传 OSS
+		// 3. 图片处理:配置 OSS 时直接内存上传(不落盘),否则下载到本地留档
 		if s.ImageURL != "" && !strings.Contains(s.ImageURL, "placeholder") {
-			ext := strings.ToLower(filepath.Ext(s.ImageURL))
-			if idx := strings.IndexByte(ext, '?'); idx >= 0 {
-				ext = ext[:idx]
-			}
-			if ext == "" || len(ext) > 6 {
-				ext = ".jpg"
-			}
-			local := filepath.Join(*outDir, s.ID+ext)
-			if err := downloadImage(client, s.ImageURL, local); err != nil {
-				log.Printf("    图片下载失败(%s): %v,仅记录外链", s.ImageURL, err)
-				noImg++
+			ext := imageExt(s.ImageURL)
+			if signer != nil {
+				ossURL, err := uploadImageToOSS(client, signer, s.ImageURL, "scenic/"+s.ID+ext)
+				if err != nil {
+					log.Printf("    OSS 上传失败: %v,仅记录外链", err)
+					noImg++
+				} else {
+					s.ImageURL = ossURL
+					log.Printf("    已上传 OSS: %s", ossURL)
+				}
 			} else {
-				s.LocalPath = local
-				log.Printf("    图片已保存: %s", local)
-				if signer != nil {
-					key := "scenic/" + s.ID + ext
-					if ossURL, err := signer.PutObject(local, key); err != nil {
-						log.Printf("    OSS 上传失败: %v", err)
-					} else {
-						s.ImageURL = ossURL
-						log.Printf("    已上传 OSS: %s", ossURL)
-					}
+				local := filepath.Join(*outDir, s.ID+ext)
+				if err := downloadImage(client, s.ImageURL, local); err != nil {
+					log.Printf("    图片下载失败(%s): %v,仅记录外链", s.ImageURL, err)
+					noImg++
+				} else {
+					s.LocalPath = local
+					log.Printf("    图片已保存: %s", local)
 				}
 			}
 		} else {
@@ -580,6 +589,143 @@ func downloadImage(client *http.Client, imgURL, dest string) error {
 	return err
 }
 
+// imageExt 从图片 URL 推断扩展名(去掉查询串),无法识别时按 .jpg 处理。
+func imageExt(rawURL string) string {
+	ext := strings.ToLower(filepath.Ext(rawURL))
+	if idx := strings.IndexByte(ext, '?'); idx >= 0 {
+		ext = ext[:idx]
+	}
+	if ext == "" || len(ext) > 6 {
+		ext = ".jpg"
+	}
+	return ext
+}
+
+// pinnedImage 精确指定配图:用于修正自动检索结果不准确的图片。
+// Title 为 Commons 文件名;KeyTag 用于生成新的 OSS 对象名,
+// 替换后地址变化可绕过浏览器对旧图的 24h 缓存。
+type pinnedImage struct {
+	Title  string
+	KeyTag string
+}
+
+// pinnedFoodImages 需人工指正的菜品配图(键为菜品中文名)。
+var pinnedFoodImages = map[string]pinnedImage{
+	"兔头":  {"File:Chengdu travel 033 (36023201702).jpg", "v2"},
+	"韩包子": {"File:Baozi Chengdu.JPG", "v2"},
+}
+
+// pinnedFoodCardImages 需人工指正的美食名片配图(键为名片 card_key)。
+var pinnedFoodCardImages = map[string]pinnedImage{
+	"chuanchuan": {"File:冷锅 串 Cold-pot Skewers Y1 per skewer (1495465364).jpg", "v2"},
+}
+
+// keyTag 返回 OSS 对象名的版本后缀(无版本标识时为空串)。
+func keyTag(tag string) string {
+	if tag == "" {
+		return ""
+	}
+	return "-" + tag
+}
+
+// commonsFileURL 按 Commons 文件名精确取原图地址。
+func commonsFileURL(client *http.Client, title string) (string, error) {
+	u := fmt.Sprintf("https://commons.wikimedia.org/w/api.php?action=query&titles=%s&prop=imageinfo&iiprop=url&format=json",
+		url.QueryEscape(title))
+	var res struct {
+		Query struct {
+			Pages map[string]struct {
+				ImageInfo []struct {
+					URL string `json:"url"`
+				} `json:"imageinfo"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := httpGetJSON(client, u, &res); err != nil {
+		return "", err
+	}
+	for _, p := range res.Query.Pages {
+		if len(p.ImageInfo) == 0 || p.ImageInfo[0].URL == "" {
+			continue
+		}
+		clean := p.ImageInfo[0].URL
+		if i := strings.IndexByte(clean, '?'); i >= 0 {
+			clean = clean[:i]
+		}
+		return clean, nil
+	}
+	return "", fmt.Errorf("未找到图片: %s", title)
+}
+
+// ossKeyFromURL 从 OSS 图片地址中取出对象 key(非本桶地址返回空)。
+func ossKeyFromURL(signer *pkg.OssSigner, rawURL string) string {
+	if signer == nil || rawURL == "" {
+		return ""
+	}
+	prefix := fmt.Sprintf("https://%s.%s/", signer.Bucket, signer.Endpoint)
+	if !strings.HasPrefix(rawURL, prefix) {
+		return ""
+	}
+	return strings.TrimPrefix(rawURL, prefix)
+}
+
+// removeOldOSSImage 替换配图后清理 OSS 上不再使用的旧对象。
+func removeOldOSSImage(signer *pkg.OssSigner, oldURL, newKey string) {
+	oldKey := ossKeyFromURL(signer, oldURL)
+	if oldKey == "" || oldKey == newKey {
+		return // 非本桶地址或对象名未变(原地覆盖),无需删除
+	}
+	if err := signer.DeleteObject(oldKey); err != nil {
+		log.Printf("    删除 OSS 旧图失败(%s): %v", oldKey, err)
+		return
+	}
+	log.Printf("    已删除 OSS 旧图: %s", oldKey)
+}
+
+// currentFoodImage 读取菜品当前图片地址(用于替换后清理 OSS 旧对象)。
+func currentFoodImage(db *gorm.DB, nameZH string) string {
+	var f model.Food
+	if err := db.Select("images").Where("name_zh = ?", nameZH).First(&f).Error; err != nil {
+		return ""
+	}
+	return f.Images
+}
+
+// currentFoodCardImage 读取美食名片当前配图地址。
+func currentFoodCardImage(db *gorm.DB, cardKey string) string {
+	var c model.FoodCard
+	if err := db.Select("image").Where("card_key = ?", cardKey).First(&c).Error; err != nil {
+		return ""
+	}
+	return c.Image
+}
+
+// uploadImageToOSS 直接把远程图片上传到 OSS,全程内存操作、不在本地落盘,返回 OSS 地址。
+func uploadImageToOSS(client *http.Client, signer *pkg.OssSigner, imageURL, key string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, imageURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "wenlv-crawler/1.0 (educational project)")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	ct := mime.TypeByExtension(imageExt(imageURL))
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	return signer.PutObjectBytes(data, key, ct)
+}
+
 // uploadLocalToOSS 仅上传模式:遍历本地图片目录,按文件名(景点ID)匹配景点并更新数据库。
 func uploadLocalToOSS(db *gorm.DB, signer *pkg.OssSigner, dir string, spots []spot) {
 	entries, err := os.ReadDir(dir)
@@ -638,7 +784,7 @@ func mustConnectDB() *gorm.DB {
 		log.Fatalf("连接数据库失败: %v", err)
 	}
 	// 与主服务保持一致,确保表存在且字段注释齐全
-	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}); err != nil {
+	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}, &model.FoodCard{}); err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
 	return db
@@ -733,6 +879,7 @@ func foodSeeds() []foodSeed {
 		{"hanbaozi", "韩包子", "Han Baozi", "", "", []string{"小吃", "老字号"}, "成都老字号包子。皮薄纹匀、馅心细嫩、松泡化渣，南虾包子更是经典中的经典。"},
 		{"laitangyuan", "赖汤圆", "Lai Tangyuan", "", "", []string{"小吃", "甜食"}, "创始于1894年的中华老字号。汤圆皮薄滋润、心里甜，黑芝麻馅香甜可口、不腻不沾牙。"},
 		{"bingfen", "冰粉", "Bingfen", "", "", []string{"甜食", "消夏"}, "成都夏日限定。晶莹剔透的冰粉配红糖水、花生碎、山楂片，一碗下去暑气全消。"},
+		{"gaiwancha", "盖碗茶", "Gaiwan Tea", "盖碗茶", "Gaiwan tea", []string{"茶饮", "慢生活"}, "一茶一坐，半日浮生。成都茶馆里竹椅盖碗、长嘴铜壶掺茶，泡着的是这座城市最地道的慢生活。"},
 	}
 }
 
@@ -749,9 +896,13 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 		}
 		seeds = filtered
 	}
-	log.Printf("开始爬取成都美食(%d 种),输出目录: %s", len(seeds), outDir)
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		log.Fatalf("创建图片目录失败: %v", err)
+	if signer == nil {
+		log.Printf("开始爬取成都美食(%d 种),图片保存目录: %s", len(seeds), outDir)
+		if err := os.MkdirAll(outDir, 0o755); err != nil {
+			log.Fatalf("创建图片目录失败: %v", err)
+		}
+	} else {
+		log.Printf("开始爬取成都美食(%d 种),图片直接上传 OSS", len(seeds))
 	}
 
 	okCnt, noImg, failCnt := 0, 0, 0
@@ -811,33 +962,46 @@ func runFoodCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDi
 			}
 		}
 
-		// 3. 下载并上传 OSS
-		if imgURL != "" {
-			ext := strings.ToLower(filepath.Ext(imgURL))
-			if idx := strings.IndexByte(ext, '?'); idx >= 0 {
-				ext = ext[:idx]
+		// 2.5 人工指定配图优先(用于修正自动检索不准的图片)
+		pin, pinned := pinnedFoodImages[f.NameZH]
+		if pinned {
+			u, err := commonsFileURL(client, pin.Title)
+			if err != nil {
+				log.Printf("    指定配图获取失败: %v", err)
+				failCnt++
+				continue
 			}
-			if ext == "" || len(ext) > 6 {
-				ext = ".jpg"
-			}
-			local := filepath.Join(outDir, f.ID+ext)
-			if err := downloadImage(client, imgURL, local); err != nil {
-				log.Printf("    图片下载失败(%s): %v", imgURL, err)
-				noImg++
-			} else {
-				log.Printf("    图片已保存: %s", local)
-				if signer != nil {
-					if ossURL, err := signer.PutObject(local, "food/"+f.ID+ext); err != nil {
-						log.Printf("    OSS 上传失败: %v", err)
-					} else {
-						imgURL = ossURL
-						log.Printf("    已上传 OSS: %s", ossURL)
-					}
-				}
-			}
-		} else {
+			imgURL = u
+			log.Printf("    使用指定配图: %s", pin.Title)
+		} else if imgURL == "" {
 			noImg++
 			log.Printf("    未获取到图片")
+		}
+
+		// 3. 图片处理:配置 OSS 时直接内存上传(不落盘),否则下载到本地留档
+		if imgURL != "" {
+			ext := imageExt(imgURL)
+			key := "food/" + f.ID + keyTag(pin.KeyTag) + ext
+			oldImage := currentFoodImage(db, f.NameZH)
+			if signer != nil {
+				ossURL, err := uploadImageToOSS(client, signer, imgURL, key)
+				if err != nil {
+					log.Printf("    OSS 上传失败: %v", err)
+					noImg++
+				} else {
+					imgURL = ossURL
+					log.Printf("    已上传 OSS: %s", ossURL)
+					removeOldOSSImage(signer, oldImage, key)
+				}
+			} else {
+				local := filepath.Join(outDir, f.ID+ext)
+				if err := downloadImage(client, imgURL, local); err != nil {
+					log.Printf("    图片下载失败(%s): %v", imgURL, err)
+					noImg++
+				} else {
+					log.Printf("    图片已保存: %s", local)
+				}
+			}
 		}
 
 		// 4. 入库
@@ -888,6 +1052,206 @@ func upsertFood(db *gorm.DB, f foodSeed, extract, imgURL string) error {
 		updates["images"] = imgURL
 	}
 	return db.Model(&existing).Updates(updates).Error
+}
+
+// ──── 美食名片配图爬取 ────
+
+// foodCardSeed 美食页六大风味名片种子数据,Query 为 Commons 配图搜索词。
+type foodCardSeed struct {
+	Key    string
+	NameZH string
+	NameEN string
+	Query  string
+	Sort   int
+}
+
+func foodCardSeeds() []foodCardSeed {
+	return []foodCardSeed{
+		{"hotpot", "火锅", "Hot Pot", "hot pot restaurant China", 1},
+		{"chuanchuan", "串串香", "Chuan Chuan", "chuanchuan", 2},
+		{"cuisine", "川菜", "Sichuan Cuisine", "Sichuan cuisine", 3},
+		{"snacks", "名小吃", "Street Snacks", "Chengdu snack", 4},
+		{"tea", "盖碗茶", "Gaiwan Tea", "teahouse Chengdu", 5},
+		{"nightfood", "夜宵", "Night Food", "night market food", 6},
+	}
+}
+
+// commonsSearch 从 Wikimedia Commons 搜索图片,按搜索相关度返回候选 URL 列表。
+func commonsSearch(client *http.Client, query string, limit int) []string {
+	if query == "" {
+		return nil
+	}
+	u := fmt.Sprintf("https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=%s&gsrnamespace=6&gsrlimit=%d&prop=imageinfo&iiprop=url%%7Csize&format=json",
+		url.QueryEscape(query), limit)
+	var res struct {
+		Query struct {
+			Pages map[string]struct {
+				Index     int `json:"index"`
+				ImageInfo []struct {
+					URL   string `json:"url"`
+					Width int    `json:"width"`
+				} `json:"imageinfo"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := httpGetJSON(client, u, &res); err != nil {
+		return nil
+	}
+	type cand struct {
+		idx int
+		url string
+	}
+	var list []cand
+	for _, p := range res.Query.Pages {
+		if len(p.ImageInfo) == 0 {
+			continue
+		}
+		clean := p.ImageInfo[0].URL
+		// 去掉 Wikimedia 附加的 ?utm_source=... 查询参数
+		if i := strings.IndexByte(clean, '?'); i >= 0 {
+			clean = clean[:i]
+		}
+		low := strings.ToLower(clean)
+		if !strings.HasSuffix(low, ".jpg") && !strings.HasSuffix(low, ".jpeg") && !strings.HasSuffix(low, ".png") {
+			continue
+		}
+		if p.ImageInfo[0].Width < 800 {
+			continue
+		}
+		list = append(list, cand{p.Index, clean})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].idx < list[j].idx })
+	urls := make([]string, 0, len(list))
+	for _, c := range list {
+		urls = append(urls, c.url)
+	}
+	return urls
+}
+
+// runFoodCardCrawl 爬取六大风味名片配图,上传 OSS 并写入 food_cards 表。
+// 会排除 foods 表已用图片,保证名片配图与下方「成都味道图鉴」不重复。
+// only 非空时仅处理标识或名称包含该关键字的名片(用于单张重爬)。
+func runFoodCardCrawl(client *http.Client, db *gorm.DB, signer *pkg.OssSigner, outDir string, delayMs int, only string) {
+	used := map[string]bool{}
+	var existing []model.Food
+	if err := db.Select("images").Find(&existing).Error; err != nil {
+		log.Printf("读取已有美食图片失败(将不排除重复): %v", err)
+	}
+	for _, f := range existing {
+		if f.Images != "" {
+			used[f.Images] = true
+		}
+	}
+
+	seeds := foodCardSeeds()
+	if only != "" {
+		filtered := make([]foodCardSeed, 0, 1)
+		for _, c := range seeds {
+			if strings.Contains(c.Key, only) || strings.Contains(c.NameZH, only) {
+				filtered = append(filtered, c)
+			}
+		}
+		seeds = filtered
+	}
+	if signer == nil {
+		log.Printf("开始爬取美食名片配图(%d 张),图片保存目录: %s", len(seeds), outDir)
+		if err := os.MkdirAll(outDir, 0o755); err != nil {
+			log.Fatalf("创建图片目录失败: %v", err)
+		}
+	} else {
+		log.Printf("开始爬取美食名片配图(%d 张),图片直接上传 OSS", len(seeds))
+	}
+
+	okCnt, failCnt := 0, 0
+	for i, c := range seeds {
+		log.Printf("[%d/%d] %s", i+1, len(seeds), c.NameZH)
+
+		// 优先使用人工指定配图,否则按相关度取第一个未被占用的候选图
+		pin, pinned := pinnedFoodCardImages[c.Key]
+		picked := ""
+		if pinned {
+			u, err := commonsFileURL(client, pin.Title)
+			if err != nil {
+				log.Printf("    指定配图获取失败: %v", err)
+				failCnt++
+				continue
+			}
+			picked = u
+			log.Printf("    使用指定配图: %s", pin.Title)
+		} else {
+			for _, u := range commonsSearch(client, c.Query, 12) {
+				if used[u] {
+					continue
+				}
+				picked = u
+				break
+			}
+		}
+		if picked == "" {
+			log.Printf("    未找到可用配图")
+			failCnt++
+			continue
+		}
+		used[picked] = true
+
+		ext := imageExt(picked)
+		key := "food-card/" + c.Key + keyTag(pin.KeyTag) + ext
+		oldImage := currentFoodCardImage(db, c.Key)
+		imageURL := picked
+		if signer != nil {
+			// 直接内存上传 OSS,不在本地落盘
+			ossURL, err := uploadImageToOSS(client, signer, picked, key)
+			if err != nil {
+				log.Printf("    OSS 上传失败: %v", err)
+				failCnt++
+				continue
+			}
+			imageURL = ossURL
+			log.Printf("    已上传 OSS: %s", ossURL)
+			removeOldOSSImage(signer, oldImage, key)
+		} else {
+			local := filepath.Join(outDir, c.Key+ext)
+			if err := downloadImage(client, picked, local); err != nil {
+				log.Printf("    图片下载失败(%s): %v", picked, err)
+				failCnt++
+				continue
+			}
+			log.Printf("    图片已保存: %s", local)
+		}
+
+		if err := upsertFoodCard(db, c, imageURL); err != nil {
+			log.Printf("    入库失败: %v", err)
+			failCnt++
+			continue
+		}
+		okCnt++
+		time.Sleep(time.Duration(delayMs) * time.Millisecond)
+	}
+	log.Printf("美食名片爬取完成: 成功 %d / 失败 %d", okCnt, failCnt)
+}
+
+// upsertFoodCard 按 card_key 写入 food_cards 表(存在则更新配图)。
+func upsertFoodCard(db *gorm.DB, c foodCardSeed, imageURL string) error {
+	var existing model.FoodCard
+	err := db.Where("card_key = ?", c.Key).First(&existing).Error
+	if err == gorm.ErrRecordNotFound {
+		return db.Create(&model.FoodCard{
+			CardKey: c.Key,
+			NameZH:  c.NameZH,
+			NameEN:  c.NameEN,
+			Image:   imageURL,
+			Sort:    c.Sort,
+		}).Error
+	}
+	if err != nil {
+		return err
+	}
+	return db.Model(&existing).Updates(map[string]any{
+		"name_zh": c.NameZH,
+		"name_en": c.NameEN,
+		"image":   imageURL,
+		"sort":    c.Sort,
+	}).Error
 }
 
 // ──── chengdu.ts 解析 ────

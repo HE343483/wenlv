@@ -55,6 +55,21 @@ func (s *FoodService) Get(id uint) (*model.Food, error) {
 	return v, err
 }
 
+// FoodCardService 美食名片查询业务。
+type FoodCardService struct {
+	repo *repository.FoodCardRepo
+}
+
+// NewFoodCardService 构造美食名片服务。
+func NewFoodCardService(repo *repository.FoodCardRepo) *FoodCardService {
+	return &FoodCardService{repo: repo}
+}
+
+// List 查询全部美食名片。
+func (s *FoodCardService) List() ([]model.FoodCard, error) {
+	return s.repo.ListAll()
+}
+
 // RouteService 路线查询业务。
 type RouteService struct {
 	repo *repository.RouteRepo

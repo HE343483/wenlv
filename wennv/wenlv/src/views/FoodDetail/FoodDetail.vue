@@ -1,429 +1,310 @@
 <script setup lang="ts">
 /**
  * FoodDetail.vue — 美食详情页
- * 说明：当前为纯布局骨架，基础名称/描述复用本地 i18n（food.card.*）渲染版式；
- *       后期由后端接口按路由参数 :id 拉取美食详情数据填充（见下方「后端接口接入预留区」）。
+ * 数字 id(如 /food/3)走 /api/food/:id 真实数据渲染;
+ * 非数字 id(美食大类 cuisine/snacks/nightfood)走 /api/food-category/:key 渲染类别页:
+ * 类别概述 + 图文段落 + 类别图集 + 「本类美食」(跳转真实菜品);
+ * 类别接口失败/无数据时不渲染类别专属区块,先尝试按"类别键→代表菜名"解析成菜品 id 跳转
+ * (如 /food/hotpot → /food/1),解析不到则回退 i18n 文案 + 本类美食列表的最小降级视图,保证不白屏。
  */
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import { getFood } from '@/api/content'
-import type { FoodItem } from '@/api/content'
+import { getFood, listFoods, getFoodCategory } from '@/api/content'
+import type { FoodItem, FoodCategoryItem } from '@/api/content'
+import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
+import { getRuntimeMapJsKey } from '@/trip/services/api'
+import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
 const langStore = useLanguageStore()
 
-/* 路由参数：美食分类ID（hotpot / chuanchuan / cuisine / snacks / tea / nightfood） */
+/* 路由参数：数字 id → 数据库美食；分类 key(hotpot 等) → i18n 降级 */
 const foodId = computed(() => String(route.params.id ?? ''))
+const numericId = computed(() => {
+  const n = Number(foodId.value)
+  return Number.isFinite(n) && n > 0 ? n : 0
+})
+const isFallback = computed(() => numericId.value === 0)
+
+/* 美食名片分类 ↔ 菜品标签关键词映射(按标签"包含"匹配,见 matchCategoryDishes) */
+const CATEGORY_TAGS: Record<string, string[]> = {
+  hotpot: ['火锅'],
+  chuanchuan: ['串串'],
+  cuisine: ['川菜'],
+  snacks: ['小吃'],
+  tea: ['茶'],
+  nightfood: ['夜宵'],
+}
+
+/**
+ * 类别键 → 代表菜名(name_zh)。
+ * 这些键在 food_categories 表没有记录(类别接口 404),但美食页确有对应菜品,
+ * 直接访问 /food/hotpot 时应作为菜品详情页处理,按代表菜名解析出真实菜品 id。
+ * 代表菜名与 FoodPage.vue 的 foodCards.nameZh 保持一致。
+ */
+const CATEGORY_DISH_NAMES: Record<string, string> = {
+  hotpot: '火锅',
+  chuanchuan: '串串香',
+  tea: '盖碗茶',
+}
+
+/** 按标签关键词从美食列表中筛出该分类的菜品,保留接口返回的原始顺序 */
+function matchCategoryDishes(items: FoodItem[], keywords: string[]): FoodItem[] {
+  if (!keywords.length) return []
+  return items.filter((item) =>
+    splitList(item.tags).some((tag) => keywords.some((kw) => tag.includes(kw))),
+  )
+}
 
 function goBack() {
   router.back()
 }
 
-/* 占位名称 — 复用 i18n 本地文案，后期替换为接口返回的名称 */
-const placeholderName = computed(() => {
-  if (langStore.lang === 'zh' || langStore.lang === 'ja') {
-    return langStore.t(`food.card.${foodId.value}.name`)
-  }
-  return langStore.t(`food.card.${foodId.value}.en`)
-})
-
-const placeholderEnTitle = computed(() => langStore.t(`food.card.${foodId.value}.en`))
-
-const placeholderDesc = computed(() => langStore.t(`food.card.${foodId.value}.desc`))
-
-/* 占位标签 — 后期替换为接口返回的 tags */
-const placeholderTags = ['麻辣', '鲜香', '经典']
-const enTags = ['Numbing', 'Fragrant', 'Classic']
-const tagIndex = computed(() =>
-  Math.abs([...foodId.value].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)) % placeholderTags.length
-)
-
 /* ════════════════════════════════════════════════
- *  本地 Mock 详情数据（中英文双语）
- *  说明：接入后端接口前，用本地文案完整渲染版式；
- *        接入后端后，用 fetchFoodDetail 返回的数据替换 detail 即可。
+ *  详情数据：数字 id 走 /api/food/:id；分类 key 走 i18n 降级
+ *  展示层纯函数(parseSections/splitList/estimatedSet/displayFact)复用 @/utils/scenicDetail
  *  ════════════════════════════════════════════════ */
-interface FoodLocalData {
-  rating: string
-  flavor: string
-  spice: string
-  price: string
-  signature: string
-  scene: string
-  storyTitle: string
-  paras: string[]
-  related: Array<{ name: string; desc: string }>
-}
-
-const localDetails: Record<string, { zh: FoodLocalData; en: FoodLocalData }> = {
-  hotpot: {
-    zh: {
-      rating: '4.9',
-      flavor: '麻辣鲜香',
-      spice: '重辣',
-      price: '人均 ¥80',
-      signature: '牛油锅底 · 毛肚 · 鸭肠',
-      scene: '朋友聚餐 / 深夜食堂',
-      storyTitle: '一锅红汤，煮尽江湖',
-      paras: [
-        '成都火锅的精髓在那口牛油锅底——辣椒、花椒与多种香料在滚油中交融，麻辣鲜香层层递进。',
-        '毛肚七上八下、鸭肠三提三放，讲究的是火候与节奏。围炉而坐，热气蒸腾中尽是人间烟火。',
-      ],
-      related: [
-        { name: '串串香', desc: '一根竹签串起百味，边走边吃更随性。' },
-        { name: '夜宵', desc: '火锅之后的小龙虾配啤酒，巴适得板。' },
-        { name: '盖碗茶', desc: '麻辣过后，一盏清茶解腻回甘。' },
-      ],
-    },
-    en: {
-      rating: '4.9',
-      flavor: 'Numbing & spicy',
-      spice: 'Extra spicy',
-      price: '¥80 / person',
-      signature: 'Beef-tallow base · Beef tripe · Duck intestine',
-      scene: 'Friends gathering / Late-night',
-      storyTitle: 'A Pot of Red Broth, a World of Flavor',
-      paras: [
-        'The soul of Chengdu hotpot lies in its beef-tallow base, where chilis, Sichuan peppercorns and spices bloom into layers of numbing heat.',
-        'Beef tripe is dipped seven up and eight down, duck intestine three lifts — it is all about timing. Around the steaming pot, every gathering turns into the warmth of everyday life.',
-      ],
-      related: [
-        { name: 'Chuan Chuan', desc: 'A hundred flavors on skewers, best enjoyed on the go.' },
-        { name: 'Night Food', desc: 'Crayfish and beer after hotpot — life is good.' },
-        { name: 'Gaiwan Tea', desc: 'A cup of tea to settle the spice and refresh the palate.' },
-      ],
-    },
-  },
-
-  chuanchuan: {
-    zh: {
-      rating: '4.7',
-      flavor: '百味百串',
-      spice: '中辣',
-      price: '人均 ¥50',
-      signature: '红油锅底 · 牛肉串 · 郡肝',
-      scene: '一人食 / 三五好友',
-      storyTitle: '一根竹签，串起百味',
-      paras: [
-        '串串香把成都的随性发挥到极致——想吃什么拿什么，一根竹签串起牛肉、郡肝与素菜，浸入红油翻滚。',
-        '按签计费、按签结账，吃多少拿多少，是成都人最接地气的聚餐方式。',
-      ],
-      related: [
-        { name: '火锅', desc: '同是红汤，围炉而坐更有仪式感。' },
-        { name: '名小吃', desc: '串串之外，蛋烘糕、糖油果子也值得一试。' },
-        { name: '夜宵', desc: '串串配冰粉，深夜的成都格外动人。' },
-      ],
-    },
-    en: {
-      rating: '4.7',
-      flavor: 'Hundred flavors on sticks',
-      spice: 'Medium spicy',
-      price: '¥50 / person',
-      signature: 'Red-oil base · Beef skewers · Gizzard',
-      scene: 'Solo dining / Small group',
-      storyTitle: 'A Skewer of a Hundred Flavors',
-      paras: [
-        'Chuan Chuan takes Chengdu\'s laid-back spirit to the extreme — pick whatever you like, skewered beef, gizzard and greens, and dunk them into bubbling red oil.',
-        'Billed by the skewer, you take only what you eat. It is the most down-to-earth way Chengdu people gather for a meal.',
-      ],
-      related: [
-        { name: 'Hotpot', desc: 'The same red broth, but a more ceremonial sit-down gathering.' },
-        { name: 'Snacks', desc: 'Beyond skewers, try the egg-baked cakes and sugar-glazed fruit.' },
-        { name: 'Night Food', desc: 'Skewers with iced jelly — Chengdu nights are especially lovely.' },
-      ],
-    },
-  },
-
-  cuisine: {
-    zh: {
-      rating: '4.8',
-      flavor: '一菜一格，百菜百味',
-      spice: '中辣',
-      price: '人均 ¥70',
-      signature: '麻婆豆腐 · 回锅肉 · 宫保鸡丁',
-      scene: '家宴 / 正餐',
-      storyTitle: '一菜一格，百菜百味',
-      paras: [
-        '川菜素有「一菜一格，百菜百味」之说，麻婆豆腐的麻、回锅肉的香、宫保鸡丁的酸甜，各成风味。',
-        '郫县豆瓣是川菜之魂，经过发酵的红亮豆瓣为每一道菜打上巴蜀的底色。',
-      ],
-      related: [
-        { name: '盖碗茶', desc: '正餐之后，一盏茶解腻助消化。' },
-        { name: '名小吃', desc: '正餐之外的街头小食，同样精彩。' },
-        { name: '火锅', desc: '想更热闹一点，就转战一锅红汤。' },
-      ],
-    },
-    en: {
-      rating: '4.8',
-      flavor: 'One dish, one style',
-      spice: 'Medium spicy',
-      price: '¥70 / person',
-      signature: 'Mapo tofu · Twice-cooked pork · Kung Pao chicken',
-      scene: 'Family dinner / Formal meal',
-      storyTitle: 'One Dish, One Style',
-      paras: [
-        'Sichuan cuisine is known for "one dish, one style; a hundred dishes, a hundred flavors" — the numbing mapo tofu, the fragrant twice-cooked pork and the sweet-sour Kung Pao chicken each stand on their own.',
-        'Pixian douban (fermented broad-bean paste) is the soul of Sichuan cooking, lending every plate its signature red base.',
-      ],
-      related: [
-        { name: 'Gaiwan Tea', desc: 'A cup of tea after the meal to cut the richness.' },
-        { name: 'Snacks', desc: 'Street snacks beyond the main course are equally delightful.' },
-        { name: 'Hotpot', desc: 'For something livelier, move on to a pot of red broth.' },
-      ],
-    },
-  },
-
-  snacks: {
-    zh: {
-      rating: '4.6',
-      flavor: '甜咸交融',
-      spice: '不辣',
-      price: '人均 ¥30',
-      signature: '蛋烘糕 · 糖油果子 · 冰粉',
-      scene: '街头逛吃 / 下午茶',
-      storyTitle: '街头烟火，甜咸之间',
-      paras: [
-        '成都的名小吃藏在街巷之间，蛋烘糕的软糯、糖油果子的焦香、冰粉的清甜，撑起了成都人的下午茶。',
-        '甜咸交织的口味，正像这座城市——包容而鲜活。',
-      ],
-      related: [
-        { name: '盖碗茶', desc: '小吃配茶，是老成都的经典组合。' },
-        { name: '川菜', desc: '逛累了，再坐下吃一顿正餐。' },
-        { name: '夜宵', desc: '白天小吃，夜晚烧烤，各有各的香。' },
-      ],
-    },
-    en: {
-      rating: '4.6',
-      flavor: 'Sweet meets savory',
-      spice: 'Not spicy',
-      price: '¥30 / person',
-      signature: 'Egg-baked cake · Sugar-glazed fruit · Iced jelly',
-      scene: 'Street food crawl / Afternoon tea',
-      storyTitle: 'Street Flavor, Between Sweet and Savory',
-      paras: [
-        'Chengdu\'s famous snacks hide in its alleys — the soft egg-baked cake, the caramelized sugar-glazed fruit and the refreshing iced jelly make up the city\'s afternoon tea.',
-        'The mix of sweet and savory mirrors the city itself: inclusive and full of life.',
-      ],
-      related: [
-        { name: 'Gaiwan Tea', desc: 'Snacks with tea — a classic old-Chengdu pairing.' },
-        { name: 'Sichuan Cuisine', desc: 'When you tire of walking, sit down for a proper meal.' },
-        { name: 'Night Food', desc: 'Street snacks by day, barbecue by night.' },
-      ],
-    },
-  },
-
-  tea: {
-    zh: {
-      rating: '4.5',
-      flavor: '清雅回甘',
-      spice: '不辣',
-      price: '人均 ¥40',
-      signature: '盖碗茶 · 茉莉花茶 · 竹叶青',
-      scene: '茶馆消磨 / 会友',
-      storyTitle: '一盏盖碗，半日闲',
-      paras: [
-        '盖碗茶是成都慢生活的注脚，三件套的盖、碗、托，一冲一泡之间，尽显从容。',
-        '茶馆里的川剧变脸与评书，让一盏茶的时间也变得热闹。',
-      ],
-      related: [
-        { name: '名小吃', desc: '茶点配小吃，闲坐一整个下午。' },
-        { name: '川菜', desc: '品茶之后，再来一桌地道的川味。' },
-        { name: '火锅', desc: '清茶过后，也能奔赴一场红汤。' },
-      ],
-    },
-    en: {
-      rating: '4.5',
-      flavor: 'Elegant, with a sweet finish',
-      spice: 'Not spicy',
-      price: '¥40 / person',
-      signature: 'Gaiwan tea · Jasmine tea · Zhuyeqing',
-      scene: 'Teahouse leisure / Meeting friends',
-      storyTitle: 'A Cup of Gaiwan, an Idle Afternoon',
-      paras: [
-        'Gaiwan tea is a footnote to Chengdu\'s slow-paced life. The three-piece set of lid, bowl and saucer brings composure to every pour.',
-        'With Sichuan opera face-changing and storytelling, even a single cup of tea becomes lively.',
-      ],
-      related: [
-        { name: 'Snacks', desc: 'Tea snacks and light bites — idle away the whole afternoon.' },
-        { name: 'Sichuan Cuisine', desc: 'After tea, a table of authentic Sichuan flavor.' },
-        { name: 'Hotpot', desc: 'After the clear tea, you can still rush into a pot of red broth.' },
-      ],
-    },
-  },
-
-  nightfood: {
-    zh: {
-      rating: '4.8',
-      flavor: '烟火气十足',
-      spice: '中辣',
-      price: '人均 ¥60',
-      signature: '小龙虾 · 烧烤 · 冷啖杯',
-      scene: '深夜食堂 / 宵夜',
-      storyTitle: '夜幕之下，越夜越香',
-      paras: [
-        '入夜后的成都，九眼桥灯火通明，小龙虾、烧烤与冷啖杯是夜宵桌上的主角。',
-        '配上一瓶冰啤酒，谈天说地，是成都人一天的完美收尾。',
-      ],
-      related: [
-        { name: '火锅', desc: '宵夜之前，一锅红汤更尽兴。' },
-        { name: '串串香', desc: '夜市的串串，也是宵夜的绝配。' },
-        { name: '盖碗茶', desc: '热闹过后，一盏茶慢慢收尾。' },
-      ],
-    },
-    en: {
-      rating: '4.8',
-      flavor: 'Full of street-side warmth',
-      spice: 'Medium spicy',
-      price: '¥60 / person',
-      signature: 'Crayfish · Barbecue · Cold dishes',
-      scene: 'Late-night dining / Supper',
-      storyTitle: 'The Later the Night, the Better It Smells',
-      paras: [
-        'After dark, Jiuyan Bridge lights up and crayfish, barbecue and cold dishes take center stage on the supper table.',
-        'Washed down with an iced beer, it is the perfect ending to a Chengdu day.',
-      ],
-      related: [
-        { name: 'Hotpot', desc: 'Before the late-night bite, a pot of red broth makes it livelier.' },
-        { name: 'Chuan Chuan', desc: 'Night-market skewers also pair perfectly with supper.' },
-        { name: 'Gaiwan Tea', desc: 'After the buzz, wind down with a cup of tea.' },
-      ],
-    },
-  },
-}
-
-/* 当前详情数据：按语言返回本地 Mock；接入后端后替换为接口返回 */
-const detail = computed<FoodLocalData>(() => {
-  const entry = localDetails[foodId.value] ?? localDetails.hotpot
-  if (!entry) {
-    return langStore.lang === 'zh' ? localDetails.hotpot!.zh : localDetails.hotpot!.en
-  }
-  return langStore.lang === 'zh' ? entry.zh : entry.en
-})
-
-/* ════════════════════════════════════════════════
- *  后端接口接入(GET /api/food/:id)
- *  数字 id → 味道图鉴卡片,加载接口真实数据;
- *  分类 key(hotpot/chuanchuan/...) → 保留本地 Mock 版式。
- *  ════════════════════════════════════════════════ */
-const apiFood = ref<FoodItem | null>(null)
+/* ── 详情数据：数字 id 走接口，分类 key 走 i18n 降级 ── */
+const food = ref<FoodItem | null>(null)
 const imgFailed = ref(false)
+const related = ref<FoodItem[]>([])
 
-const numericId = computed(() => {
-  const n = Number(foodId.value)
-  return Number.isFinite(n) && n > 0 ? n : 0
-})
+const noData = computed(() => langStore.t('foodDetail.noData'))
+const estimated = computed(() => estimatedSet(food.value?.estimated_fields))
+/** 仅在字段有值且被登记为参考值时才标注，避免给空值加徽标 */
+function showEst(field: string, value?: string): boolean {
+  return !!value && estimated.value.has(field)
+}
 
-onMounted(async () => {
-  if (!numericId.value) return
-  try {
-    apiFood.value = await getFood(numericId.value)
-  } catch {
-    /* 加载失败保持占位展示 */
-  }
+/* 分类 key 降级分支：直接渲染 i18n 文案(food.card.*) */
+const fallbackNameZh = computed(() => langStore.t(`food.card.${foodId.value}.name`))
+const fallbackNameEn = computed(() => langStore.t(`food.card.${foodId.value}.en`))
+
+/* 分类页「本类美食」：按标签关键词从 /api/food 列表筛出的真实菜品 */
+const categoryDishes = ref<FoodItem[]>([])
+
+/* 类别页数据：/api/food-category/:key(加载失败保持 null,回退 i18n 文案,不白屏) */
+const category = ref<FoodCategoryItem | null>(null)
+const categoryEstimated = computed(() => estimatedSet(category.value?.estimated_fields))
+/** 类别概述：接口无数据时回退 i18n 分类简介 */
+const categoryIntro = computed(() => {
+  const intro = (category.value?.intro || '').trim()
+  return intro || langStore.t(`food.card.${foodId.value}.desc`)
 })
+/** 概述由 LLM 改写(参考值)时加徽标；接口未返回 intro 时不加,避免给空值标注 */
+const categoryIntroEstimated = computed(
+  () => !!category.value?.intro && categoryEstimated.value.has('intro'),
+)
+const categorySections = computed(() => parseSections(category.value?.sections))
+const categoryGallery = computed(() => splitList(category.value?.gallery_images))
+const categorySourceUrl = computed(() => (category.value?.source_url || '').trim())
+
+/**
+ * 是否为"真"类别页：非数字 key 且类别接口确实返回了数据。
+ * 无数据时不渲染类别专属区块(类别故事/美味瞬间/来源),避免出现"空的类别骨架 + 暂无数据"。
+ */
+const isCategoryPage = computed(() => isFallback.value && !!category.value)
 
 const displayName = computed(() => {
-  if (apiFood.value) {
-    return langStore.lang === 'zh' ? apiFood.value.name_zh : (apiFood.value.name_en || apiFood.value.name_zh)
+  if (food.value) {
+    return langStore.lang === 'zh' ? food.value.name_zh : (food.value.name_en || food.value.name_zh)
   }
-  if (numericId.value) {
-    return langStore.lang === 'zh' ? `美味 · ${foodId.value}` : `Dish · ${foodId.value}`
+  if (isFallback.value) {
+    return langStore.lang === 'en' ? fallbackNameEn.value : fallbackNameZh.value
   }
-  return placeholderName.value
+  return noData.value
 })
 
 const subTitle = computed(() => {
-  if (apiFood.value) {
-    return langStore.lang === 'zh' ? (apiFood.value.name_en || '') : apiFood.value.name_zh
+  if (food.value) {
+    return langStore.lang === 'zh' ? (food.value.name_en || '') : food.value.name_zh
   }
-  return placeholderEnTitle.value
+  if (isFallback.value) {
+    return langStore.lang === 'zh' ? fallbackNameEn.value : fallbackNameZh.value
+  }
+  return ''
 })
 
-const heroTags = computed(() =>
-  (apiFood.value?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
-)
-
-const heroImg = computed(() =>
-  apiFood.value?.images && !imgFailed.value ? apiFood.value.images : ''
-)
+const heroTags = computed(() => splitList(food.value?.tags))
+const heroImage = computed(() => (food.value?.images && !imgFailed.value) ? food.value.images : '')
 
 const displayDesc = computed(() => {
-  if (apiFood.value?.desc) return apiFood.value.desc
-  if (numericId.value) {
-    if (langStore.lang === 'ja') return '紹介文は準備中です。'
-    if (langStore.lang !== 'zh') return 'Description coming soon.'
-    return '简介整理中，敬请期待。'
-  }
-  return placeholderDesc.value
+  if (food.value) return displayFact(food.value.desc, noData.value)
+  if (isFallback.value) return categoryIntro.value
+  return noData.value
 })
 
-/* 数字 id 时用接口字段填充信息面板;分类 key 时用本地 Mock */
-const displayDetail = computed<FoodLocalData>(() => {
-  if (numericId.value) {
-    const tagList = (apiFood.value?.tags || '').split(',').map(t => t.trim()).filter(Boolean)
-    return {
-      rating: '—',
-      flavor: tagList.slice(0, 2).join(' · ') || '川味',
-      spice: tagList[0] || '—',
-      price: '—',
-      signature: tagList.slice(0, 3).join(' · ') || '—',
-      scene: apiFood.value?.district || '成都',
-      storyTitle: langStore.lang === 'zh' ? '一味一故事' : 'A Taste Story',
-      paras: [displayDesc.value],
-      related: [],
-    }
+/* 事实 / 参考值字段：空值统一显示"暂无数据" */
+const ratingText = computed(() => displayFact(food.value?.rating, noData.value))
+const flavorText = computed(() => displayFact(food.value?.flavor, noData.value))
+const spiceText = computed(() => displayFact(food.value?.spice_level, noData.value))
+const priceText = computed(() => displayFact(food.value?.avg_price, noData.value))
+const signatureText = computed(() => displayFact(food.value?.signature, noData.value))
+const sceneText = computed(() => displayFact(food.value?.recommend_scene, noData.value))
+
+/* 风味故事 / 美味瞬间 */
+const sections = computed(() => parseSections(food.value?.story_sections))
+const galleryImages = computed(() => splitList(food.value?.gallery_images))
+
+/* ── 寻味地图：容器常驻可见,占位块绝对定位覆盖；Key/坐标缺失或加载失败时保持占位 ── */
+const mapKey = getRuntimeMapJsKey() || import.meta.env.VITE_AMAP_WEB_JS_KEY || ''
+const mapReady = ref(false)
+let amapInstance: { destroy: () => void } | null = null
+
+async function initMap() {
+  const item = food.value
+  if (!mapKey || !item?.lng || !item?.lat) return
+  try {
+    const AMap = await AMapLoader.load({ key: mapKey, version: '2.0', plugins: ['AMap.Marker'] })
+    const map = new AMap.Map('food-map', {
+      zoom: 15,
+      center: [item.lng, item.lat],
+      viewMode: '3D',
+    })
+    new AMap.Marker({ position: [item.lng, item.lat], title: displayName.value, map })
+    amapInstance = map
+    mapReady.value = true
+    await nextTick()
+    if (typeof map.resize === 'function') map.resize()
+  } catch (err) {
+    mapReady.value = false
+    console.warn('高德地图初始化失败', err)
   }
-  return detail.value
+}
+
+onBeforeUnmount(() => {
+  if (amapInstance) amapInstance.destroy()
 })
+
+/* ── 相关推荐：按 tags 交集数量排序(排除自身),取前 3 条 ── */
+async function loadRelated() {
+  const self = food.value
+  if (!self || !numericId.value) return
+  const selfTags = new Set(splitList(self.tags))
+  try {
+    const res = await listFoods({ page_size: 50 })
+    related.value = (res.items || [])
+      .filter((it) => it.id !== numericId.value)
+      .map((it) => ({ item: it, score: splitList(it.tags).filter((t) => selfTags.has(t)).length }))
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((row) => row.item)
+  } catch {
+    related.value = []
+  }
+}
+
+function relatedName(item: FoodItem): string {
+  return langStore.lang === 'zh' ? item.name_zh : (item.name_en || item.name_zh)
+}
+
+/* 简介截断到 40 字以内 */
+function relatedDesc(item: FoodItem): string {
+  const d = (item.desc || '').trim()
+  return d.length > 40 ? d.slice(0, 40) + '…' : d
+}
+
+function goRelated(item: FoodItem) {
+  router.push({ name: 'food-detail', params: { id: String(item.id) } })
+}
+
+/* ── 分类页：仅拉取美食列表并按标签筛选,不请求详情 ── */
+async function loadCategoryDishes() {
+  const keywords = CATEGORY_TAGS[foodId.value] || []
+  if (!keywords.length) return
+  try {
+    const res = await listFoods({ page_size: 50 })
+    categoryDishes.value = matchCategoryDishes(res.items || [], keywords)
+  } catch {
+    categoryDishes.value = []
+  }
+}
+
+/* ── 类别页：拉类别介绍;失败保持 null,页面回退 i18n 文案 ── */
+async function loadCategory() {
+  try {
+    category.value = await getFoodCategory(foodId.value)
+  } catch {
+    category.value = null
+  }
+}
+
+/**
+ * 类别接口无数据时,把该 key 当作菜品键处理(火锅/串串香/盖碗茶)：
+ * 用 listFoods 列表按代表菜名 name_zh 精确匹配出真实菜品 id,再 replace 到菜品详情页
+ * (replace 避免污染历史栈)。不写死数字 id。
+ * @returns 是否已跳转;未收录该键 / 未匹配到 / 接口失败 → false,由调用方走最小降级视图
+ */
+async function goDishByCategoryKey(key: string): Promise<boolean> {
+  const nameZh = CATEGORY_DISH_NAMES[key]
+  if (!nameZh) {
+    console.warn(`[FoodDetail] 类别接口无数据且「${key}」不在菜品键映射中，回退最小展示`)
+    return false
+  }
+  try {
+    const res = await listFoods({ page_size: 50 })
+    const found = (res.items || []).find((item) => item.name_zh === nameZh)
+    if (found) {
+      await router.replace({ name: 'food-detail', params: { id: String(found.id) } })
+      return true
+    }
+    console.warn(`[FoodDetail] 未匹配到菜品「${nameZh}」(/food/${key})，回退最小展示`)
+  } catch (err) {
+    console.warn(`[FoodDetail] 解析「${key}」对应菜品失败，回退最小展示`, err)
+  }
+  return false
+}
+
+/* ── 载入：数字 id 拉详情 + 地图 + 相关推荐；类别 key 拉类别介绍 + 本类美食 ── */
+async function loadDetail() {
+  if (amapInstance) {
+    amapInstance.destroy()
+    amapInstance = null
+  }
+  food.value = null
+  related.value = []
+  category.value = null
+  categoryDishes.value = []
+  imgFailed.value = false
+  mapReady.value = false
+  if (!numericId.value) {
+    // 已知菜品键(火锅/串串香/盖碗茶)：先解析菜品数字 id 跳转，
+    // 避免对类别接口发一次必然 404 的请求（那会让控制台出现失败请求）
+    if (CATEGORY_DISH_NAMES[foodId.value] && (await goDishByCategoryKey(foodId.value))) return
+    await loadCategory()
+    // 类别接口失败/无数据：可能是不在类别表里的菜品键,解析出菜品数字 id 后跳转
+    if (!category.value && (await goDishByCategoryKey(foodId.value))) return
+    await loadCategoryDishes()
+    return
+  }
+  try {
+    food.value = await getFood(numericId.value)
+  } catch {
+    /* 加载失败保持占位展示 */
+  }
+  await initMap()
+  await loadRelated()
+}
+
+onMounted(loadDetail)
+/* 同路由记录参数变化(点击相关推荐/切换分类)时组件被复用，需手动重载 */
+watch(foodId, () => { loadDetail() })
 
 /* ════════════════════════════════════════════════
- *  后端接口接入预留区
- *  ════════════════════════════════════════════════
- *  建议接口：GET /api/food/:id
- *  返回字段参考下方 FoodDetailData 接口定义。
- *  接入后端后：将下方注释的 ref / fetchFoodDetail / onMounted 打开，
- *  并用 foodDetail.value 的数据替换模板中的占位内容即可。
+ *  说明：数据驱动的载入逻辑见上方 loadDetail / initMap / loadRelated
  *  ════════════════════════════════════════════════ */
-// interface FoodDetailData {
-//   id: string
-//   nameZh: string
-//   nameEn: string
-//   coverImage: string
-//   tags: string[]
-//   rating: number
-//   avgPrice: string
-//   spiceLevel: string
-//   recommendScene: string
-//   signature: string
-//   descriptionZh: string
-//   descriptionEn: string
-//   gallery: string[]
-//   location: { lng: number; lat: number }
-//   related: Array<{ id: string; nameZh: string; nameEn: string; descZh: string; descEn: string }>
-// }
 
-// import { onMounted, ref } from 'vue'
-// const foodDetail = ref<FoodDetailData | null>(null)
-// const loading = ref(false)
-// const error = ref('')
-// async function fetchFoodDetail(id: string): Promise<FoodDetailData> {
-//   const res = await fetch(`/api/food/${id}`)
-//   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-//   return res.json()
-// }
-// onMounted(async () => {
-//   loading.value = true
-//   try {
-//     foodDetail.value = await fetchFoodDetail(foodId.value)
-//   } catch (e) {
-//     error.value = e instanceof Error ? e.message : String(e)
-//   } finally {
-//     loading.value = false
-//   }
-// })
+
+/* ════════════════════════════════════════════════
+ *  接口字段与数据来源标注
+ *  ════════════════════════════════════════════════
+ *  详见 @/api/content 的 FoodItem 类型与 @/utils/scenicDetail 纯函数
+ *  ════════════════════════════════════════════════ */
+
 </script>
 
 <template>
@@ -449,35 +330,33 @@ const displayDetail = computed<FoodLocalData>(() => {
     </header>
 
     <main class="detail-main">
-      <!-- ──── HERO — 图片区（占位）──── -->
+      <!-- ──── HERO — 封面 + 名称浮层 ──── -->
       <section class="detail-hero">
         <div class="detail-hero__media">
           <!-- 接口返回封面图,加载失败回退占位 -->
           <img
-            v-if="heroImg"
+            v-if="heroImage"
             class="detail-hero__photo"
-            :src="heroImg"
+            :src="heroImage"
             :alt="displayName"
             referrerpolicy="no-referrer"
             @error="imgFailed = true"
           />
           <div v-else class="detail-hero__placeholder">
             <div class="detail-hero__shu" aria-hidden="true">味</div>
-            <span class="detail-hero__api-badge">{{ langStore.t('foodDetail.imagePlaceholder') }}</span>
+            <span v-if="!isFallback" class="detail-hero__api-badge">{{ langStore.t('foodDetail.imagePlaceholder') }}</span>
           </div>
 
           <!-- 名称浮层 -->
           <div class="detail-hero__overlay">
             <h1 class="detail-hero__title">{{ displayName }}</h1>
             <p class="detail-hero__en-title">{{ subTitle }}</p>
-            <div class="detail-hero__tags">
+            <div v-if="heroTags.length" class="detail-hero__tags">
               <span
-                v-for="(t, i) in (heroTags.length
-                  ? heroTags
-                  : (langStore.lang === 'zh' ? placeholderTags : enTags))"
+                v-for="(t, i) in heroTags"
                 :key="t"
                 class="detail-hero__tag"
-                :class="{ 'detail-hero__tag--accent': i === tagIndex }"
+                :class="{ 'detail-hero__tag--accent': i === 0 }"
               >
                 {{ t }}
               </span>
@@ -486,90 +365,81 @@ const displayDetail = computed<FoodLocalData>(() => {
         </div>
       </section>
 
-      <!-- ──── 概要：评分 + 简介 ──── -->
+      <!-- ──── 概要：评分 + 简介（分类页仅保留简介）──── -->
       <section class="detail-section container">
-        <div class="detail-summary">
+        <div class="detail-summary" :class="{ 'detail-summary--solo': isFallback }">
           <!-- 左：评分面板 -->
-          <aside class="detail-summary__aside">
+          <aside v-if="!isFallback" class="detail-summary__aside">
             <div class="detail-score">
-              <span class="detail-score__num">{{ displayDetail.rating }}</span>
+              <span class="detail-score__num">{{ ratingText }}</span>
               <div class="detail-score__meta">
                 <span class="detail-score__stars">
                   <AppIcon v-for="i in 5" :key="i" name="star" :size="16" />
                 </span>
-                <span class="detail-score__label">{{ langStore.t('foodDetail.rating') }}</span>
+                <span class="detail-score__label">
+                  {{ langStore.t('foodDetail.rating') }}
+                  <em v-if="showEst('rating', food?.rating)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+                </span>
               </div>
             </div>
             <div class="detail-aside__row">
               <span class="detail-aside__key">{{ langStore.t('foodDetail.flavor') }}</span>
-              <span class="detail-aside__value">{{ displayDetail.flavor }}</span>
+              <span class="detail-aside__value">
+                {{ flavorText }}
+                <em v-if="showEst('flavor', food?.flavor)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+              </span>
             </div>
             <div class="detail-aside__row">
               <span class="detail-aside__key">{{ langStore.t('foodDetail.spiceLevel') }}</span>
-              <span class="detail-aside__value">{{ displayDetail.spice }}</span>
+              <span class="detail-aside__value">
+                {{ spiceText }}
+                <em v-if="showEst('spice_level', food?.spice_level)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+              </span>
             </div>
             <div class="detail-aside__row">
               <span class="detail-aside__key">{{ langStore.t('foodDetail.avgPrice') }}</span>
-              <span class="detail-aside__value">{{ displayDetail.price }}</span>
+              <span class="detail-aside__value">
+                {{ priceText }}
+                <em v-if="showEst('avg_price', food?.avg_price)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+              </span>
             </div>
           </aside>
 
-          <!-- 右：简介 -->
+          <!-- 右：简介（类别页为类别概述） -->
           <div class="detail-summary__body">
             <div class="detail-summary__eyebrow">
               <span>◈</span>
-              {{ langStore.t('foodDetail.overview') }}
+              {{ langStore.t(isFallback ? 'foodDetail.categoryOverview' : 'foodDetail.overview') }}
               <span>◈</span>
             </div>
-            <p class="detail-summary__text">{{ displayDesc }}</p>
+            <p class="detail-summary__text">
+              {{ displayDesc }}
+              <em v-if="isFallback && categoryIntroEstimated" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+            </p>
           </div>
         </div>
       </section>
 
-      <!-- ──── 实用信息 ──── -->
-      <section class="detail-section container">
-        <div class="detail-info">
-          <div class="detail-info__card">
-            <span class="detail-info__icon"><AppIcon name="star" :size="24" /></span>
-            <h3 class="detail-info__title">{{ langStore.t('foodDetail.signature') }}</h3>
-            <p class="detail-info__value">{{ displayDetail.signature }}</p>
-          </div>
-          <div class="detail-info__card">
-            <span class="detail-info__icon"><AppIcon name="fire" :size="24" /></span>
-            <h3 class="detail-info__title">{{ langStore.t('foodDetail.spiceLevel') }}</h3>
-            <p class="detail-info__value">{{ displayDetail.spice }}</p>
-          </div>
-          <div class="detail-info__card">
-            <span class="detail-info__icon"><AppIcon name="ticket" :size="24" /></span>
-            <h3 class="detail-info__title">{{ langStore.t('foodDetail.avgPrice') }}</h3>
-            <p class="detail-info__value">{{ displayDetail.price }}</p>
-          </div>
-          <div class="detail-info__card">
-            <span class="detail-info__icon"><AppIcon name="clock" :size="24" /></span>
-            <h3 class="detail-info__title">{{ langStore.t('foodDetail.recommendScene') }}</h3>
-            <p class="detail-info__value">{{ displayDetail.scene }}</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- ──── 风味故事（图文详情）──── -->
-      <section class="detail-section container">
+      <!-- ──── 类别故事（类别页：接口返回的图文段落,左右交替）──── -->
+      <section v-if="isCategoryPage" class="detail-section container">
         <header class="detail-block-head">
-          <h2 class="section-title">{{ langStore.t('foodDetail.detailTitle') }}</h2>
-          <p class="section-subtitle">{{ langStore.t('foodDetail.detailSubtitle') }}</p>
+          <h2 class="section-title">{{ langStore.t('foodDetail.categoryStories') }}</h2>
         </header>
 
-        <div class="detail-content">
-          <!-- 配图占位块 — 后期替换为后端富文本/段落+配图 -->
-          <div class="detail-content__row">
+        <div v-if="categorySections.length" class="detail-content">
+          <div
+            v-for="(sec, i) in categorySections"
+            :key="sec.title"
+            class="detail-content__row"
+            :class="{ 'detail-content__row--reverse': i % 2 === 1 }"
+          >
             <div class="detail-content__figure">
               <img
-                v-if="heroImg"
-                class="detail-content__photo"
-                :src="heroImg"
-                :alt="displayName"
+                v-if="sec.image"
+                class="detail-content__img detail-content__img--photo"
+                :src="sec.image"
+                :alt="sec.title"
                 referrerpolicy="no-referrer"
-                @error="imgFailed = true"
               />
               <div v-else class="detail-content__img detail-content__img--empty">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -580,67 +450,221 @@ const displayDetail = computed<FoodLocalData>(() => {
               </div>
             </div>
             <div class="detail-content__text">
-              <h3 class="detail-content__caption">{{ displayDetail.storyTitle }}</h3>
-              <p v-for="p in displayDetail.paras" :key="p" class="detail-content__para">{{ p }}</p>
+              <h3 class="detail-content__caption">{{ sec.title }}</h3>
+              <p class="detail-content__para">{{ sec.text }}</p>
             </div>
+          </div>
+        </div>
+        <p v-else class="detail-empty">{{ noData }}</p>
+      </section>
+
+      <!-- ──── 美味瞬间（类别页：类别图集）──── -->
+      <section v-if="isCategoryPage" class="detail-section container">
+        <header class="detail-block-head">
+          <h2 class="section-title">{{ langStore.t('foodDetail.galleryTitle') }}</h2>
+        </header>
+
+        <div v-if="categoryGallery.length" class="detail-gallery">
+          <div v-for="(img, i) in categoryGallery" :key="img" class="detail-gallery__item">
+            <img class="detail-gallery__photo" :src="img" :alt="`${displayName} ${i + 1}`" referrerpolicy="no-referrer" />
+          </div>
+        </div>
+        <p v-else class="detail-empty">{{ noData }}</p>
+      </section>
+
+      <!-- ──── 本类美食（分类页：按标签筛出的真实菜品）──── -->
+      <section v-if="isFallback" class="detail-section container">
+        <header class="detail-block-head">
+          <h2 class="section-title">{{ langStore.t('foodDetail.categoryDishes') }}</h2>
+        </header>
+
+        <div v-if="categoryDishes.length" class="detail-dishes">
+          <article
+            v-for="item in categoryDishes"
+            :key="item.id"
+            class="detail-dishes__card"
+            tabindex="0"
+            @click="goRelated(item)"
+            @keyup.enter="goRelated(item)"
+          >
+            <div class="detail-dishes__media">
+              <img
+                v-if="item.images"
+                class="detail-dishes__photo"
+                :src="item.images"
+                :alt="relatedName(item)"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+              />
+              <span v-else class="detail-dishes__placeholder" aria-hidden="true">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="M21 15l-5-5L5 21"/>
+                </svg>
+              </span>
+            </div>
+            <div class="detail-dishes__body">
+              <h3 class="detail-dishes__name">{{ relatedName(item) }}</h3>
+              <p class="detail-dishes__desc">{{ relatedDesc(item) }}</p>
+            </div>
+          </article>
+        </div>
+        <p v-else class="detail-empty">{{ langStore.t('foodDetail.categoryEmpty') }}</p>
+      </section>
+
+      <!-- ──── 类别页页脚：数据来源 + 内容素材来源(维基百科) ──── -->
+      <section v-if="isCategoryPage" class="detail-section container">
+        <p class="detail-source">
+          {{ langStore.t('foodDetail.dataSource') }}
+          <template v-if="categoryEstimated.size">· {{ langStore.t('foodDetail.estimatedTip') }}</template>
+        </p>
+        <p class="detail-source">
+          {{ langStore.t('foodDetail.contentSource') }}
+          <a
+            v-if="categorySourceUrl"
+            class="detail-source__link"
+            :href="categorySourceUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >{{ categorySourceUrl }}</a>
+        </p>
+      </section>
+
+      <!-- ──── 实用信息（仅数字 id 详情页）──── -->
+      <section v-if="!isFallback" class="detail-section container">
+        <div class="detail-info">
+          <div class="detail-info__card">
+            <span class="detail-info__icon"><AppIcon name="star" :size="24" /></span>
+            <h3 class="detail-info__title">{{ langStore.t('foodDetail.signature') }}</h3>
+            <p class="detail-info__value">
+              {{ signatureText }}
+              <em v-if="showEst('signature', food?.signature)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+            </p>
+          </div>
+          <div class="detail-info__card">
+            <span class="detail-info__icon"><AppIcon name="fire" :size="24" /></span>
+            <h3 class="detail-info__title">{{ langStore.t('foodDetail.spiceLevel') }}</h3>
+            <p class="detail-info__value">
+              {{ spiceText }}
+              <em v-if="showEst('spice_level', food?.spice_level)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+            </p>
+          </div>
+          <div class="detail-info__card">
+            <span class="detail-info__icon"><AppIcon name="ticket" :size="24" /></span>
+            <h3 class="detail-info__title">{{ langStore.t('foodDetail.avgPrice') }}</h3>
+            <p class="detail-info__value">
+              {{ priceText }}
+              <em v-if="showEst('avg_price', food?.avg_price)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+            </p>
+          </div>
+          <div class="detail-info__card">
+            <span class="detail-info__icon"><AppIcon name="clock" :size="24" /></span>
+            <h3 class="detail-info__title">{{ langStore.t('foodDetail.recommendScene') }}</h3>
+            <p class="detail-info__value">
+              {{ sceneText }}
+              <em v-if="showEst('recommend_scene', food?.recommend_scene)" class="detail-est">{{ langStore.t('foodDetail.estimated') }}</em>
+            </p>
           </div>
         </div>
       </section>
 
-      <!-- ──── 美味相册 ──── -->
-      <section class="detail-section container">
+      <!-- ──── 风味故事（图文段落,左右交替）（仅数字 id 详情页）──── -->
+      <section v-if="!isFallback" class="detail-section container">
+        <header class="detail-block-head">
+          <h2 class="section-title">{{ langStore.t('foodDetail.detailTitle') }}</h2>
+          <p class="section-subtitle">{{ langStore.t('foodDetail.detailSubtitle') }}</p>
+        </header>
+
+        <div v-if="sections.length" class="detail-content">
+          <div
+            v-for="(sec, i) in sections"
+            :key="sec.title"
+            class="detail-content__row"
+            :class="{ 'detail-content__row--reverse': i % 2 === 1 }"
+          >
+            <div class="detail-content__figure">
+              <img
+                v-if="sec.image"
+                class="detail-content__img detail-content__img--photo"
+                :src="sec.image"
+                :alt="sec.title"
+                referrerpolicy="no-referrer"
+              />
+              <div v-else class="detail-content__img detail-content__img--empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="M21 15l-5-5L5 21"/>
+                </svg>
+              </div>
+            </div>
+            <div class="detail-content__text">
+              <h3 class="detail-content__caption">{{ sec.title }}</h3>
+              <p class="detail-content__para">{{ sec.text }}</p>
+            </div>
+          </div>
+        </div>
+        <p v-else class="detail-empty">{{ noData }}</p>
+      </section>
+
+      <!-- ──── 美味瞬间（仅数字 id 详情页）──── -->
+      <section v-if="!isFallback" class="detail-section container">
         <header class="detail-block-head">
           <h2 class="section-title">{{ langStore.t('foodDetail.galleryTitle') }}</h2>
           <p class="section-subtitle">{{ langStore.t('foodDetail.gallerySubtitle') }}</p>
         </header>
 
-        <div class="detail-gallery">
-          <div v-for="n in 6" :key="n" class="detail-gallery__item">
-            <div class="detail-gallery__img">
-              <span class="detail-gallery__num">{{ String(n).padStart(2, '0') }}</span>
-            </div>
+        <div v-if="galleryImages.length" class="detail-gallery">
+          <div v-for="(img, i) in galleryImages" :key="img" class="detail-gallery__item">
+            <img class="detail-gallery__photo" :src="img" :alt="`${displayName} ${i + 1}`" referrerpolicy="no-referrer" />
           </div>
         </div>
+        <p v-else class="detail-empty">{{ noData }}</p>
       </section>
 
-
-      <!-- ──── 寻味地图（占位）──── -->
-      <section class="detail-section container">
+      <!-- ──── 寻味地图（容器常驻可见,占位块绝对定位覆盖）（仅数字 id 详情页）──── -->
+      <section v-if="!isFallback" class="detail-section container">
         <header class="detail-block-head">
           <h2 class="section-title">{{ langStore.t('foodDetail.mapTitle') }}</h2>
           <p class="section-subtitle">{{ langStore.t('foodDetail.mapSubtitle') }}</p>
         </header>
 
         <div class="detail-map">
-          <div class="detail-map__placeholder">
+          <div id="food-map" class="detail-map__canvas" />
+          <div v-if="!mapReady" class="detail-map__placeholder">
             <span class="detail-map__pin"><AppIcon name="pin" :size="40" /></span>
-            <span class="detail-map__hint">{{ langStore.t('foodDetail.mapPlaceholder') }}</span>
+            <span class="detail-map__hint">{{ noData }}</span>
           </div>
         </div>
       </section>
 
-      <!-- ──── 相关推荐(接口详情无推荐数据时隐藏) ──── -->
-      <section v-if="displayDetail.related.length" class="detail-section container">
+      <!-- ──── 相关推荐 + 数据来源（仅数字 id 详情页）──── -->
+      <section v-if="!isFallback" class="detail-section container">
         <header class="detail-block-head">
           <h2 class="section-title">{{ langStore.t('foodDetail.aroundTitle') }}</h2>
           <p class="section-subtitle">{{ langStore.t('foodDetail.aroundSubtitle') }}</p>
         </header>
 
-        <div class="detail-around">
-          <div v-for="r in displayDetail.related" :key="r.name" class="detail-around__card">
-            <div class="detail-around__img">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <path d="M21 15l-5-5L5 21"/>
-              </svg>
-            </div>
+        <div v-if="related.length" class="detail-around">
+          <div
+            v-for="item in related"
+            :key="item.id"
+            class="detail-around__card"
+            @click="goRelated(item)"
+          >
             <div class="detail-around__body">
-              <h3 class="detail-around__name">{{ r.name }}</h3>
-              <p class="detail-around__desc">{{ r.desc }}</p>
+              <h3 class="detail-around__name">{{ relatedName(item) }}</h3>
+              <p class="detail-around__desc">{{ relatedDesc(item) }}</p>
             </div>
           </div>
         </div>
+        <p v-else class="detail-empty">{{ langStore.t('foodDetail.relatedEmpty') }}</p>
+
+        <p class="detail-source">
+          {{ langStore.t('foodDetail.dataSource') }}
+          <template v-if="estimated.size">· {{ langStore.t('foodDetail.estimatedTip') }}</template>
+        </p>
       </section>
     </main>
   </div>
@@ -762,11 +786,9 @@ const displayDetail = computed<FoodLocalData>(() => {
   display: block;
 }
 
-.detail-content__photo {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+.detail-content__img--photo {
   display: block;
+  object-fit: cover;
 }
 
 .detail-hero__placeholder {
@@ -871,6 +893,11 @@ const displayDetail = computed<FoodLocalData>(() => {
   grid-template-columns: 300px 1fr;
   gap: var(--space-10);
   align-items: start;
+}
+
+/* 分类页无评分面板,简介独占整行 */
+.detail-summary--solo {
+  grid-template-columns: 1fr;
 }
 
 .detail-summary__aside {
@@ -1037,6 +1064,11 @@ const displayDetail = computed<FoodLocalData>(() => {
   align-items: center;
 }
 
+/* 左右交替：奇数行把配图放到右侧 */
+.detail-content__row--reverse .detail-content__figure {
+  order: 2;
+}
+
 .detail-content__figure {
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -1077,6 +1109,7 @@ const displayDetail = computed<FoodLocalData>(() => {
   font-size: var(--text-base);
   color: var(--color-text-secondary);
   line-height: var(--leading-relaxed);
+  white-space: pre-line;
 }
 
 /* ========================================
@@ -1100,36 +1133,33 @@ const displayDetail = computed<FoodLocalData>(() => {
   transform: translateY(-2px);
 }
 
-.detail-gallery__img {
+.detail-gallery__photo {
+  width: 100%;
+  height: 100%;
   aspect-ratio: 4 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(ellipse 60% 60% at 50% 40%, color-mix(in srgb, var(--color-cinnabar) 8%, transparent) 0%, transparent 70%),
-    var(--color-bg-alt);
-}
-
-.detail-gallery__num {
-  font-family: var(--font-en-display);
-  font-size: var(--text-3xl);
-  font-weight: 700;
-  color: transparent;
-  -webkit-text-stroke: 1px color-mix(in srgb, var(--color-cinnabar) 45%, transparent);
-  user-select: none;
+  object-fit: cover;
+  display: block;
 }
 
 /* ========================================
    地图占位
    ======================================== */
 .detail-map {
+  position: relative;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--color-border);
 }
 
-.detail-map__placeholder {
+/* 地图容器常驻可见(高德需要非零尺寸),占位块绝对定位覆盖其上 */
+.detail-map__canvas {
+  width: 100%;
   aspect-ratio: 16 / 6;
+}
+
+.detail-map__placeholder {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1167,6 +1197,86 @@ const displayDetail = computed<FoodLocalData>(() => {
 }
 
 /* ========================================
+   本类美食(分类页网格)
+   ======================================== */
+.detail-dishes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+}
+
+.detail-dishes__card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  outline: none;
+  transition: all var(--transition-base);
+}
+
+.detail-dishes__card:hover,
+.detail-dishes__card:focus-visible {
+  border-color: var(--color-cinnabar);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px var(--color-cinnabar-dim), var(--shadow-lg);
+}
+
+.detail-dishes__media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 60% at 50% 40%, color-mix(in srgb, var(--color-cinnabar) 8%, transparent) 0%, transparent 70%),
+    var(--color-bg-alt);
+}
+
+.detail-dishes__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s ease;
+}
+
+.detail-dishes__card:hover .detail-dishes__photo {
+  transform: scale(1.05);
+}
+
+.detail-dishes__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.detail-dishes__body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.detail-dishes__name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wide);
+}
+
+.detail-dishes__desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+/* ========================================
    相关推荐
    ======================================== */
 .detail-around {
@@ -1182,6 +1292,7 @@ const displayDetail = computed<FoodLocalData>(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  cursor: pointer;
   transition: all var(--transition-base);
 }
 
@@ -1225,6 +1336,47 @@ const displayDetail = computed<FoodLocalData>(() => {
 }
 
 /* ========================================
+   参考值徽标 / 空数据 / 数据来源
+   ======================================== */
+.detail-est {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+  font-style: normal;
+  color: var(--color-cinnabar);
+  border: 1px solid color-mix(in srgb, var(--color-cinnabar) 45%, transparent);
+  border-radius: var(--radius-full);
+  vertical-align: middle;
+}
+
+.detail-empty {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
+}
+
+.detail-source {
+  margin-top: var(--space-8);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 类别页页脚第二行(内容素材来源)紧贴上一行 */
+.detail-source + .detail-source {
+  margin-top: var(--space-2);
+}
+
+.detail-source__link {
+  margin-left: var(--space-1);
+  color: var(--color-cinnabar);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+/* ========================================
    Responsive
    ======================================== */
 @media (max-width: 1024px) {
@@ -1235,6 +1387,9 @@ const displayDetail = computed<FoodLocalData>(() => {
     grid-template-columns: repeat(2, 1fr);
   }
   .detail-around {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .detail-dishes {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -1265,7 +1420,8 @@ const displayDetail = computed<FoodLocalData>(() => {
 @media (max-width: 640px) {
   .detail-info,
   .detail-gallery,
-  .detail-around {
+  .detail-around,
+  .detail-dishes {
     grid-template-columns: 1fr;
   }
   .detail-hero__overlay {

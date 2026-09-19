@@ -252,38 +252,13 @@ func (e *ScenicEnricher) MatchPOI(ctx context.Context, s model.ScenicSpot) (stri
 }
 
 // uploadPhotos 下载候选图片并上传 OSS,返回 OSS URL 列表(顺序与候选一致)。
-// 单张失败跳过,不影响其余图片。
+// 单张失败跳过,不影响其余图片。实际下载与上传由包级 uploadImageCandidates 完成。
 func (e *ScenicEnricher) uploadPhotos(ctx context.Context, s model.ScenicSpot, candidates []ScenicImageCandidate) ([]string, error) {
 	if e.signer == nil || !e.signer.Configured() {
 		return nil, fmt.Errorf("OSS 未配置")
 	}
-	var out []string
-	for i, c := range candidates {
-		if len(out) >= scenicGalleryWant {
-			break
-		}
-		body, ct, err := e.fetchCandidateBytes(ctx, c)
-		if err != nil {
-			continue
-		}
-		ext := extFromContentType(ct, c.URL)
-		key := fmt.Sprintf("scenic/%d/g%d%s", s.ID, i+1, ext)
-		ossURL, err := e.signer.PutObjectBytes(body, key, ct)
-		if err != nil {
-			continue
-		}
-		out = append(out, ossURL)
-	}
-	return out, nil
-}
-
-// fetchCandidateBytes 下载候选图片:Commons 图走 Commons 客户端(可经 COMMONS_PROXY),
-// 其余来源沿用通用下载客户端。外部图片一律下载后上传 OSS,禁止把外链直接写库。
-func (e *ScenicEnricher) fetchCandidateBytes(ctx context.Context, c ScenicImageCandidate) ([]byte, string, error) {
-	if c.Source == scenicImageSourceCommons && e.commonsClient != nil {
-		return fetchCommonsImageBytes(ctx, e.commonsClient, c.URL)
-	}
-	return fetchBytes(ctx, c.URL)
+	urls, _ := uploadImageCandidates(ctx, e.commonsClient, e.signer, fmt.Sprintf("scenic/%d", s.ID), candidates, scenicGalleryWant)
+	return urls, nil
 }
 
 // clampMaxSections 计算图文详情的段落数上限:第 1 张图作封面,其余每段配 1 张,夹在 [2,4] 区间。

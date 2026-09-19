@@ -49,12 +49,15 @@ func NewScenicExtraService(repo *repository.ScenicRepo, amap *AmapService, rdb *
 	return &ScenicExtraService{repo: repo, amap: amap, rdb: rdb, cacheTTL: cacheTTL}
 }
 
-// Around 返回景点周边 3km 内的景点/餐饮/购物 POI,按距离升序;失败返回空切片而不是错误。
+// Around 返回景点周边 3km 内的景点/餐饮 POI,按距离升序;失败返回空切片而不是错误。
+// 只取"风景名胜(110000)"与"餐饮服务(050000)":实测若带上"购物服务(060000)",
+// 郊区景点会把五金店/建材市场/超市当成周边推荐(它们的分类确实属于购物服务)。
 func (s *ScenicExtraService) Around(ctx context.Context, id uint, limit int) ([]AroundItem, error) {
 	if limit <= 0 || limit > 12 {
 		limit = 6
 	}
-	key := fmt.Sprintf("scenic:around:%d:%d", id, limit)
+	// key 带 v2 版本号:推荐类型收窄后,旧缓存(24h TTL)里的购物类结果需要绕过
+	key := fmt.Sprintf("scenic:around:v2:%d:%d", id, limit)
 	if cached := s.getCache(ctx, key); cached != nil {
 		return cached, nil
 	}
@@ -66,7 +69,7 @@ func (s *ScenicExtraService) Around(ctx context.Context, id uint, limit int) ([]
 	if spot.Lng == 0 || spot.Lat == 0 {
 		return out, nil
 	}
-	pois := s.amap.SearchAround(ctx, spot.Lng, spot.Lat, "", "060000|050000|110000", 3000, 20)
+	pois := s.amap.SearchAround(ctx, spot.Lng, spot.Lat, "", "050000|110000", 3000, 20)
 	sort.SliceStable(pois, func(i, j int) bool { return pois[i].Distance < pois[j].Distance })
 	for _, p := range pois {
 		if p.Name == spot.NameZH {

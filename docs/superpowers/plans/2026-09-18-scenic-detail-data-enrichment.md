@@ -263,7 +263,6 @@ func (s *OssSigner) PutObjectBytes(data []byte, key, contentType string) (string
 ```
 
 - [ ] **Step 1.5: 归一化 Endpoint（审查后修订，已实施）**
-
 `NewOssSigner` 需对 `cfg.Endpoint` 做一次归一化后再赋值（抽出 `normalizeEndpoint(host string) string`：剥掉 `http://` / `https://` 前缀与尾斜杠），`endpointHost()` 复用它。这样 PUT 请求 URL、`ResolveURL`、`GeneratePolicy` 三处 host 都基于归一化值；否则当 `OSS_ENDPOINT` 带协议前缀时，上传会成功但落库 URL 会拼成 `https://bucket.https://oss-.../key` 这种坏链接。
 同时新增 `houduan/pkg/oss_test.go`（package pkg，表驱动、零网络）：覆盖裸域名 / 带 `https://` 前缀 / 带尾斜杠 三种 Endpoint 输入下 `ResolveURL` 与 `GeneratePolicy` 的 Host、以及 `Configured()` 的四种组合。
 
@@ -1480,7 +1479,9 @@ func (s *ScenicExtraService) Around(ctx context.Context, id uint, limit int) ([]
 	if spot.Lng == 0 || spot.Lat == 0 {
 		return out, nil
 	}
-	pois := s.amap.SearchAround(ctx, spot.Lng, spot.Lat, "", "060000|050000|110000", 3000, 20)
+	// 修订(实施后):只取"风景名胜(110000)+餐饮服务(050000)",去掉"购物服务(060000)"——
+	// 实测郊区的凤凰湖湿地公园 3km 内会把"龙达五金/兴扬居建材"当周边推荐;同时缓存 key 加 v2 版本号绕过旧缓存。
+	pois := s.amap.SearchAround(ctx, spot.Lng, spot.Lat, "", "050000|110000", 3000, 20)
 	sort.SliceStable(pois, func(i, j int) bool { return pois[i].Distance < pois[j].Distance })
 	for _, p := range pois {
 		if p.Name == spot.NameZH {

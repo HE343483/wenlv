@@ -121,6 +121,86 @@ func (r *FoodRepo) GetByID(id uint) (*model.Food, error) {
 	return &f, nil
 }
 
+// ListAll 返回全部美食(采集批处理使用,不分页)。
+func (r *FoodRepo) ListAll() ([]model.Food, error) {
+	var items []model.Food
+	if err := r.db.Order("id asc").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// UpdateFields 按主键更新指定字段(字段名 → 新值),用于采集结果落库。
+func (r *FoodRepo) UpdateFields(id uint, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.Food{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// FoodCardRepo 美食名片数据访问。
+type FoodCardRepo struct {
+	db *gorm.DB
+}
+
+// NewFoodCardRepo 构造美食名片仓储。
+func NewFoodCardRepo(db *gorm.DB) *FoodCardRepo {
+	return &FoodCardRepo{db: db}
+}
+
+// ListAll 按排序返回全部美食名片(仅 6 条,无需分页)。
+func (r *FoodCardRepo) ListAll() ([]model.FoodCard, error) {
+	var items []model.FoodCard
+	if err := r.db.Order("sort asc, id asc").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// FoodCategoryRepo 美食大类数据访问。
+type FoodCategoryRepo struct {
+	db *gorm.DB
+}
+
+// NewFoodCategoryRepo 构造美食大类仓储。
+func NewFoodCategoryRepo(db *gorm.DB) *FoodCategoryRepo {
+	return &FoodCategoryRepo{db: db}
+}
+
+// ListAll 返回全部美食大类(仅三个,采集批处理使用)。
+func (r *FoodCategoryRepo) ListAll() ([]model.FoodCategory, error) {
+	var items []model.FoodCategory
+	if err := r.db.Order("id asc").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// GetByKey 按类别键查询;不存在时返回 (nil, nil),由上层转换为 ErrNotFound。
+func (r *FoodCategoryRepo) GetByKey(key string) (*model.FoodCategory, error) {
+	var v model.FoodCategory
+	if err := r.db.Where("`key` = ?", key).First(&v).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &v, nil
+}
+
+// Create 新建美食大类记录(首次采集时建空壳行,后续按主键更新)。
+func (r *FoodCategoryRepo) Create(v *model.FoodCategory) error {
+	return r.db.Create(v).Error
+}
+
+// UpdateFields 按主键更新指定字段(字段名 → 新值),用于采集结果落库。
+func (r *FoodCategoryRepo) UpdateFields(id uint, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.FoodCategory{}).Where("id = ?", id).Updates(updates).Error
+}
+
 // RouteRepo 路线数据访问。
 type RouteRepo struct {
 	db *gorm.DB

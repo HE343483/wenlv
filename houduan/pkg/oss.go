@@ -147,6 +147,38 @@ func (s *OssSigner) PutObject(localPath, key string) (string, error) {
 	return s.PutObjectBytes(data, key, ct)
 }
 
+// DeleteObject 删除 OSS 上的单个对象(用于替换配图后清理旧图,避免残留无用文件)。
+func (s *OssSigner) DeleteObject(key string) error {
+	if !s.Configured() {
+		return errors.New("OSS 未配置")
+	}
+	date := time.Now().UTC().Format(http.TimeFormat)
+	// StringToSign = VERB \n Content-MD5 \n Content-Type \n Date \n /Bucket/Key
+	stringToSign := fmt.Sprintf("DELETE\n\n\n%s\n/%s/%s", date, s.Bucket, key)
+	mac := hmac.New(sha1.New, []byte(s.SecretKey))
+	mac.Write([]byte(stringToSign))
+	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+
+	u := fmt.Sprintf("https://%s.%s/%s", s.Bucket, s.endpointHost(), key)
+	req, err := http.NewRequest(http.MethodDelete, u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Date", date)
+	req.Header.Set("Authorization", "OSS "+s.AccessKey+":"+signature)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("OSS 返回 HTTP %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 // PutObjectBytes 直传字节内容,contentType 为空时按 key 后缀推断。
 func (s *OssSigner) PutObjectBytes(data []byte, key, contentType string) (string, error) {
 	if !s.Configured() {

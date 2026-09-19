@@ -102,6 +102,37 @@ export interface FoodItem {
   tags?: string
   desc?: string
   images?: string
+  // ===== 详情页扩展字段(高德门店采集 + LLM 参考值) =====
+  /** 评分(高德事实或 LLM 参考值) */
+  rating?: string
+  /** 风味标签(LLM 参考值) */
+  flavor?: string
+  /** 辣度(LLM 参考值) */
+  spice_level?: string
+  /** 人均消费(如 人均 ¥71) */
+  avg_price?: string
+  /** 招牌推荐(LLM 参考值) */
+  signature?: string
+  /** 推荐场景(LLM 参考值) */
+  recommend_scene?: string
+  /** 风味故事段落 JSON 串 */
+  story_sections?: string
+  /** 相册图片 URL 列表(逗号分隔) */
+  gallery_images?: string
+  /** 高德门店名(事实) */
+  poi_name?: string
+  /** 门店地址(事实) */
+  address?: string
+  /** 门店纬度(事实) */
+  lat?: number
+  /** 门店经度(事实) */
+  lng?: number
+  /** 参考值字段名(逗号分隔,前端加"参考值"标注) */
+  estimated_fields?: string
+  /** 数据来源(amap / amap+llm / llm / wiki) */
+  data_source?: string
+  /** 数据采集时间 */
+  data_updated_at?: string
 }
 
 export function listFoods(params?: QueryParams): Promise<PageResult<FoodItem>> {
@@ -109,6 +140,55 @@ export function listFoods(params?: QueryParams): Promise<PageResult<FoodItem>> {
 }
 export function getFood(id: number): Promise<FoodItem> {
   return get<FoodItem>(`/food/${id}`)
+}
+
+/** 美食名片(美食页六大风味卡片,配图存于数据库) */
+export interface FoodCardItem {
+  id: number
+  /** 卡片标识,与前端 i18n 键 food.card.{key} 对应 */
+  card_key: string
+  name_zh: string
+  name_en?: string
+  /** 配图 OSS 地址 */
+  image?: string
+  sort?: number
+}
+
+export function listFoodCards(): Promise<FoodCardItem[]> {
+  return get<FoodCardItem[]>('/food-cards')
+}
+
+/** 美食大类(川菜/名小吃/夜宵)：详情页介绍"这一类"而非某道菜 */
+export interface CategorySection {
+  title: string
+  text: string
+  image?: string
+}
+
+export interface FoodCategoryItem {
+  id: number
+  /** 类别键(cuisine/snacks/nightfood) */
+  key: string
+  name_zh: string
+  name_en?: string
+  /** 类别概述(LLM 依据维基素材改写,参考值) */
+  intro?: string
+  /** 类别图文段落 JSON 串 */
+  sections?: string
+  /** 类别图集 URL 列表(逗号分隔) */
+  gallery_images?: string
+  /** 素材来源链接(维基条目) */
+  source_url?: string
+  /** 参考值字段名(逗号分隔,前端加"参考值"标注) */
+  estimated_fields?: string
+  /** 数据来源(wiki+llm+oss) */
+  data_source?: string
+  /** 数据采集时间 */
+  data_updated_at?: string
+}
+
+export function getFoodCategory(key: string): Promise<FoodCategoryItem> {
+  return get<FoodCategoryItem>(`/food-category/${key}`)
 }
 
 /** 路线 */

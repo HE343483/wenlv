@@ -212,12 +212,24 @@ func (s *XHSService) signedRequest(ctx context.Context, cookie, api string, payl
 	if success, _ := res["success"].(bool); !success {
 		code := fmt.Sprintf("%v", res["code"])
 		msg := fmt.Sprintf("%v", res["msg"])
-		if code == "300011" || strings.Contains(msg, "异常") {
-			return nil, &XHSCookieExpiredError{Msg: fmt.Sprintf("小红书 Cookie 已被风控拦截 (code=%s): %s。请更换 Cookie 后重试。", code, msg)}
+		if xhsCookieExpiredSignal(code, msg) {
+			return nil, &XHSCookieExpiredError{Msg: fmt.Sprintf("小红书 Cookie 已失效或被风控 (code=%s): %s。请重新登录后导出并更换 Cookie。", code, msg)}
 		}
 		return nil, &XHSFetchError{Msg: fmt.Sprintf("小红书接口失败 (code=%s): %s", code, msg)}
 	}
 	return res, nil
+}
+
+// xhsCookieExpiredSignal 判断小红书返回的业务码/文案是否属于 Cookie 失效(需要更换 Cookie)。
+//   - 300011 / 文案含"异常":账号被风控拦截
+//   - -100 / 文案含"登录已过期":网页端登录态过期(实测返回 code=-100, msg=登录已过期)
+func xhsCookieExpiredSignal(code, msg string) bool {
+	if code == "300011" || code == "-100" {
+		return true
+	}
+	return strings.Contains(msg, "异常") ||
+		strings.Contains(msg, "登录已过期") ||
+		strings.Contains(msg, "登录过期")
 }
 
 // searchNotes 搜索笔记。
