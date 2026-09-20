@@ -103,6 +103,29 @@ export function getScenicTransport(id: number): Promise<ScenicTransitStop[]> {
   return get<ScenicTransitStop[]>(`/scenic/${id}/transport`)
 }
 
+/** 景点关联诗词(诗词地图;原文人工权威录入,译文/白话赏析为 LLM 参考值) */
+export interface PoemItem {
+  id: number
+  title: string
+  dynasty?: string
+  author?: string
+  /** 中文原文(任何界面语言下均展示) */
+  content_zh: string
+  /** 英文翻译(LLM 参考值,可能为空) */
+  content_en?: string
+  /** 日语翻译(LLM 参考值,可能为空) */
+  content_ja?: string
+  /** 白话赏析(中文,LLM 参考值,可能为空) */
+  plain_zh?: string
+  related_spot_id?: number
+  created_at?: string
+}
+
+/** 景点关联诗词列表(无关联时为空数组) */
+export function getScenicPoems(id: number): Promise<PoemItem[]> {
+  return get<PoemItem[]>(`/scenic/${id}/poems`)
+}
+
 /** 美食 */
 export interface FoodItem {
   id: number

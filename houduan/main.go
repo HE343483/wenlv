@@ -60,6 +60,7 @@ func main() {
 	articleRepo := repository.NewArticleRepo(db)
 	userMemoryRepo := repository.NewUserMemoryRepo(db)
 	hotTopicRepo := repository.NewHotTopicRepo(db)
+	poemRepo := repository.NewPoemRepo(db)
 
 	// 鉴权工具
 	jwtMgr := pkg.NewJWTManager(pkg.JWTConfig{
@@ -86,6 +87,13 @@ func main() {
 	reviewSvc := service.NewReviewService(reviewRepo, userRepo)
 	photoSvc := service.NewPhotoService(photoRepo)
 	articleSvc := service.NewArticleService(articleRepo, userRepo)
+	poemSvc := service.NewPoemService(poemRepo)
+	// 每日蜀签:按 天序+偏移 对总数取模轮换
+	cultureDailySvc := service.NewCultureDailyService(repository.NewCultureDailyRepo(db))
+	// 节气蜀俗:按当前节气查应季美食(solar_terms 打标)
+	solarFoodSvc := service.NewSolarFoodService(foodRepo)
+	// 蜀文化知识闯关:按景点随机抽题与后端判分(题目由 cmd/quiz-gen 生成)
+	quizSvc := service.NewQuizService(repository.NewQuizRepo(db))
 
 	// OSS 签名器(未配置时仅上传接口不可用,其余正常)
 	signer := pkg.NewOssSigner(&pkg.OssConfig{
@@ -137,6 +145,12 @@ func main() {
 	tripSettings.AttachDB(db) // 设置页配置落库 trip_settings,重启不丢失
 	tripPlanner := service.NewTripPlanner(tripSettings, tripLLM, tripAmap, tripXHS, tripDouyin, tripMemory, tripTasks)
 	tripChat := service.NewTripChatService(tripLLM)
+	// AI 对话上下文持久化:会话/消息/角色长期记忆三表(仅登录用户)
+	chatRepo := repository.NewChatRepo(db)
+	chatSessionSvc := service.NewChatSessionService(chatRepo)
+	personaMemorySvc := service.NewPersonaMemoryService(tripLLM, chatRepo)
+	// 历史人物 AI 角色对话(杜甫/诸葛亮):记忆素材从 scenic_spots + poems 懒加载,长期记忆按用户注入
+	personaChatSvc := service.NewPersonaChatService(tripLLM, scenicRepo, poemRepo, personaMemorySvc)
 	// 用户级限流:防止共享 LLM/高德额度被打爆、小红书搜图触发风控
 	rateLimiter := middleware.NewRateLimiter(middleware.RateLimitConfig{
 		PlanPer10Min:      cfg.RateLimit.PlanPer10Min,
@@ -179,8 +193,19 @@ func main() {
 
 		// ScenicExtra 景点详情页实时数据(周边推荐/交通站点)
 		ScenicExtra: handler.NewScenicExtraHandler(scenicExtraSvc),
-		Trip:        handler.NewTripHandler(tripPlanner, tripChat, tripTasks, tripSettings, rateLimiter, service.NewTripStoryCardService(tripLLM)),
-		TripTool:    handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripDouyin, tripMemory),
+		// Poems 景点诗词(诗词地图)
+		Poems:        handler.NewPoemsHandler(poemSvc),
+		CultureDaily: handler.NewCultureDailyHandler(cultureDailySvc),
+		SolarFood:    handler.NewSolarFoodHandler(solarFoodSvc),
+		Quiz:         handler.NewQuizHandler(quizSvc),
+		Trip:         handler.NewTripHandler(tripPlanner, tripChat, tripTasks, tripSettings, rateLimiter, service.NewTripStoryCardService(tripLLM), chatSessionSvc),
+		TripTool:     handler.NewTripToolHandler(tripSettings, tripAmap, tripXHS, tripDouyin, tripMemory),
+
+		// PersonaChat 历史人物 AI 角色对话(杜甫/诸葛亮)
+		PersonaChat: handler.NewPersonaChatHandler(personaChatSvc, chatSessionSvc, personaMemorySvc),
+
+		// ChatSessions AI 对话会话与角色长期记忆管理(仅登录用户)
+		ChatSessions: handler.NewChatSessionHandler(chatSessionSvc, personaMemorySvc),
 	}
 
 	// 行程图片 OSS 落库:完成后后台抓图上传,历史详情直连 OSS(未配置 OSS 时自动跳过)

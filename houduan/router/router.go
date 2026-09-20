@@ -24,6 +24,7 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 	api.GET("/scenic/:id", h.Scenic.Get)
 	api.GET("/scenic/:id/around", h.ScenicExtra.Around)
 	api.GET("/scenic/:id/transport", h.ScenicExtra.Transport)
+	api.GET("/scenic/:id/poems", h.Poems.ListBySpot)
 	api.GET("/food", h.Food.List)
 	api.GET("/food/:id", h.Food.Get)
 	api.GET("/food-cards", h.FoodCard.List)
@@ -33,6 +34,16 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 
 	// 文旅热点(公开,定时抓取官方文旅新闻源)
 	api.GET("/news/hotspots", h.HotTopic.List)
+
+	// 每日蜀签(公开,无需登录;无数据时 data:null 前端隐藏卡片)
+	api.GET("/culture/daily", h.CultureDaily.Get)
+
+	// 节气蜀俗(公开,无需登录;按当前节气查应季美食,无匹配返回空数组前端隐藏条幅)
+	api.GET("/culture/solar-food", h.SolarFood.List)
+
+	// 蜀文化知识闯关(公开,无需登录;抽题与判分,答题记录存前端 localStorage)
+	api.GET("/quiz", h.Quiz.ListBySpot)
+	api.GET("/quiz/check", h.Quiz.Check)
 
 	// 评价/图墙/游记(公开读取)
 	api.GET("/reviews", h.Review.List)
@@ -83,6 +94,14 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 
 		// 图片直传
 		authed.POST("/upload/policy", h.Upload.Policy)
+
+		// AI 对话会话与角色长期记忆(仅登录用户;普通助手与历史人物角色同一套表)
+		if h.ChatSessions != nil {
+			authed.GET("/chat/sessions", h.ChatSessions.List)
+			authed.POST("/chat/sessions", h.ChatSessions.Create)
+			authed.GET("/chat/sessions/:id/messages", h.ChatSessions.Messages)
+			authed.DELETE("/chat/memories", h.ChatSessions.ClearMemories)
+		}
 	}
 
 	// ===== AI 行程规划模块(公开访问,与原 TripStar 一致使用匿名 user_id) =====
@@ -104,6 +123,17 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 			trip.DELETE("/history/:planId", h.Trip.DeleteHistory)
 			trip.GET("/health", h.Trip.Health)
 			trip.GET("/ws/:taskId", h.Trip.WS)
+
+			// 历史人物 AI 角色对话(杜甫/诸葛亮):列表公开;对话接口可选鉴权——
+			// 登录用户落库会话与长期记忆,游客可聊但不持久化
+			if h.PersonaChat != nil {
+				trip.GET("/personas", h.PersonaChat.Personas)
+				if rl != nil {
+					trip.POST("/persona-chat", middleware.OptionalAuth(validate), rl.ChatLimit(), h.PersonaChat.Chat)
+				} else {
+					trip.POST("/persona-chat", middleware.OptionalAuth(validate), h.PersonaChat.Chat)
+				}
+			}
 		}
 	}
 	if h.TripTool != nil {
@@ -138,12 +168,13 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 		}
 		chat := api.Group("/chat")
 		{
+			// 问答接口可选鉴权:登录用户携带 session_id 时落库为 assistant 会话,游客仅匿名聊天
 			if rl != nil {
-				chat.POST("/ask", rl.ChatLimit(), h.Trip.Ask)
-				chat.POST("/ask/stream", rl.ChatLimit(), h.Trip.AskStream) // SSE 流式问答
+				chat.POST("/ask", middleware.OptionalAuth(validate), rl.ChatLimit(), h.Trip.Ask)
+				chat.POST("/ask/stream", middleware.OptionalAuth(validate), rl.ChatLimit(), h.Trip.AskStream) // SSE 流式问答
 			} else {
-				chat.POST("/ask", h.Trip.Ask)
-				chat.POST("/ask/stream", h.Trip.AskStream) // SSE 流式问答
+				chat.POST("/ask", middleware.OptionalAuth(validate), h.Trip.Ask)
+				chat.POST("/ask/stream", middleware.OptionalAuth(validate), h.Trip.AskStream) // SSE 流式问答
 			}
 		}
 		settings := api.Group("/settings")

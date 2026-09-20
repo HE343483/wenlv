@@ -44,11 +44,77 @@
           <div class="container-ai-chat" @click.stop>
             <button type="button" class="chat-close-btn btn-round btn-danger" @click.stop="closeChatPanel">×</button>
             <div class="chat">
+              <!-- 历史会话 / 新会话(仅登录用户) -->
+              <div v-if="isLoggedIn" class="chat-toolbar">
+                <button type="button" class="chat-tool-btn" :disabled="chatLoading" @click="openSessionsDrawer">
+                  <svg viewBox="0 0 24 24" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5M12 7v5l3 3"
+                    ></path>
+                  </svg>
+                  <span>{{ t('chatHistory.open') }}</span>
+                </button>
+                <button type="button" class="chat-tool-btn" :disabled="chatLoading" @click="startNewSession">
+                  <svg viewBox="0 0 24 24" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      d="M12 5v14M5 12h14"
+                    ></path>
+                  </svg>
+                  <span>{{ t('chatHistory.newChat') }}</span>
+                </button>
+              </div>
+              <!-- 对话角色切换:普通助手 / 杜甫 / 诸葛亮 -->
+              <div class="persona-switch">
+                <span class="persona-switch-label">{{ t('personas.switchLabel') }}</span>
+                <div class="persona-switch-chips">
+                  <button
+                    v-for="p in personaOptions"
+                    :key="p.id"
+                    type="button"
+                    class="persona-chip"
+                    :class="[{ active: activePersona === p.id }, p.themeClass]"
+                    :disabled="chatLoading"
+                    @click="switchPersona(p.id)"
+                  >
+                    <span class="persona-chip-name">{{ t(p.nameKey) }}</span>
+                  </button>
+                </div>
+              </div>
+              <!-- 角色记忆开关(仅角色模式显示;未登录禁用并提示) -->
+              <div v-if="isPersonaMode" class="persona-memory-row">
+                <a-switch v-model:checked="personaMemoryEnabled" :disabled="!isLoggedIn" class="persona-memory-switch" />
+                <span class="persona-memory-label">{{ t('personaMemory.toggle') }}</span>
+                <a-popconfirm
+                  v-if="isLoggedIn"
+                  :title="t('personaMemory.clearConfirm')"
+                  :ok-text="t('personaMemory.clear')"
+                  :cancel-text="t('common.cancel')"
+                  @confirm="onClearMemory"
+                >
+                  <button type="button" class="persona-memory-clear">{{ t('personaMemory.clear') }}</button>
+                </a-popconfirm>
+                <span v-else class="persona-memory-tip">{{ t('personaMemory.loginTip') }}</span>
+              </div>
               <div class="chat-bot">
+                <!-- 角色模式头部条 -->
+                <div v-if="isPersonaMode" class="persona-header" :class="activePersonaOption.themeClass">
+                  <span class="persona-header-name">{{ t(activePersonaOption.nameKey) }}</span>
+                  <span class="persona-header-title">{{ t(activePersonaOption.titleKey) }}</span>
+                  <span class="persona-header-tip">{{ t('personas.chatModeTip', { name: t(activePersonaOption.nameKey) }) }}</span>
+                </div>
                 <div class="chat-history" ref="chatMessagesRef">
                   <div v-if="chatHistory.length === 0" class="chat-empty">
                     <p>{{ t('result.chat.welcome') }}</p>
-                    <div class="chat-suggestions">
+                    <div v-if="!isPersonaMode" class="chat-suggestions">
                       <button
                         v-for="question in quickQuestions"
                         :key="question.labelKey"
@@ -65,7 +131,7 @@
                     v-for="(msg, idx) in chatHistory"
                     :key="`chat-${idx}`"
                     class="chat-msg"
-                    :class="msg.role"
+                    :class="[msg.role, msg.personaClass]"
                   >
                     {{ msg.content }}
                   </div>
@@ -80,7 +146,7 @@
                   :placeholder="chatPlaceholder"
                   name="chat_bot"
                   id="chat_bot"
-                  :disabled="chatLoading || !tripPlan"
+                  :disabled="chatLoading || !canChat"
                   @keydown.enter.exact.prevent="sendChatMessage"
                 ></textarea>
               </div>
@@ -137,7 +203,7 @@
                 <button
                   type="button"
                   class="btn-submit"
-                  :disabled="chatLoading || !chatInput.trim() || !tripPlan"
+                  :disabled="chatLoading || !chatInput.trim() || !canChat"
                   @click="sendChatMessage"
                 >
                   <i>
@@ -150,19 +216,58 @@
                   </i>
                 </button>
               </div>
+              <!-- 未登录提示:历史对话不保存 -->
+              <div v-if="!isLoggedIn" class="chat-login-tip">{{ t('chatHistory.loginTip') }}</div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    <!-- 历史会话抽屉(teleport 到 body,不受面板缩放影响) -->
+    <a-drawer
+      v-model:open="sessionsDrawerOpen"
+      :title="t('chatHistory.open')"
+      placement="right"
+      :width="330"
+      root-class-name="chat-sessions-drawer"
+    >
+      <a-spin :spinning="sessionsLoading">
+        <a-empty v-if="sessionList.length === 0" :description="t('chatHistory.empty')" />
+        <div v-else class="session-list">
+          <button
+            v-for="s in sessionList"
+            :key="s.id"
+            type="button"
+            class="session-item"
+            :class="{ active: s.id === currentSessionId }"
+            @click="openSession(s)"
+          >
+            <span class="session-title">{{ s.title }}</span>
+            <span class="session-time">{{ formatRelativeTime(s.updated_at) }}</span>
+          </button>
+        </div>
+        <a-button block class="session-new-btn" @click="startNewSession">
+          {{ t('chatHistory.newChat') }}
+        </a-button>
+      </a-spin>
+    </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { message as antMessage } from 'ant-design-vue'
 import type { ChatMessage, TripPlan } from '@/types/trip'
 import { getRuntimeApiBaseUrl } from '@/api/trip'
+import { hasToken } from '@/utils/token'
+import {
+  listChatSessions,
+  createChatSession,
+  listSessionMessages,
+  clearPersonaMemories,
+  type ChatSessionItem,
+} from '@/api/chatSession'
 
 const props = defineProps<{
   tripPlan: TripPlan | null
@@ -171,9 +276,200 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 const chatOpen = ref(false)
 const chatInput = ref('')
-const chatHistory = ref<ChatMessage[]>([])
+const chatHistory = ref<PersonaChatMessage[]>([])
 const chatLoading = ref(false)
 const chatMessagesRef = ref<HTMLElement | null>(null)
+
+// ===== 对话角色:普通助手 / 历史人物(杜甫/诸葛亮) =====
+type PersonaID = 'assistant' | 'du-fu' | 'zhuge-liang'
+
+interface PersonaOption {
+  id: PersonaID
+  nameKey: string
+  titleKey: string
+  greetingKey: string
+  /** 气泡主题类:杜甫=宣纸色,诸葛亮=青竹色 */
+  themeClass: string
+}
+
+interface PersonaChatMessage extends ChatMessage {
+  /** 该消息所属角色的主题类,用于气泡配色 */
+  personaClass?: string
+}
+
+const personaOptions: PersonaOption[] = [
+  {
+    id: 'assistant',
+    nameKey: 'personas.assistant.name',
+    titleKey: 'personas.assistant.title',
+    greetingKey: '',
+    themeClass: '',
+  },
+  {
+    id: 'du-fu',
+    nameKey: 'personas.duFu.name',
+    titleKey: 'personas.duFu.title',
+    greetingKey: 'personas.duFu.greeting',
+    themeClass: 'persona-dufu',
+  },
+  {
+    id: 'zhuge-liang',
+    nameKey: 'personas.zhuge.name',
+    titleKey: 'personas.zhuge.title',
+    greetingKey: 'personas.zhuge.greeting',
+    themeClass: 'persona-zhuge',
+  },
+]
+
+const activePersona = ref<PersonaID>('assistant')
+const activePersonaOption = computed<PersonaOption>(() => {
+  const found = personaOptions.find((p) => p.id === activePersona.value)
+  return found ?? personaOptions[0]!
+})
+const isPersonaMode = computed(() => activePersona.value !== 'assistant')
+
+/** 角色模式无需行程计划也可对话;普通助手仍要求先生成行程 */
+const canChat = computed(() => (isPersonaMode.value ? true : !!props.tripPlan))
+
+/** 切换角色:清空当前对话并注入所选角色的开场白(开场白同时作为上下文首条消息) */
+const switchPersona = (id: PersonaID) => {
+  if (activePersona.value === id || chatLoading.value) return
+  activePersona.value = id
+  // 切角色 = 开启新会话:重置 session_id,并按新 persona_id 重新拉取历史会话列表
+  currentSessionId.value = null
+  chatHistory.value = []
+  injectPersonaGreeting()
+  if (isLoggedIn.value) void loadSessions()
+  scrollChatToBottom()
+}
+
+/** 注入当前角色的开场白(作为上下文首条消息) */
+const injectPersonaGreeting = () => {
+  const option = personaOptions.find((p) => p.id === activePersona.value)
+  if (option?.greetingKey) {
+    chatHistory.value.push({
+      role: 'assistant',
+      content: t(option.greetingKey),
+      personaClass: option.themeClass,
+    } as PersonaChatMessage)
+  }
+}
+
+// ===== 历史会话与角色记忆(仅登录用户可用) =====
+const isLoggedIn = ref(hasToken())
+const currentSessionId = ref<number | null>(null)
+const sessionsDrawerOpen = ref(false)
+const sessionsLoading = ref(false)
+const sessionList = ref<ChatSessionItem[]>([])
+
+/** 角色记忆独立开关:localStorage 持久化,默认关闭 */
+const PERSONA_MEMORY_KEY = 'tripstar.persona_memory_enabled'
+const personaMemoryEnabled = ref((() => {
+  try {
+    return localStorage.getItem(PERSONA_MEMORY_KEY) === '1'
+  } catch {
+    return false
+  }
+})())
+watch(personaMemoryEnabled, (enabled) => {
+  try {
+    localStorage.setItem(PERSONA_MEMORY_KEY, enabled ? '1' : '0')
+  } catch {
+    /* 忽略写入失败(如隐私模式) */
+  }
+})
+
+/** 按当前角色拉取历史会话列表 */
+const loadSessions = async () => {
+  if (!isLoggedIn.value) return
+  sessionsLoading.value = true
+  try {
+    sessionList.value = await listChatSessions(activePersona.value)
+  } catch (err) {
+    console.error('Load chat sessions failed:', err)
+    sessionList.value = []
+  } finally {
+    sessionsLoading.value = false
+  }
+}
+
+const openSessionsDrawer = () => {
+  isLoggedIn.value = hasToken()
+  if (!isLoggedIn.value) return
+  sessionsDrawerOpen.value = true
+  void loadSessions()
+}
+
+/** 点击历史会话:加载该会话消息进当前对话,关闭抽屉继续聊 */
+const openSession = async (session: ChatSessionItem) => {
+  if (chatLoading.value) return
+  try {
+    const msgs = await listSessionMessages(session.id)
+    currentSessionId.value = session.id
+    const themeClass = activePersonaOption.value.themeClass
+    chatHistory.value = msgs.map((m) => ({
+      role: m.role,
+      content: m.content,
+      ...(isPersonaMode.value && m.role === 'assistant' ? { personaClass: themeClass } : {}),
+    }))
+    sessionsDrawerOpen.value = false
+    scrollChatToBottom()
+  } catch (err) {
+    console.error('Load session messages failed:', err)
+    antMessage.error(t('result.chat.networkError'))
+  }
+}
+
+/** 新会话:清空对话并将 session_id 置空(首次发消息时才懒创建会话) */
+const startNewSession = () => {
+  currentSessionId.value = null
+  chatHistory.value = []
+  injectPersonaGreeting()
+  sessionsDrawerOpen.value = false
+  scrollChatToBottom()
+}
+
+/** 登录用户首次发言时创建会话,返回会话 ID(未登录/创建失败返回 null) */
+const ensureSession = async (): Promise<number | null> => {
+  if (!isLoggedIn.value) return null
+  if (currentSessionId.value !== null) return currentSessionId.value
+  try {
+    const data = await createChatSession(activePersona.value, locale.value)
+    currentSessionId.value = typeof data?.id === 'number' ? data.id : null
+  } catch (err) {
+    console.error('Create chat session failed:', err)
+  }
+  return currentSessionId.value
+}
+
+/** 清除当前角色的记忆(带二次确认) */
+const clearingMemory = ref(false)
+const onClearMemory = async () => {
+  if (clearingMemory.value) return
+  clearingMemory.value = true
+  try {
+    await clearPersonaMemories(activePersona.value)
+    antMessage.success(t('personaMemory.cleared'))
+  } catch (err) {
+    console.error('Clear persona memories failed:', err)
+    antMessage.error(t('result.chat.networkError'))
+  } finally {
+    clearingMemory.value = false
+  }
+}
+
+/** 相对时间格式化(会话列表用),跟随当前语言 */
+const formatRelativeTime = (input: string): string => {
+  const ts = Date.parse(input)
+  if (!Number.isFinite(ts)) return ''
+  const diff = Date.now() - ts
+  const rtf = new Intl.RelativeTimeFormat(locale.value, { numeric: 'auto' })
+  if (diff < 60_000) return rtf.format(-Math.round(diff / 1000), 'second')
+  if (diff < 3_600_000) return rtf.format(-Math.round(diff / 60_000), 'minute')
+  if (diff < 86_400_000) return rtf.format(-Math.round(diff / 3_600_000), 'hour')
+  if (diff < 30 * 86_400_000) return rtf.format(-Math.round(diff / 86_400_000), 'day')
+  return rtf.format(-Math.round(diff / (30 * 86_400_000)), 'month')
+}
 
 const quickQuestions = [
   {
@@ -191,6 +487,8 @@ const quickQuestions = [
 ]
 
 const chatPlaceholder = computed(() => {
+  if (activePersona.value === 'du-fu') return t('personas.duFu.placeholder')
+  if (activePersona.value === 'zhuge-liang') return t('personas.zhuge.placeholder')
   if (!props.tripPlan) return t('result.noTripPlanDesc')
   return t('result.chat.placeholder')
 })
@@ -204,7 +502,11 @@ const scrollChatToBottom = () => {
 }
 
 watch(chatOpen, (open) => {
-  if (open) scrollChatToBottom()
+  if (open) {
+    // 打开面板时刷新登录态(登录/登出发生在其他组件)
+    isLoggedIn.value = hasToken()
+    scrollChatToBottom()
+  }
 })
 
 const openChatPanel = () => {
@@ -302,8 +604,9 @@ const sendQuickQuestion = (q: string) => {
 
 const sendChatMessage = async () => {
   const text = chatInput.value.trim()
-  if (!text || chatLoading.value || !props.tripPlan) return
+  if (!text || chatLoading.value || !canChat.value) return
 
+  const personaOption = activePersonaOption.value
   chatHistory.value.push({ role: 'user', content: text })
   chatInput.value = ''
   chatLoading.value = true
@@ -314,56 +617,29 @@ const sendChatMessage = async () => {
   chatHistory.value.push(assistantMsg)
 
   try {
-    const apiBase = getRuntimeApiBaseUrl()
-    const res = await fetch(`${apiBase}/api/chat/ask/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: text,
-        trip_plan: props.tripPlan,
-        history: chatHistory.value.slice(0, -2),
-        language: locale.value,
-      }),
-    })
-    if (!res.ok || !res.body) {
-      throw new Error(`HTTP ${res.status}`)
-    }
-
-    // 逐行解析 SSE:data: {"delta":"..."} / data: {"error":"..."} / data: [DONE]
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
-    let failed = false
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || '' // 最后一段可能不完整,留待下一批
-      for (const rawLine of lines) {
-        const line = rawLine.trim()
-        if (!line.startsWith('data:')) continue
-        const payload = line.slice(5).trim()
-        if (payload === '[DONE]') continue
-        try {
-          const evt = JSON.parse(payload)
-          if (evt.delta) {
-            assistantMsg.content += evt.delta
-            scrollChatToBottom()
-          } else if (evt.error) {
-            failed = true
-            assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `⚠️ ${evt.error}`
-          }
-        } catch {
-          /* 忽略无法解析的行 */
-        }
-      }
-    }
-
-    // 若模型没有返回任何内容,给出兜底提示
-    if (!assistantMsg.content) {
-      assistantMsg.content = failed ? t('result.chat.networkError') : t('result.chat.replyFallback')
+    // 登录用户:首次发言时懒创建会话,后续请求携带 session_id;未登录不带(后端不落库)
+    const sessionId = await ensureSession()
+    if (isPersonaMode.value) {
+      // ===== 历史人物角色对话:SSE 流式 POST /api/trip/persona-chat(打字机效果与普通问答一致) =====
+      const apiBase = getRuntimeApiBaseUrl()
+      const res = await fetch(`${apiBase}/api/trip/persona-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          persona_id: activePersona.value,
+          messages: chatHistory.value.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+          language: locale.value,
+          ...(sessionId !== null ? { session_id: sessionId } : {}),
+          memory_enabled: personaMemoryEnabled.value,
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      // 角色气泡配色在流式开始前应用
+      ;(assistantMsg as PersonaChatMessage).personaClass = personaOption.themeClass
+      await consumeSSEResponse(res, assistantMsg)
+    } else {
+      // ===== 普通行程问答:SSE 流式输出 =====
+      await sendAssistantStream(text, assistantMsg, sessionId)
     }
   } catch (err) {
     console.error('Chat error:', err)
@@ -375,6 +651,65 @@ const sendChatMessage = async () => {
   } finally {
     chatLoading.value = false
     scrollChatToBottom()
+  }
+}
+
+/** 普通行程问答:走 /api/chat/ask/stream 的 SSE 流式管线,增量填充 assistantMsg */
+const sendAssistantStream = async (text: string, assistantMsg: ChatMessage, sessionId: number | null) => {
+  const apiBase = getRuntimeApiBaseUrl()
+  const res = await fetch(`${apiBase}/api/chat/ask/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: text,
+      trip_plan: props.tripPlan,
+      history: chatHistory.value.slice(0, -2),
+      language: locale.value,
+      ...(sessionId !== null ? { session_id: sessionId } : {}),
+    }),
+  })
+  if (!res.ok || !res.body) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  await consumeSSEResponse(res, assistantMsg)
+}
+
+/** SSE 通用消费器:逐行解析 data: {"delta"|"error"} / [DONE],增量填充 assistantMsg(persona 与普通问答共用) */
+const consumeSSEResponse = async (res: Response, assistantMsg: ChatMessage) => {
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+  let failed = false
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || '' // 最后一段可能不完整,留待下一批
+    for (const rawLine of lines) {
+      const line = rawLine.trim()
+      if (!line.startsWith('data:')) continue
+      const payload = line.slice(5).trim()
+      if (payload === '[DONE]') continue
+      try {
+        const evt = JSON.parse(payload)
+        if (evt.delta) {
+          assistantMsg.content += evt.delta
+          scrollChatToBottom()
+        } else if (evt.error) {
+          failed = true
+          assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + `⚠️ ${evt.error}`
+        }
+      } catch {
+        /* 忽略无法解析的行 */
+      }
+    }
+  }
+
+  // 若模型没有返回任何内容,给出兜底提示
+  if (!assistantMsg.content) {
+    assistantMsg.content = failed ? t('result.chat.networkError') : t('result.chat.replyFallback')
   }
 }
 </script>
@@ -713,6 +1048,214 @@ const sendChatMessage = async () => {
 .card .chat .chat-bot .chat-suggestion:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+// ===== 对话角色切换(普通助手/杜甫/诸葛亮) =====
+.persona-switch {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 4px 14px;
+}
+
+.persona-switch-label {
+  font-size: 34px;
+  font-weight: 600;
+  color: #8a9a9e;
+  white-space: nowrap;
+}
+
+.persona-switch-chips {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.persona-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid #d9e2e0;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 34px;
+  font-weight: 500;
+  background-color: #ffffff;
+  color: #2e3a3d;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .persona-chip-avatar {
+    font-size: 38px;
+    line-height: 1;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-4px);
+    border-color: #5da4b1;
+  }
+
+  &.active {
+    border-color: #b8453e;
+    background-color: rgba(184, 69, 62, 0.08);
+    color: #b8453e;
+  }
+
+  &.persona-zhuge.active {
+    border-color: #4a7c59;
+    background-color: rgba(74, 124, 89, 0.1);
+    color: #3d6a4b;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ===== 历史会话 / 新会话工具条(仅登录用户) =====
+.chat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 4px 14px;
+}
+
+.chat-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 20px;
+  font-size: 30px;
+  font-weight: 500;
+  background-color: rgba(93, 164, 177, 0.12);
+  color: #3e7d8a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background-color: rgba(93, 164, 177, 0.24);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ===== 角色记忆开关行(仅角色模式) =====
+.persona-memory-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 4px 14px;
+}
+
+// 面板按大尺寸设计(scale 0.3),开关同步放大
+.persona-memory-row .persona-memory-switch {
+  transform: scale(2);
+  transform-origin: left center;
+  margin-right: 18px;
+}
+
+.persona-memory-label {
+  font-size: 34px;
+  font-weight: 600;
+  color: #2e3a3d;
+  white-space: nowrap;
+}
+
+.persona-memory-clear {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 28px;
+  color: #b8453e;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
+.persona-memory-tip {
+  margin-left: auto;
+  font-size: 28px;
+  color: #8a9a9e;
+}
+
+// 未登录提示(面板底部低调展示)
+.chat-login-tip {
+  padding: 10px 4px 0;
+  font-size: 28px;
+  color: #8a9a9e;
+  text-align: center;
+}
+
+// 角色模式头部条(头像 + 名字 + 头衔)
+.persona-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 16px;
+  font-size: 34px;
+
+  .persona-header-avatar {
+    font-size: 44px;
+    line-height: 1;
+  }
+
+  .persona-header-name {
+    font-weight: 700;
+    color: #b8453e;
+  }
+
+  .persona-header-title {
+    font-weight: 500;
+    color: #8a6a4f;
+    background: rgba(184, 69, 62, 0.1);
+    border-radius: 999px;
+    padding: 2px 16px;
+    font-size: 30px;
+  }
+
+  .persona-header-tip {
+    margin-left: auto;
+    font-size: 28px;
+    color: #8a9a9e;
+  }
+
+  &.persona-dufu {
+    background: linear-gradient(135deg, rgba(246, 240, 229, 0.92), rgba(240, 228, 205, 0.6));
+  }
+
+  &.persona-zhuge {
+    background: linear-gradient(135deg, rgba(230, 239, 228, 0.92), rgba(213, 230, 216, 0.6));
+
+    .persona-header-name {
+      color: #3d6a4b;
+    }
+
+    .persona-header-title {
+      color: #3d6a4b;
+      background: rgba(74, 124, 89, 0.14);
+    }
+  }
+}
+
+// 角色消息气泡主题:杜甫=宣纸色(暖米+朱棕),诸葛亮=青竹色(淡绿+墨绿)
+.card .chat .chat-bot .chat-msg.persona-dufu {
+  background: #f6efdd;
+  border-left: 8px solid #b8453e;
+}
+
+.card .chat .chat-bot .chat-msg.persona-zhuge {
+  background: #e6efe4;
+  border-left: 8px solid #4a7c59;
 }
 
 .card .chat .chat-bot .chat-msg {
@@ -1297,6 +1840,65 @@ const sendChatMessage = async () => {
   .content-card {
     width: 6.5rem;
     height: 6.5rem;
+  }
+}
+</style>
+
+<style lang="scss">
+/* 历史会话抽屉:a-drawer teleport 至 body,需全局(非 scoped)样式 */
+.chat-sessions-drawer {
+  .ant-drawer-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .session-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .session-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    text-align: left;
+    border: 1px solid #e5e0d5;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fffdf8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: #5da4b1;
+    }
+
+    &.active {
+      border-color: #b8453e;
+      background: rgba(184, 69, 62, 0.06);
+    }
+  }
+
+  .session-title {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2e3a3d;
+  }
+
+  .session-time {
+    font-size: 12px;
+    color: #8a9a9e;
+  }
+
+  .session-new-btn {
+    margin-top: 12px;
   }
 }
 </style>

@@ -18,6 +18,9 @@ type Food struct {
 	NameLiteralEN string `gorm:"size:128;comment:菜名字面直译英文(直译陷阱提示,参考值)" json:"name_literal_en"`
 	IngredientsZH string `gorm:"size:255;comment:主要食材(中文,含过敏原提示,参考值)" json:"ingredients_zh"`
 	IngredientsEN string `gorm:"size:255;comment:主要食材英文(含过敏原提示,参考值)" json:"ingredients_en"`
+	// SolarTerms 适用节气(逗号分隔,如"冬至,大雪"),由 cmd/solar-term-tag LLM 批量打标;
+	// 置信度低的留空,查询端用 FIND_IN_SET 精确匹配单个节气。
+	SolarTerms string `gorm:"size:60;comment:适用节气名,逗号分隔如'冬至,大雪';无则空" json:"solar_terms"`
 	Images   string `gorm:"type:text;comment:图片URL列表(逗号分隔)" json:"images"`
 	// ===== 详情页扩展字段(高德门店采集 + LLM 参考值) =====
 	Rating          string     `gorm:"size:16;comment:评分(高德事实或LLM参考值)" json:"rating"`

@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
+
 	"github.com/gin-gonic/gin"
 
 	"wenlv-backend/middleware"
@@ -77,13 +80,14 @@ func NewCheckInHandler(svc *service.CheckInService) *CheckInHandler {
 }
 
 type checkInReq struct {
-	ScenicID  uint   `json:"scenic_id"`
-	PhotoURL  string `json:"photo_url"`
-	Comment   string `json:"comment"`
-	VisitedAt string `json:"visited_at"`
+	ScenicID  uint     `json:"scenic_id"`
+	PhotoURL  string   `json:"photo_url"`
+	Photos    []string `json:"photos"`
+	Comment   string   `json:"comment"`
+	VisitedAt string   `json:"visited_at"`
 }
 
-// CheckIn 打卡。
+// CheckIn 打卡(至少携带一张现场照片)。
 func (h *CheckInHandler) CheckIn(c *gin.Context) {
 	var req checkInReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -91,18 +95,31 @@ func (h *CheckInHandler) CheckIn(c *gin.Context) {
 		return
 	}
 	uid := middleware.GetUID(c)
-	if err := h.svc.CheckIn(uid, req.ScenicID, req.PhotoURL, req.Comment, req.VisitedAt); err != nil {
-		switch err {
-		case service.ErrDuplicatedCheckIn:
+	if err := h.svc.CheckIn(uid, req.ScenicID, req.PhotoURL, req.Comment, req.VisitedAt, req.Photos); err != nil {
+		switch {
+		case errors.Is(err, service.ErrDuplicatedCheckIn):
 			pkg.Fail(c, 409, 20001, "已经打过卡了")
-		case service.ErrInvalidInput:
-			pkg.BadRequest(c, "参数错误:缺少景点")
+		case errors.Is(err, service.ErrPhotoRequired):
+			pkg.BadRequest(c, "请至少上传一张打卡照片")
+		case errors.Is(err, service.ErrInvalidInput):
+			pkg.BadRequest(c, "参数错误:缺少景点或照片不合法")
 		default:
 			pkg.ServerErrorWithErr(c, err, "打卡失败")
 		}
 		return
 	}
 	pkg.OK(c, nil)
+}
+
+// checkInItem 打卡响应:photos 由库内 JSON 字符串解析为数组,便于前端直接使用。
+type checkInItem struct {
+	ID        uint     `json:"id"`
+	ScenicID  uint     `json:"scenic_id"`
+	PhotoURL  string   `json:"photo_url"`
+	Photos    []string `json:"photos"`
+	Comment   string   `json:"comment"`
+	VisitedAt string   `json:"visited_at"`
+	CreatedAt string   `json:"created_at"`
 }
 
 // List 我的打卡列表。
@@ -113,7 +130,26 @@ func (h *CheckInHandler) List(c *gin.Context) {
 		pkg.ServerErrorWithErr(c, err, "查询打卡失败")
 		return
 	}
-	pkg.OK(c, items)
+	res := make([]checkInItem, 0, len(items))
+	for _, it := range items {
+		photos := []string{}
+		if it.Photos != "" {
+			_ = json.Unmarshal([]byte(it.Photos), &photos)
+		}
+		if len(photos) == 0 && it.PhotoURL != "" {
+			photos = []string{it.PhotoURL}
+		}
+		res = append(res, checkInItem{
+			ID:        it.ID,
+			ScenicID:  it.ScenicID,
+			PhotoURL:  it.PhotoURL,
+			Photos:    photos,
+			Comment:   it.Comment,
+			VisitedAt: it.VisitedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: it.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+	pkg.OK(c, res)
 }
 
 // Remove 删除打卡记录。

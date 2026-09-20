@@ -1,84 +1,38 @@
 /**
- * passport.ts — 数字足迹护照（localStorage 集章）
- * 浏览景点详情即"盖章"，数据存 localStorage：免登录、免后端；
- * 换设备/清缓存会丢（MVP 取舍，账号体系预留到后续）。
+ * passport.ts — 数字足迹护照（MySQL 落库版）
+ * 集章与后端 check_ins 表绑定：用户在景点详情页点击"打卡集章"并上传
+ * 现场照片后才获得印章，数据按账号永久保存，换设备不丢。
+ * 本文件只做数据适配：把打卡记录映射为护照印章（id 去重 + 时间戳）。
  */
+import { listCheckIns, type CheckInItem } from '@/api/checkin'
 
-const STORAGE_KEY = 'wenlv.passport.stamps'
-
-/** 单枚印章：景点三语名 + 盖章时间戳 */
+/** 单枚印章：景点 ID + 打卡时间戳 + 打卡照片 */
 export interface PassportStamp {
   id: number
-  name_zh: string
-  name_en: string
-  name_ja: string
   ts: number
+  photos: string[]
+  comment: string
 }
 
-/** addStamp 入参（与 ScenicItem 的相关字段对齐） */
-export interface StampSource {
-  id: number
-  name_zh: string
-  name_en?: string
-  name_ja?: string
+/** 拉取我的全部打卡记录并映射为印章列表（按盖章时间升序） */
+export async function fetchStamps(): Promise<PassportStamp[]> {
+  const items = await listCheckIns()
+  return toStamps(items)
 }
 
-/** 读取并逐字段校验本地印章列表（JSON 解析失败/结构异常一律按空处理） */
-function readStamps(): PassportStamp[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((it): it is Record<string, unknown> => !!it && typeof it === 'object')
-      .map((it) => ({
-        id: Number(it.id),
-        name_zh: typeof it.name_zh === 'string' ? it.name_zh : '',
-        name_en: typeof it.name_en === 'string' ? it.name_en : '',
-        name_ja: typeof it.name_ja === 'string' ? it.name_ja : '',
-        ts: Number(it.ts) || 0,
-      }))
-      .filter((it) => Number.isFinite(it.id) && it.id > 0)
-  } catch {
-    return []
+/** 打卡记录 → 印章列表（去重、升序），供测试与弹窗复用 */
+export function toStamps(items: CheckInItem[]): PassportStamp[] {
+  const seen = new Set<number>()
+  const stamps: PassportStamp[] = []
+  for (const it of items) {
+    if (seen.has(it.scenic_id)) continue
+    seen.add(it.scenic_id)
+    stamps.push({
+      id: it.scenic_id,
+      ts: new Date(it.visited_at || it.created_at).getTime() || 0,
+      photos: Array.isArray(it.photos) ? it.photos : [],
+      comment: it.comment || '',
+    })
   }
-}
-
-function writeStamps(list: PassportStamp[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-  } catch {
-    /* 隐私模式/容量不足时静默失败，不影响主流程 */
-  }
-}
-
-/** 盖章：按 id 去重，返回盖章后的完整列表 */
-export function addStamp(item: StampSource): PassportStamp[] {
-  const list = readStamps()
-  if (list.some((s) => s.id === item.id)) return list
-  list.push({
-    id: item.id,
-    name_zh: item.name_zh,
-    name_en: item.name_en || '',
-    name_ja: item.name_ja || '',
-    ts: Date.now(),
-  })
-  writeStamps(list)
-  return list
-}
-
-/** 全部印章（按盖章时间升序） */
-export function getStamps(): PassportStamp[] {
-  return readStamps().sort((a, b) => a.ts - b.ts)
-}
-
-/** 已集章数量 */
-export function stampCount(): number {
-  return readStamps().length
-}
-
-/** 是否已盖过某景点 */
-export function hasStamp(id: number): boolean {
-  return readStamps().some((s) => s.id === id)
+  return stamps.sort((a, b) => a.ts - b.ts)
 }

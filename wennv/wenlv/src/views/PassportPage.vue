@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * PassportPage.vue — 数字足迹护照(/passport)
- * 浏览景点详情即"盖章"（详见 src/utils/passport.ts），本页展示集章进度：
+ * 集章数据来自后端 check_ins 表（MySQL 永久保存）：用户在景点详情页
+ * 上传现场照片打卡后获得印章；本页展示集章进度：
  * 已集章显示红章 + 景点名，未集章显示灰色"？"剪影；
  * 任意进度均可生成「成都旅行护照」证书海报（PassportModal）。
  */
@@ -13,7 +14,9 @@ import HomeBanner from '@/components/HomeBanner.vue'
 import PassportModal from '@/components/PassportModal.vue'
 import { listScenics, type ScenicItem } from '@/api/content'
 import { pickName } from '@/utils/storyI18n'
-import { getStamps } from '@/utils/passport'
+import { fetchStamps } from '@/utils/passport'
+import { loadQuizBadges, quizRankOf } from '@/utils/quizBadges'
+import { hasToken } from '@/utils/token'
 
 const router = useRouter()
 const langStore = useLanguageStore()
@@ -21,8 +24,9 @@ const langStore = useLanguageStore()
 const scenics = ref<ScenicItem[]>([])
 const loading = ref(true)
 const loadFailed = ref(false)
-/** 集章数据读取版本号：onMounted 时自增以触发重算（返回本页时刷新集章状态） */
-const stampsVersion = ref(0)
+/** 集章数据来自后端,登录后按用户账号永久保存 */
+const stamps = ref<{ id: number }[]>([])
+const loggedIn = ref(hasToken())
 
 onMounted(async () => {
   try {
@@ -30,17 +34,19 @@ onMounted(async () => {
     scenics.value = page.items
   } catch {
     loadFailed.value = true
-  } finally {
-    loading.value = false
   }
-  stampsVersion.value++
+  if (loggedIn.value) {
+    try {
+      stamps.value = await fetchStamps()
+    } catch {
+      /* 拉取失败按空集章展示 */
+    }
+  }
+  loading.value = false
 })
 
-/** 已盖章景点 id 集合（随版本号重读 localStorage） */
-const stampIds = computed(() => {
-  void stampsVersion.value
-  return new Set(getStamps().map((s) => s.id))
-})
+/** 已盖章景点 id 集合 */
+const stampIds = computed(() => new Set(stamps.value.map((s) => s.id)))
 
 const collected = computed(() =>
   scenics.value.filter((s) => stampIds.value.has(s.id)).length
@@ -55,6 +61,13 @@ const nameOf = (item: ScenicItem) => pickName(item, langStore.lang)
 function goScenic(item: ScenicItem) {
   router.push(`/scenic/${item.id}`)
 }
+
+/* ── 徽章墙:蜀文化知识闯关答题得徽章(localStorage 本地存档,不绑账号) ── */
+const quizBadges = ref(loadQuizBadges())
+/** 已获徽章数 = 答对过题目的景点数 */
+const badgeCount = computed(() => quizBadges.value.spots.length)
+/** 文化段位:按累计答对数(0-1 青铜 / 2-3 白银 / 4-5 黄金) */
+const quizRankKey = computed(() => quizRankOf(quizBadges.value.correctTotal).key)
 
 /* ── 证书弹窗 ── */
 const modalOpen = ref(false)
@@ -96,12 +109,20 @@ const modalOpen = ref(false)
               :style="{ width: `${progressPercent}%` }"
             />
           </div>
-          <p v-if="collected === 0" class="passport-progress__empty">
+          <p v-if="collected === 0 && loggedIn" class="passport-progress__empty">
             {{ langStore.t('passport.stampEmpty') }}
           </p>
+
+          <!-- 未登录:集章需登录后按账号永久保存 -->
+          <div v-if="!loggedIn" class="passport-login">
+            <p class="passport-login__text">{{ langStore.t('passport.loginRequired') }}</p>
+            <button type="button" class="passport-login__btn" @click="router.push('/login')">
+              {{ langStore.t('passport.loginCta') }}
+            </button>
+          </div>
         </div>
 
-        <!-- 集章网格 -->
+        <!-- 集章网格:已集章景点格显示"答题"角标,点击进入景点详情答题闯关 -->
         <div class="stamp-grid">
           <button
             v-for="item in scenics"
@@ -111,12 +132,38 @@ const modalOpen = ref(false)
             :class="{ 'stamp-cell--got': stampIds.has(item.id) }"
             @click="goScenic(item)"
           >
+            <span
+              v-if="stampIds.has(item.id)"
+              class="stamp-cell__quiz"
+              :title="langStore.t('quiz.title')"
+            >
+              {{ langStore.t('quiz.goQuiz') }}
+            </span>
             <span class="stamp-cell__mark" aria-hidden="true">
               <span v-if="stampIds.has(item.id)" class="stamp-cell__seal">印</span>
               <span v-else class="stamp-cell__unknown">？</span>
             </span>
             <span class="stamp-cell__name">{{ nameOf(item) }}</span>
           </button>
+        </div>
+
+        <!-- 徽章墙:答题得徽章 + 文化段位 -->
+        <div class="badge-wall">
+          <div class="badge-wall__head">
+            <span class="badge-wall__icon" aria-hidden="true">🎖️</span>
+            <h3 class="badge-wall__title">{{ langStore.t('quiz.badgeWall') }}</h3>
+          </div>
+          <div class="badge-wall__stats">
+            <span class="badge-wall__count">
+              {{ langStore.t('quiz.badgeCount', { count: badgeCount }) }}
+            </span>
+            <span class="badge-wall__rank">
+              {{ langStore.t(quizRankKey) }}
+            </span>
+          </div>
+          <p class="badge-wall__hint">
+            {{ langStore.t('quiz.badgeTotalCorrect', { count: quizBadges.correctTotal }) }}
+          </p>
         </div>
 
         <!-- 生成证书 -->
@@ -133,7 +180,7 @@ const modalOpen = ref(false)
       </template>
     </section>
 
-    <PassportModal v-model:open="modalOpen" :scenics="scenics" />
+    <PassportModal v-model:open="modalOpen" :scenics="scenics" :stamp-ids="stampIds" />
   </div>
 </template>
 
@@ -208,6 +255,44 @@ const modalOpen = ref(false)
   letter-spacing: var(--tracking-wide);
 }
 
+/* 未登录提示 */
+.passport-login {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px dashed color-mix(in srgb, var(--color-gold) 50%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-gold) 5%, var(--color-surface));
+}
+
+.passport-login__text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.passport-login__btn {
+  padding: var(--space-2) var(--space-8);
+  border: none;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-gold), var(--color-gold-dark));
+  color: var(--color-bg);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.passport-login__btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px var(--color-gold-glow);
+}
+
 /* ── 集章网格 ── */
 .stamp-grid {
   display: grid;
@@ -216,6 +301,7 @@ const modalOpen = ref(false)
 }
 
 .stamp-cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -226,6 +312,22 @@ const modalOpen = ref(false)
   border-radius: var(--radius-lg);
   transition: border-color var(--transition-base), transform var(--transition-base),
     box-shadow var(--transition-base);
+}
+
+/* "答题"角标:已集章景点可进入知识闯关赢徽章 */
+.stamp-cell__quiz {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-gold), var(--color-gold-dark));
+  color: var(--color-text-inverse);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  box-shadow: 0 2px 8px var(--color-gold-glow);
+  pointer-events: none;
 }
 
 .stamp-cell:hover {
@@ -288,6 +390,71 @@ const modalOpen = ref(false)
 
 .stamp-cell--got .stamp-cell__name {
   color: var(--color-text-primary);
+}
+
+/* ── 徽章墙 ── */
+.badge-wall {
+  max-width: 560px;
+  margin: var(--space-10) auto 0;
+  padding: var(--space-6);
+  border: 1px solid color-mix(in srgb, var(--color-gold) 40%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-gold) 5%, var(--color-surface));
+}
+
+.badge-wall__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.badge-wall__icon {
+  font-size: var(--text-xl);
+}
+
+.badge-wall__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-gold-dark);
+  letter-spacing: var(--tracking-wide);
+}
+
+.badge-wall__stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.badge-wall__count {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wide);
+}
+
+.badge-wall__rank {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-gold), var(--color-gold-dark));
+  color: var(--color-text-inverse);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: var(--tracking-wider);
+}
+
+.badge-wall__hint {
+  margin: var(--space-3) 0 0;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wide);
 }
 
 /* ── 生成证书 ── */

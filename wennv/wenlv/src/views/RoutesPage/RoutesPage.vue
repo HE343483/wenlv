@@ -6,7 +6,7 @@
  * 布局:图片主导的编辑式图文行(非卡片网格);点击整行打开详情弹窗,
  * 弹窗内站点时间线带配图与简介,并可一键「用 AI 生成同款行程」跳 /trip 预填表单。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { listRoutes, parseRouteStops, type RouteItem, type RouteStop } from '@/api/content'
@@ -57,6 +57,8 @@ interface RouteView {
   desc_ja?: string
   days: number
   tags: string[]
+  /** 路线主题:玩法路线为中文分类词,culture 为蜀文化叙事路线(前端按此加角标) */
+  theme?: string
   stops: RouteStopView[]
 }
 
@@ -87,6 +89,7 @@ function fromDB(item: RouteItem): RouteView {
     desc_ja: item.description_ja || '',
     days: item.days || 1,
     tags,
+    theme: (item.theme || '').trim(),
     stops: parseRouteStops(item.stops).map(s => ({
       name: stopName(s),
       desc: s.desc || '',
@@ -146,6 +149,7 @@ let observer: IntersectionObserver | null = null
 
 function setupReveal() {
   if (!rootRef.value) return
+  observer?.disconnect() // 筛选切换重跑时先释放旧观察者
   const rows = Array.from(rootRef.value.querySelectorAll('.route-row'))
   // 浏览器不支持 IntersectionObserver 时直接全部显示
   if (typeof IntersectionObserver === 'undefined') {
@@ -171,6 +175,43 @@ function setupReveal() {
 }
 
 onBeforeUnmount(() => observer?.disconnect())
+
+/** ── 主题筛选:全部 / 玩法主题(theme 中文分类词) / 文化主题(theme=culture) ── */
+const activeFilter = ref<string>('all')
+
+/** theme 值 → 展示标签(culture 走 themeCultural 文案,其余查 themeMap,缺失原样显示) */
+function themeLabel(theme: string): string {
+  if (theme === 'culture') return langStore.t('routes.themeCultural')
+  const map = (dictValue('routes.themeMap') ?? {}) as Record<string, string>
+  return map[theme] ?? theme
+}
+
+/** 筛选选项:全部 + 按出现顺序的玩法主题 + 文化主题(固定在末位) */
+const filters = computed(() => {
+  const list: Array<{ value: string; label: string }> = [{ value: 'all', label: langStore.t('routes.filterAll') }]
+  const seen = new Set<string>()
+  for (const r of routes.value) {
+    const th = r.theme || ''
+    if (!th || th === 'culture' || seen.has(th)) continue
+    seen.add(th)
+    list.push({ value: th, label: themeLabel(th) })
+  }
+  if (routes.value.some(r => r.theme === 'culture')) {
+    list.push({ value: 'culture', label: langStore.t('routes.themeCultural') })
+  }
+  return list
+})
+
+const filteredRoutes = computed(() => {
+  if (activeFilter.value === 'all') return routes.value
+  return routes.value.filter(r => r.theme === activeFilter.value)
+})
+
+// 筛选切换后行会重新挂载,需重新触发进场浮现,否则新行停留在 opacity:0
+watch(filteredRoutes, async () => {
+  await nextTick()
+  setupReveal()
+})
 
 /** ── 详情弹窗 ── */
 const activeRoute = ref<RouteView | null>(null)
@@ -205,10 +246,25 @@ function pad(n: number): string {
       watermark="路"
     />
 
+    <!-- ──── 主题筛选:全部 / 玩法主题 / 文化主题 ──── -->
+    <nav v-if="filters.length > 1" class="routes-page__filters container" aria-label="route themes">
+      <button
+        v-for="f in filters"
+        :key="f.value"
+        type="button"
+        class="routes-page__filter"
+        :class="{ 'routes-page__filter--active': activeFilter === f.value }"
+        :aria-pressed="activeFilter === f.value"
+        @click="activeFilter = f.value"
+      >
+        {{ f.label }}
+      </button>
+    </nav>
+
     <!-- ──── 路线编辑式图文行 ──── -->
     <section class="routes-page__list container">
       <article
-        v-for="(r, i) in routes"
+        v-for="(r, i) in filteredRoutes"
         :key="r.key"
         class="route-row"
         :class="{ 'route-row--flip': i % 2 === 1 }"
@@ -219,6 +275,10 @@ function pad(n: number): string {
       >
         <div class="route-row__media">
           <img v-if="r.image" :src="r.image" :alt="r.title" loading="lazy" />
+          <span v-if="r.theme === 'culture'" class="route-row__culture-badge">
+            <span aria-hidden="true">🧭</span>
+            {{ langStore.t('routes.themeCultural') }}
+          </span>
           <span class="route-row__days">
             <b>{{ r.days }}</b>
             {{ langStore.t('routes.daysUnit') }}
@@ -320,6 +380,61 @@ function pad(n: number): string {
 </template>
 
 <style scoped>
+/* ========================================
+   主题筛选条:编辑式 pill 按钮
+   ======================================== */
+.routes-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-8);
+}
+
+.routes-page__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.routes-page__filter:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold-dark);
+}
+
+.routes-page__filter--active {
+  border-color: var(--color-gold);
+  background: color-mix(in srgb, var(--color-gold) 12%, transparent);
+  color: var(--color-gold-dark);
+}
+
+.route-row__culture-badge {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-gold) 88%, black);
+  backdrop-filter: blur(6px);
+  color: var(--color-text-inverse);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  z-index: 1;
+}
+
 /* ========================================
    路线编辑式图文行:大图 + 文字交替,图片主导
    ======================================== */

@@ -26,13 +26,15 @@ type TripHandler struct {
 	ratelimiter *middleware.RateLimiter
 	// storyCard 旅行故事卡片文案生成(出海分享功能)
 	storyCard *service.TripStoryCardService
+	// sessions 普通问答会话持久化(登录用户带 session_id 时落库)
+	sessions *service.ChatSessionService
 }
 
 // NewTripHandler 构造行程规划处理器。
 func NewTripHandler(planner *service.TripPlanner, chat *service.TripChatService,
 	tasks *service.TripTaskStore, settings *service.TripSettings, ratelimiter *middleware.RateLimiter,
-	storyCard *service.TripStoryCardService) *TripHandler {
-	return &TripHandler{planner: planner, chat: chat, tasks: tasks, settings: settings, ratelimiter: ratelimiter, storyCard: storyCard}
+	storyCard *service.TripStoryCardService, sessions *service.ChatSessionService) *TripHandler {
+	return &TripHandler{planner: planner, chat: chat, tasks: tasks, settings: settings, ratelimiter: ratelimiter, storyCard: storyCard, sessions: sessions}
 }
 
 var tripUpgrader = websocket.Upgrader{
@@ -285,12 +287,16 @@ func (h *TripHandler) Ask(c *gin.Context) {
 
 // AskStream 行程智能问答(SSE 流式输出):边生成边推送,显著降低首字延迟。
 // 事件格式:data: {"delta":"..."} / data: {"error":"..."} / data: [DONE]
+// 登录用户携带 session_id 时,流结束前把本轮 user+assistant 消息落库(persona_id 固定 'assistant',不做记忆提取)。
 func (h *TripHandler) AskStream(c *gin.Context) {
 	var req model.TripChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"detail": "参数错误:message 与 trip_plan 必填"})
 		return
 	}
+	// 登录用户标识(0=未登录,不落库)
+	uid := middleware.GetUID(c)
+	userID := formatUserID(uid)
 
 	c.Header("Content-Type", "text/event-stream; charset=utf-8")
 	c.Header("Cache-Control", "no-cache")
@@ -302,7 +308,9 @@ func (h *TripHandler) AskStream(c *gin.Context) {
 		c.Writer.Flush()
 	}
 
+	var full strings.Builder
 	err := h.chat.ChatWithTripContextStream(c.Request.Context(), req.Message, req.Language, req.TripPlan, req.History, func(delta string) {
+		full.WriteString(delta)
 		data, _ := json.Marshal(map[string]string{"delta": delta})
 		writeEvent(string(data))
 	})
@@ -310,6 +318,12 @@ func (h *TripHandler) AskStream(c *gin.Context) {
 		data, _ := json.Marshal(map[string]string{"error": err.Error()})
 		writeEvent(string(data))
 		return
+	}
+	// SSE 结束前持久化本轮对话(仅登录用户且带 session_id);失败只打日志
+	if userID != "" && req.SessionID > 0 {
+		if err := h.sessions.AppendTurn(userID, req.SessionID, service.AssistantPersonaID, req.Message, full.String()); err != nil {
+			logger.Warnf("[ChatSession] 智能问答落库失败 user_id=%s session_id=%d: %v", userID, req.SessionID, err)
+		}
 	}
 	writeEvent("[DONE]")
 }

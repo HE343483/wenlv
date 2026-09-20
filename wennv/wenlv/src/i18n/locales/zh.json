@@ -372,6 +372,48 @@
     "scanTip": "扫码开启你的成都故事",
     "scanTipEn": "Scan to start your Chengdu story",
     "scanTipJa": "QRコードであなたの成都の物語を",
-    "filePrefix": "成都旅行故事卡"
+    "filePrefix": "成都旅行故事卡",
+    "templatePanda": "熊猫",
+    "templateMask": "脸谱"
+  },
+  "ics": {
+    "export": "导出到日历",
+    "exportTip": "下载 .ics 日历文件，导入手机/电脑日历即可按行程提醒",
+    "filePrefix": "行程",
+    "success": "日历文件已导出，可导入日历 App",
+    "failed": "导出日历失败: {error}"
+  },
+  "personas": {
+    "switchLabel": "对话角色",
+    "chatModeTip": "你正在与 {name} 对话",
+    "assistant": {
+      "name": "智能助手",
+      "title": "行程管家"
+    },
+    "duFu": {
+      "name": "杜甫",
+      "title": "诗圣",
+      "greeting": "老夫杜甫，字子美。自弃官入蜀，于浣花溪畔结庐而居，已历几度春秋。客从何来？若不嫌草堂简陋，且坐，与我聊聊这成都的风物与诗心。",
+      "placeholder": "向杜甫提问…"
+    },
+    "zhuge": {
+      "name": "诸葛亮",
+      "title": "卧龙先生",
+      "greeting": "亮，字孔明，蒙先帝三顾之恩，许驱驰于蜀。今坐镇锦官城，治蜀安民。阁下远来，有何见教？亮愿闻高论。",
+      "placeholder": "向诸葛亮提问…"
+    }
+  },
+  "chatHistory": {
+    "open": "历史会话",
+    "newChat": "新会话",
+    "empty": "暂无历史会话",
+    "loginTip": "登录后可保存历史对话"
+  },
+  "personaMemory": {
+    "toggle": "角色记忆",
+    "clear": "清除记忆",
+    "clearConfirm": "确定清除该角色的全部记忆？",
+    "cleared": "已清除角色记忆",
+    "loginTip": "登录后可开启角色记忆"
   }
 }

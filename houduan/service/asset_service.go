@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -11,9 +12,10 @@ import (
 
 // 资产/打卡相关业务错误。
 var (
-	ErrInvalidTarget    = errors.New("invalid target type")
-	ErrInvalidInput     = errors.New("invalid input")
+	ErrInvalidTarget     = errors.New("invalid target type")
+	ErrInvalidInput      = errors.New("invalid input")
 	ErrDuplicatedCheckIn = errors.New("already checked in")
+	ErrPhotoRequired     = errors.New("check-in photo required")
 )
 
 // parseVisitedAt 解析打卡时间字符串,失败或为空时使用当前时间。
@@ -92,16 +94,44 @@ func NewCheckInService(repo *repository.CheckInRepo) *CheckInService {
 	return &CheckInService{repo: repo}
 }
 
-// CheckIn 打卡指定景点。
-func (s *CheckInService) CheckIn(userID, scenicID uint, photoURL, comment, visitedAt string) error {
+// maxCheckInPhotos 单次打卡最多上传的照片数。
+const maxCheckInPhotos = 9
+
+// CheckIn 打卡指定景点,必须携带至少一张现场照片(护照集章凭证)。
+// photos 为浏览器直传 OSS 后得到的公开访问 URL 列表;首个同步写入 PhotoURL 兼容旧读取方。
+func (s *CheckInService) CheckIn(userID, scenicID uint, photoURL, comment, visitedAt string, photos []string) error {
 	comment = strings.TrimSpace(comment)
 	if scenicID == 0 {
 		return ErrInvalidInput
 	}
+	// 兼容旧入参:未传 photos 时回退单图字段
+	if len(photos) == 0 && strings.TrimSpace(photoURL) != "" {
+		photos = []string{photoURL}
+	}
+	cleaned := make([]string, 0, len(photos))
+	for _, p := range photos {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if !strings.HasPrefix(p, "http://") && !strings.HasPrefix(p, "https://") {
+			return ErrInvalidInput
+		}
+		cleaned = append(cleaned, p)
+		if len(cleaned) == maxCheckInPhotos {
+			break
+		}
+	}
+	if len(cleaned) == 0 {
+		return ErrPhotoRequired
+	}
+	first := cleaned[0]
+	photosJSON, _ := json.Marshal(cleaned)
 	c := &model.CheckIn{
 		UserID:    userID,
 		ScenicID:  scenicID,
-		PhotoURL:  photoURL,
+		PhotoURL:  first,
+		Photos:    string(photosJSON),
 		Comment:   comment,
 		VisitedAt: parseVisitedAt(visitedAt),
 	}

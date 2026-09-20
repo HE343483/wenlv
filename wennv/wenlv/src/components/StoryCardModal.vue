@@ -2,13 +2,19 @@
   <a-modal
     :open="open"
     class="story-card-modal"
-    :title="`🐼 ${t('storyCard.title')}`"
+    :title="t('storyCard.title')"
     :width="560"
     :footer="null"
     :mask-closable="false"
     @update:open="handleOpenChange"
   >
     <a-spin :spinning="generating" :tip="t('storyCard.generating')">
+      <div class="story-card-template">
+        <a-radio-group v-model:value="posterTemplate" size="small" @change="handleTemplateChange">
+          <a-radio-button value="panda">{{ t('storyCard.templatePanda') }}</a-radio-button>
+          <a-radio-button value="mask">{{ t('storyCard.templateMask') }}</a-radio-button>
+        </a-radio-group>
+      </div>
       <div class="story-card-preview">
         <img
           v-if="posterUrl"
@@ -54,6 +60,7 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import QRCode from 'qrcode'
 import { generateStoryCard, type StoryCardLanguage } from '@/api/trip'
+import { drawMaskPoster } from '@/utils/mask-poster'
 
 const props = defineProps<{
   open: boolean
@@ -69,6 +76,10 @@ const { t, locale } = useI18n()
 
 const generating = ref(false)
 const posterUrl = ref('')
+/** 海报模板:熊猫(默认) / 川剧脸谱 */
+const posterTemplate = ref<'panda' | 'mask'>('panda')
+/** 已解析的故事文案(AI 标题+正文),模板切换时直接复用,不重复调 LLM */
+const storyCopy = ref<StoryCopy | null>(null)
 
 const currentLanguage = computed<StoryCardLanguage>(() => {
   const raw = String(locale.value || 'zh-CN').toLowerCase()
@@ -300,6 +311,38 @@ const generateQrCanvas = async (): Promise<HTMLCanvasElement | null> => {
 }
 
 const drawPoster = async (story: StoryCopy) => {
+  // 脸谱模板:委托共享绘制模块,异常时回落到下方熊猫模板
+  if (posterTemplate.value === 'mask') {
+    try {
+      posterUrl.value = await drawMaskPoster({
+        brand: t('storyCard.brand'),
+        headline: t('storyCard.cityName'),
+        headlineEn: t('storyCard.cityNameEn'),
+        metaText: [
+          t('storyCard.daysMeta', { count: props.summary.days || 1 }),
+          [props.summary.startDate, props.summary.endDate].filter(Boolean).join(' — '),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        qrUrl: window.location.origin,
+        footerBrand: t('app.title'),
+        footerLines: [t('storyCard.scanTip'), t('storyCard.scanTipEn'), t('storyCard.scanTipJa')],
+        story: {
+          title: story.title,
+          body: story.body,
+          routeLabel: t('storyCard.routeLabel'),
+          routeSpots: props.summary.spots.slice(0, 6).map((spot, index) => ({
+            label: `D${spot.day || index + 1}`,
+            name: spot.name,
+          })),
+        },
+      })
+      return
+    } catch (error) {
+      console.error('绘制脸谱模板失败,回落熊猫模板:', error)
+    }
+  }
+
   const canvas = document.createElement('canvas')
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   canvas.width = POSTER_W * dpr
@@ -458,6 +501,22 @@ const generate = async (forceRegenerate = false) => {
       message.info(t('storyCard.fallbackNotice'))
     }
   }
+  storyCopy.value = story
+  try {
+    await drawPoster(story)
+  } catch (error) {
+    console.error('绘制故事卡海报失败:', error)
+    message.error(t('api.generateStoryCardFailed'))
+  } finally {
+    generating.value = false
+  }
+}
+
+/** 模板切换:复用已解析的故事文案直接重绘,不重复调用 LLM */
+const handleTemplateChange = async () => {
+  const story = storyCopy.value
+  if (!story || generating.value) return
+  generating.value = true
   try {
     await drawPoster(story)
   } catch (error) {
@@ -499,6 +558,12 @@ watch(
 </script>
 
 <style scoped>
+.story-card-template {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
 .story-card-preview {
   display: flex;
   justify-content: center;
