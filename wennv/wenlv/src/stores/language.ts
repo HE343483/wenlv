@@ -6,7 +6,7 @@ import type { Language } from '@/types'
 import zh from '@/locales/zh'
 import en from '@/locales/en'
 import ja from '@/locales/ja'
-import { tripI18n, setAppLocale, getCurrentLocale } from '@/trip/i18n'
+import { tripI18n, setAppLocale, getCurrentLocale } from '@/i18n'
 
 const locales = { zh, en, ja } as const
 

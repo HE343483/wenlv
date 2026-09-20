@@ -7,9 +7,9 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { notification } from 'ant-design-vue'
 import router from '@/router'
-import { i18n } from '@/trip/i18n'
-import { generateTripPlan } from '@/trip/services/api'
-import type { TripFormData, TripTaskEvent } from '@/trip/types'
+import { i18n } from '@/i18n'
+import { generateTripPlan } from '@/api/trip'
+import type { TripFormData, TripTaskEvent } from '@/types/trip'
 
 export const useTripTaskStore = defineStore('tripTask', () => {
   const generating = ref(false)

@@ -6,8 +6,8 @@ import type {
   TripHistoryItem,
   TripPlanResponse,
   TripTaskEvent,
-} from '@/trip/types'
-import { i18n } from '@/trip/i18n'
+} from '@/types/trip'
+import { i18n } from '@/i18n'
 
 const ENV_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 const ENV_AMAP_WEB_JS_KEY = import.meta.env.VITE_AMAP_WEB_JS_KEY ?? ''

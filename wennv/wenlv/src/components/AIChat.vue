@@ -161,8 +161,8 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ChatMessage, TripPlan } from '@/trip/types'
-import { getRuntimeApiBaseUrl } from '@/trip/services/api'
+import type { ChatMessage, TripPlan } from '@/types/trip'
+import { getRuntimeApiBaseUrl } from '@/api/trip'
 
 const props = defineProps<{
   tripPlan: TripPlan | null

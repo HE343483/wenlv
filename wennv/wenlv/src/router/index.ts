@@ -76,13 +76,13 @@ const router = createRouter({
       // AI 行程规划 — 首页(多城市行程表单 / 历史计划)
       path: '/trip',
       name: 'trip-planner',
-      component: () => import('@/trip/views/LandingView.vue'),
+      component: () => import('@/views/LandingView/LandingView.vue'),
     },
     {
       // AI 行程规划 — 结果页(地图 / 预算 / 知识图谱 / AI 问答 / 导出图片)
       path: '/trip/result',
       name: 'trip-result',
-      component: () => import('@/trip/views/ResultView.vue'),
+      component: () => import('@/views/ResultView/ResultView.vue'),
     },
   ],
 })

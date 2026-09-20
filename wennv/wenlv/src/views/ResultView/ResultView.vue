@@ -2,7 +2,7 @@
   <div class="result-container">
     <div class="lower-shade"></div>
 
-    <NavBar @brand-click="goBack" @cta-click="goBack" />
+    <TripNavBar @brand-click="goBack" @cta-click="goBack" />
 
     <main class="result-main">
       <div v-if="tripPlan" class="content-wrapper">
@@ -579,7 +579,7 @@
 // 该页面为 TripStar 原项目页面整体移植(4000+ 行),沿用原项目较宽松的类型约束;
 // 本工程开启了 noUncheckedIndexedAccess,这里不做逐处类型收紧以免引入行为差异。
 // 行程模块自带的全局样式(Paper Kit 暗色玻璃风格),随路由懒加载注入
-import '@/trip/styles/global.css'
+import '@/assets/trip.css'
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -590,10 +590,10 @@ import html2canvas from 'html2canvas'
 import * as echarts from 'echarts'
 import Swiper from 'swiper'
 import { EffectCoverflow, Keyboard, Mousewheel } from 'swiper/modules'
-import NavBar from '@/trip/components/NavBar.vue'
-import OverviewAttractionCard from '@/trip/components/OverviewAttractionCard.vue'
-import AIChat from '@/trip/components/AIChat.vue'
-import type { TripPlan, TripPlanResponse, KnowledgeGraphData, GraphCategory, Attraction, Meal, Hotel, WeatherInfo } from '@/trip/types'
+import TripNavBar from '@/components/TripNavBar.vue'
+import OverviewAttractionCard from '@/components/OverviewAttractionCard.vue'
+import AIChat from '@/components/AIChat.vue'
+import type { TripPlan, TripPlanResponse, KnowledgeGraphData, GraphCategory, Attraction, Meal, Hotel, WeatherInfo } from '@/types/trip'
 import {
   getRuntimeApiBaseUrl,
   getRuntimeMapJsKey,
@@ -603,7 +603,7 @@ import {
   pollTaskStatus,
   getTripPlan,
   RUNTIME_SETTINGS_UPDATED_EVENT,
-} from '@/trip/services/api'
+} from '@/api/trip'
 
 const router = useRouter()
 const route = useRoute()

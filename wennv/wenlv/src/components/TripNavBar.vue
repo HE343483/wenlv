@@ -179,8 +179,8 @@ import { reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import type { RuntimeSettings } from '@/trip/types'
-import { getRuntimeSettings, saveRuntimeSettings } from '@/trip/services/api'
+import type { RuntimeSettings } from '@/types/trip'
+import { getRuntimeSettings, saveRuntimeSettings } from '@/api/trip'
 
 const { t, locale } = useI18n()
 const router = useRouter()

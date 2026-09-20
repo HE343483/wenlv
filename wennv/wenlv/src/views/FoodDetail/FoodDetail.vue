@@ -13,7 +13,7 @@ import { useLanguageStore } from '@/stores/language'
 import { getFood, listFoods, getFoodCategory } from '@/api/content'
 import type { FoodItem, FoodCategoryItem } from '@/api/content'
 import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
-import { getRuntimeMapJsKey } from '@/trip/services/api'
+import { getRuntimeMapJsKey } from '@/api/trip'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
 

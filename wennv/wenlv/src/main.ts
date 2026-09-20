@@ -3,7 +3,7 @@ import { createPinia } from 'pinia'
 import Antd from 'ant-design-vue'
 import App from './App.vue'
 import router from './router'
-import { tripI18n } from './trip/i18n'
+import { tripI18n } from './i18n'
 import './assets/main.css'
 
 const app = createApp(App)

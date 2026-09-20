@@ -341,18 +341,18 @@
 
 <script setup lang="ts">
 // 行程模块自带的全局样式(Paper Kit 暗色玻璃风格),随路由懒加载注入
-import '@/trip/styles/global.css'
+import '@/assets/trip.css'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { getTripHistory, deleteTripPlan, isMemoryEnabled, setMemoryEnabled } from '@/trip/services/api'
-import { getCurrentLocale } from '@/trip/i18n'
-import { useTripTaskStore } from '@/trip/stores/tripTask'
+import { getTripHistory, deleteTripPlan, isMemoryEnabled, setMemoryEnabled } from '@/api/trip'
+import { getCurrentLocale } from '@/i18n'
+import { useTripTaskStore } from '@/stores/tripTask'
 import { findCuratedRoute, stopName } from '@/data/curatedRoutes'
 import { useLanguageStore } from '@/stores/language'
 import NavBar from '@/components/NavBar.vue'
-import type { TripHistoryItem, CityStay } from '@/trip/types'
+import type { TripHistoryItem, CityStay } from '@/types/trip'
 import type { Dayjs } from 'dayjs'
 
 type LandingFormData = {

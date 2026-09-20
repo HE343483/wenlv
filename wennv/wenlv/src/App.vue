@@ -9,8 +9,8 @@ import { RouterView, useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useWeatherStore } from '@/stores/weather'
 import { applyToneToRoot } from '@/utils/weatherTone'
-import { useTripTaskStore } from '@/trip/stores/tripTask'
-import { i18n } from '@/trip/i18n'
+import { useTripTaskStore } from '@/stores/tripTask'
+import { i18n } from '@/i18n'
 
 // 依据平均温度 ({{min_temp}}+{{max_temp}})/2 动态调整页面色调
 const weatherStore = useWeatherStore()
