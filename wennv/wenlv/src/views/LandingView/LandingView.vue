@@ -481,7 +481,7 @@ const removeCity = (index: number) => {
 const heroProgress = computed(() => Math.min(scrollY.value / 320, 1))
 const toneProgress = computed(() => Math.min(Math.max((scrollY.value - 20) / 360, 0), 1))
 const pageHeaderStyle = computed(() => ({
-  backgroundImage: "url('http://demos.creative-tim.com/paper-kit-2/assets/img/antoine-barres.jpg')",
+  backgroundImage: "url('/images/culture-scroll/era.png')",
   backgroundPosition: `center ${Math.max(-scrollY.value * 0.08, -120)}px`,
   backgroundSize: 'cover',
   backgroundRepeat: 'no-repeat',
