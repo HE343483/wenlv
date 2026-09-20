@@ -6,7 +6,7 @@
  * 切换：0ms 旧面板交叉滑出 → 400ms 换内容并就位起始侧 → 强制回流 → 新面板滑入 → 800ms 结束
  */
 import { nextTick, onBeforeUnmount, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { useUserStore } from '@/stores/user'
 import { login as apiLogin, register as apiRegister } from '@/api/auth'
@@ -16,6 +16,7 @@ import PandaCursor from '@/components/PandaCursor.vue'
 type Mode = 'login' | 'register'
 
 const router = useRouter()
+const route = useRoute()
 const langStore = useLanguageStore()
 const userStore = useUserStore()
 
@@ -68,6 +69,46 @@ function authToastText(kind: 'login-success' | 'login-error' | 'register-success
   return { title: '登录失败', msg: detail || '检查一下账号密码，熊猫陪你再试一次' }
 }
 
+function getLoginErrorMessage(error: any): string {
+  const status = error?.response?.status
+  const hasResponse = Boolean(error?.response)
+  const lang = langStore.lang
+
+  if (!hasResponse) {
+    if (lang === 'en') return 'The network is unavailable. Please check your connection and try again.'
+    if (lang === 'ja') return 'ネットワークに接続できません。接続を確認してもう一度お試しください。'
+    return '网络连接失败，请检查网络后重试'
+  }
+
+  if (status === 401) {
+    if (lang === 'en') return 'Incorrect username or password.'
+    if (lang === 'ja') return 'アカウントまたはパスワードが正しくありません。'
+    return '账号或密码错误'
+  }
+
+  if (status === 404) {
+    if (lang === 'en') return 'The login service is unavailable. Please check your network or try again later.'
+    if (lang === 'ja') return 'ログインサービスに接続できません。ネットワークを確認して再試行してください。'
+    return '登录服务无法访问，请检查网络后重试'
+  }
+
+  if (status >= 500) {
+    if (lang === 'en') return 'The server is busy. Please contact staff if the problem persists.'
+    if (lang === 'ja') return 'サーバーエラーが発生しました。解決しない場合はスタッフにご連絡ください。'
+    return '服务器出现异常，如持续无法登录请联系工作人员'
+  }
+
+  if (status === 400 || status === 422) {
+    if (lang === 'en') return 'The login information is invalid. Please check and try again.'
+    if (lang === 'ja') return 'ログイン情報が正しくありません。確認してもう一度お試しください。'
+    return '登录信息格式不正确，请检查后重试'
+  }
+
+  if (lang === 'en') return 'Login failed. Please try again later.'
+  if (lang === 'ja') return 'ログインに失敗しました。しばらくしてから再試行してください。'
+  return '登录失败，请稍后重试'
+}
+
 const username = ref('')
 const password = ref('')
 const regUsername = ref('')
@@ -116,11 +157,14 @@ function handleLogin() {
       }
       const copy = authToastText('login-success', nickname)
       await showToast('success', copy.title, copy.msg, 1600)
-      router.push('/home')
+      // 登录后跳回守卫拦截前的目标页(无则进 /home)，与其他受保护路由行为一致
+      const back = route.query.redirect
+      const target = typeof back === 'string' && back.startsWith('/') ? back : '/home'
+      router.push(target)
     })
     .catch((err) => {
-      const detail = err?.message || ''
-      errorMsg.value = detail || authToastText('login-error').msg
+      const detail = getLoginErrorMessage(err)
+      errorMsg.value = detail
       const copy = authToastText('login-error', detail)
       void showToast('error', copy.title, copy.msg, 4200)
     })
@@ -161,7 +205,10 @@ function handleRegister() {
           avatar: res.user.avatar_url || '',
         })
       }
-      router.push('/home')
+      // 注册后自动登录：同样跳回守卫拦截前的目标页
+      const back = route.query.redirect
+      const target = typeof back === 'string' && back.startsWith('/') ? back : '/home'
+      router.push(target)
     })
     .catch((err) => {
       const detail = err?.message || ''

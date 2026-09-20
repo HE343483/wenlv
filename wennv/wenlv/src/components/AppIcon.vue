@@ -203,6 +203,16 @@ defineProps<{
       <circle cx="16" cy="10" r="2" fill="currentColor"/>
       <path d="M8 17c2 1.5 6 1.5 8 0"/>
     </template>
+    <!-- 数字足迹护照 / 集章册 -->
+    <template v-else-if="name === 'passport'">
+      <rect x="5" y="3" width="14" height="18" rx="2"/>
+      <rect x="5" y="3" width="14" height="6" rx="2"/>
+      <path d="M5 7h14"/>
+      <circle cx="12" cy="14.5" r="3.2"/>
+      <path d="M10.2 14.5h3.6M12 12.7v3.6"/>
+      <path d="M9 18.5l1-1.2M15 18.5l-1-1.2"/>
+      <circle cx="12" cy="14.5" r="4.6" stroke-dasharray="2 2.4"/>
+    </template>
     <!-- 房屋 -->
     <template v-else-if="name === 'house'">
       <path d="M3 9.5L12 3l9 6.5"/>
