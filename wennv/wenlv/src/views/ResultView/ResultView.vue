@@ -180,6 +180,97 @@
             </a-card>
           </div>
 
+          <!-- 改价弹窗：与主站统一的 ant-design Modal，一次输入 + 差额预览 -->
+          <a-modal
+            v-model:open="budgetEditVisible"
+            class="budget-edit-modal"
+            :title="t('result.budget.editModalTitle')"
+            :width="440"
+            :confirm-loading="budgetEditSaving"
+            :ok-text="t('common.save')"
+            :cancel-text="t('common.cancel')"
+            :ok-button-props="{ disabled: budgetEditValue === null }"
+            @ok="confirmBudgetEditModal"
+            @cancel="closeBudgetEditModal"
+          >
+            <div
+              v-if="budgetEditTarget"
+              class="budget-edit-body"
+              :class="[
+                `budget-edit-body--${budgetEditPandaMood}`,
+                { 'budget-edit-body--celebrating': budgetEditCelebrating }
+              ]"
+            >
+              <!-- 熊猫管家：情绪随差额变化，开心 / 心疼 / 待机 -->
+              <div class="budget-edit-panda" :class="`budget-edit-panda--${budgetEditPandaMood}`" aria-hidden="true">
+                <span class="budget-edit-panda__ears">
+                  <span class="budget-edit-panda__ear budget-edit-panda__ear--left"></span>
+                  <span class="budget-edit-panda__ear budget-edit-panda__ear--right"></span>
+                </span>
+                <span class="budget-edit-panda__face">
+                  <span class="budget-edit-panda__eye budget-edit-panda__eye--left"><i></i></span>
+                  <span class="budget-edit-panda__eye budget-edit-panda__eye--right"><i></i></span>
+                  <span class="budget-edit-panda__nose"></span>
+                  <span
+                    class="budget-edit-panda__mouth"
+                    :class="{ 'budget-edit-panda__mouth--sad': budgetEditPandaMood === 'sad' }"
+                  ></span>
+                  <span v-if="budgetEditPandaMood === 'happy'" class="budget-edit-panda__blush budget-edit-panda__blush--left"></span>
+                  <span v-if="budgetEditPandaMood === 'happy'" class="budget-edit-panda__blush budget-edit-panda__blush--right"></span>
+                  <span v-if="budgetEditPandaMood === 'sad'" class="budget-edit-panda__tear budget-edit-panda__tear--left"></span>
+                  <span v-if="budgetEditPandaMood === 'sad'" class="budget-edit-panda__tear budget-edit-panda__tear--right"></span>
+                  <!-- 眉毛：开心上扬 / 心疼下垂 -->
+                  <span class="budget-edit-panda__brow budget-edit-panda__brow--left"></span>
+                  <span class="budget-edit-panda__brow budget-edit-panda__brow--right"></span>
+                </span>
+                <span class="budget-edit-panda__body">
+                  <span class="budget-edit-panda__arm budget-edit-panda__arm--left"></span>
+                  <span class="budget-edit-panda__belly">¥</span>
+                  <span class="budget-edit-panda__arm budget-edit-panda__arm--right"></span>
+                </span>
+                <span class="budget-edit-panda__bamboo"></span>
+                <!-- 庆祝撒花：竹叶 + 铜钱 -->
+                <span v-if="budgetEditCelebrating" class="budget-edit-confetti">
+                  <span v-for="n in 10" :key="n" class="budget-edit-confetti__leaf" :class="`budget-edit-confetti__leaf--${n}`"></span>
+                  <span v-for="n in 6" :key="`c-${n}`" class="budget-edit-confetti__coin" :class="`budget-edit-confetti__coin--${n}`">¥</span>
+                </span>
+              </div>
+              <p class="budget-edit-panda__mood">{{ budgetEditPandaMoodText }}</p>
+              <p class="budget-edit-name">{{ budgetEditTarget.name }}</p>
+              <p class="budget-edit-meta">
+                <span class="budget-edit-type">{{ getBudgetTypeLabel(budgetEditTarget.type) }}</span>
+                <span v-if="budgetEditTarget.dayNumber" class="budget-edit-day">
+                  {{ t('common.dayNumber', { day: budgetEditTarget.dayNumber }) }}
+                </span>
+                <span class="budget-edit-current">
+                  {{ t('result.budget.editModalCurrent', { amount: formatBudgetAmount(budgetEditTarget.amount) }) }}
+                </span>
+              </p>
+              <a-form-item :label="t('result.budget.editModalLabel')" class="budget-edit-field">
+                <a-input-number
+                  v-model:value="budgetEditValue"
+                  class="budget-edit-input"
+                  :min="0"
+                  :precision="2"
+                  :step="10"
+                  :placeholder="t('result.budget.editModalPlaceholder')"
+                  addon-before="¥"
+                  style="width: 100%"
+                  @press-enter="confirmBudgetEditModal"
+                />
+              </a-form-item>
+              <div
+                v-if="budgetEditValue !== null && budgetEditDelta !== 0"
+                class="budget-edit-delta"
+                :class="budgetEditDelta > 0 ? 'budget-edit-delta--up' : 'budget-edit-delta--down'"
+              >
+                {{ t('result.budget.editModalDelta', { amount: formatBudgetAmount(Math.abs(budgetEditDelta)) }) }}
+                {{ budgetEditDelta > 0 ? t('result.budget.editModalDeltaUp') : t('result.budget.editModalDeltaDown') }}
+              </div>
+              <p v-else class="budget-edit-hint">{{ t('result.budget.editModalHint') }}</p>
+            </div>
+          </a-modal>
+
           <div class="right-budget-summary" v-show="activeSection === 'budget' && !!tripPlan.budget">
             <div class="budget-summary-panel">
               <div class="budget-summary-title">{{ t('result.budget.title') }}</div>
@@ -702,6 +793,15 @@ const budgetFilterType = ref<'all' | BudgetItemType>('all')
 const budgetSortMode = ref<BudgetSortMode>('amountDesc')
 const pendingBudgetItems = ref<BudgetRestoreItem[]>([])
 const activeWeatherIndex = ref(0)
+
+/* 改价弹窗状态：一次输入 + 差额预览 + 确认，无原生 prompt/confirm */
+const budgetEditVisible = ref(false)
+const budgetEditTarget = ref<BudgetDetailItem | null>(null)
+const budgetEditValue = ref<number | null>(null)
+const budgetEditSaving = ref(false)
+/* 熊猫互动：情绪 + 庆祝撒花 */
+const budgetEditCelebrating = ref(false)
+let budgetEditCelebrateTimer: number | undefined
 
 // 旅行故事卡所需的行程摘要(城市/天数/日期/按日排序的景点名)
 const storySummary = computed<TripStorySummary>(() => {
@@ -1707,73 +1807,111 @@ const filteredBudgetItems = computed<BudgetDetailItem[]>(() => {
   return sorted
 })
 
+/** 熊猫情绪：降价开心 / 涨价心疼 / 持平待机 */
+const budgetEditPandaMood = computed<'happy' | 'sad' | 'idle'>(() => {
+  if (budgetEditDelta.value > 0) return 'sad'
+  if (budgetEditDelta.value < 0) return 'happy'
+  return 'idle'
+})
+
+const budgetEditPandaMoodText = computed(() => {
+  if (budgetEditPandaMood.value === 'happy') return t('result.budget.editModalPandaHappy')
+  if (budgetEditPandaMood.value === 'sad') return t('result.budget.editModalPandaSad')
+  return t('result.budget.editModalPandaIdle')
+})
+
+/** 打开改价弹窗：回填当前金额，确认在弹窗内一次完成 */
 const editBudgetItemAmount = (item: BudgetDetailItem) => {
   if (!tripPlan.value || item.dayIndex === null) return
+  window.clearTimeout(budgetEditCelebrateTimer)
+  budgetEditTarget.value = item
+  budgetEditValue.value = roundBudgetAmount(item.amount)
+  budgetEditSaving.value = false
+  budgetEditCelebrating.value = false
+  budgetEditVisible.value = true
+}
+
+/** 改价弹窗内的差额预览：新价 - 原价 */
+const budgetEditDelta = computed(() => {
+  if (!budgetEditTarget.value || budgetEditValue.value === null) return 0
+  return roundBudgetAmount(budgetEditValue.value - budgetEditTarget.value.amount)
+})
+
+const closeBudgetEditModal = () => {
+  window.clearTimeout(budgetEditCelebrateTimer)
+  budgetEditVisible.value = false
+  budgetEditTarget.value = null
+  budgetEditValue.value = null
+  budgetEditSaving.value = false
+  budgetEditCelebrating.value = false
+}
+
+/** 确认改价：校验通过后写入行程并重算预算总额 */
+const confirmBudgetEditModal = () => {
+  const item = budgetEditTarget.value
+  if (!tripPlan.value || !item || item.dayIndex === null) return
+  if (budgetEditValue.value === null || !Number.isFinite(budgetEditValue.value)) {
+    message.warning(t('result.messages.budgetInvalidAmount'))
+    return
+  }
+  const nextAmount = roundBudgetAmount(budgetEditValue.value)
+  if (nextAmount < 0) {
+    message.warning(t('result.messages.budgetInvalidAmount'))
+    return
+  }
+  if (nextAmount === roundBudgetAmount(item.amount)) {
+    closeBudgetEditModal()
+    return
+  }
 
   const day = tripPlan.value.days[item.dayIndex]
   if (!day) return
 
-  const input = window.prompt(
-    t('result.budget.editPrompt', {
-      name: item.name,
-      amount: formatBudgetAmount(item.amount),
-    }),
-    formatBudgetAmount(item.amount)
-  )
+  budgetEditSaving.value = true
+  try {
+    let changed = false
 
-  if (input === null) return
+    if (item.type === 'attraction' && typeof item.sourceIndex === 'number' && day.attractions[item.sourceIndex]) {
+      day.attractions[item.sourceIndex].ticket_price = nextAmount
+      changed = true
+    }
 
-  const numeric = Number(input.trim())
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    message.warning(t('result.messages.budgetInvalidAmount'))
-    return
+    if (item.type === 'meal' && typeof item.sourceIndex === 'number' && day.meals[item.sourceIndex]) {
+      day.meals[item.sourceIndex].estimated_cost = nextAmount
+      changed = true
+    }
+
+    if (item.type === 'hotel' && day.hotel) {
+      day.hotel.estimated_cost = nextAmount
+      changed = true
+    }
+
+    const transportationTotal =
+      item.type === 'transport'
+        ? Math.max(
+            0,
+            roundBudgetAmount(toBudgetNumber(tripPlan.value.budget?.total_transportation) - item.amount + nextAmount)
+          )
+        : undefined
+
+    if (item.type === 'transport' && day.transportation && day.transportation.trim()) {
+      changed = true
+    }
+
+    if (!changed) return
+
+    recalculateBudgetTotals(transportationTotal)
+    sessionStorage.setItem('tripPlan', JSON.stringify(tripPlan.value))
+    message.success(t('result.messages.budgetAmountUpdated'))
+    // 保存庆祝：熊猫摇摆 + 竹叶/铜钱撒花，播完再关窗
+    budgetEditCelebrating.value = true
+    window.clearTimeout(budgetEditCelebrateTimer)
+    budgetEditCelebrateTimer = window.setTimeout(() => {
+      closeBudgetEditModal()
+    }, 1200)
+  } finally {
+    budgetEditSaving.value = false
   }
-
-  const nextAmount = roundBudgetAmount(numeric)
-  if (nextAmount === roundBudgetAmount(item.amount)) return
-
-  const confirmed = window.confirm(
-    t('result.budget.editConfirm', {
-      name: item.name,
-      amount: formatBudgetAmount(nextAmount),
-    })
-  )
-  if (!confirmed) return
-
-  let changed = false
-
-  if (item.type === 'attraction' && typeof item.sourceIndex === 'number' && day.attractions[item.sourceIndex]) {
-    day.attractions[item.sourceIndex].ticket_price = nextAmount
-    changed = true
-  }
-
-  if (item.type === 'meal' && typeof item.sourceIndex === 'number' && day.meals[item.sourceIndex]) {
-    day.meals[item.sourceIndex].estimated_cost = nextAmount
-    changed = true
-  }
-
-  if (item.type === 'hotel' && day.hotel) {
-    day.hotel.estimated_cost = nextAmount
-    changed = true
-  }
-
-  const transportationTotal =
-    item.type === 'transport'
-      ? Math.max(
-          0,
-          roundBudgetAmount(toBudgetNumber(tripPlan.value.budget?.total_transportation) - item.amount + nextAmount)
-        )
-      : undefined
-
-  if (item.type === 'transport' && day.transportation && day.transportation.trim()) {
-    changed = true
-  }
-
-  if (!changed) return
-
-  recalculateBudgetTotals(transportationTotal)
-  sessionStorage.setItem('tripPlan', JSON.stringify(tripPlan.value))
-  message.success(t('result.messages.budgetAmountUpdated'))
 }
 
 const deleteBudgetItem = (item: BudgetDetailItem) => {
@@ -4155,6 +4293,424 @@ const drawRoutes = async (AMap: any, attractions: any[]): Promise<any[]> => {
   color: #2E3A3D;
   transform: scale(1.1);
   /* background: rgba(110, 247, 213, 0.16); */
+}
+
+/* 改价弹窗：顶部项目名 + 类型/天数/现价元信息 + 差额提示 */
+.budget-edit-modal :deep(.ant-modal-body) {
+  padding-top: 8px;
+}
+
+.budget-edit-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+/* 熊猫管家：坐姿小熊猫，情绪随差额变化 */
+.budget-edit-panda {
+  position: relative;
+  width: 92px;
+  height: 104px;
+  margin: 2px auto 0;
+  flex: none;
+  transition: transform 0.3s ease;
+}
+
+.budget-edit-panda__ears {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 0;
+  height: 22px;
+  z-index: 1;
+}
+
+.budget-edit-panda__ear {
+  position: absolute;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2e3a3d;
+  transition: transform 0.3s ease;
+}
+
+.budget-edit-panda__ear--left { left: 0; transform: rotate(-12deg); }
+.budget-edit-panda__ear--right { right: 0; transform: rotate(12deg); }
+
+/* 开心时耳朵竖起抖动 */
+.budget-edit-panda--happy .budget-edit-panda__ear--left { transform: rotate(-24deg); }
+.budget-edit-panda--happy .budget-edit-panda__ear--right { transform: rotate(24deg); }
+.budget-edit-panda--happy .budget-edit-panda {
+  animation: budget-panda-bounce 0.9s ease-in-out infinite;
+}
+
+.budget-edit-panda__face {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  height: 62px;
+  border-radius: 46% 46% 48% 48%;
+  background: #fffdf8;
+  border: 1px solid rgba(46, 58, 61, 0.12);
+  box-shadow: inset 0 -6px 12px rgba(46, 58, 61, 0.06);
+  z-index: 2;
+}
+
+.budget-edit-panda__eye {
+  position: absolute;
+  top: 14px;
+  width: 17px;
+  height: 21px;
+  border-radius: 50%;
+  background: #2e3a3d;
+  transition: transform 0.25s ease, height 0.25s ease;
+  animation: budget-panda-blink 4.2s infinite;
+}
+
+.budget-edit-panda__eye--left { left: 12px; transform: rotate(-14deg); }
+.budget-edit-panda__eye--right { right: 12px; transform: rotate(14deg); }
+
+.budget-edit-panda__eye i {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s ease;
+}
+
+/* 眼睛跟随输入：涨价往上瞟（心疼），降价往下看（数钱） */
+.budget-edit-body--sad .budget-edit-panda__eye i { transform: translateY(-3px); }
+.budget-edit-body--happy .budget-edit-panda__eye i { transform: translateY(3px); }
+.budget-edit-body--sad .budget-edit-panda__eye { height: 18px; }
+.budget-edit-body--happy .budget-edit-panda__eye { height: 23px; }
+
+@keyframes budget-panda-blink {
+  0%, 93%, 100% { transform: rotate(-14deg) scaleY(1); }
+  95% { transform: rotate(-14deg) scaleY(0.12); }
+}
+
+.budget-edit-panda__nose {
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  width: 9px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2e3a3d;
+  transform: translateX(-50%);
+}
+
+.budget-edit-panda__mouth {
+  position: absolute;
+  left: 50%;
+  top: 41px;
+  width: 15px;
+  height: 8px;
+  border: 2px solid #2e3a3d;
+  border-top: none;
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-radius: 0 0 15px 15px;
+  transform: translateX(-50%);
+  transition: all 0.25s ease;
+}
+
+/* 开心：咧嘴笑；心疼：瘪嘴 */
+.budget-edit-panda--happy .budget-edit-panda__mouth {
+  width: 20px;
+  height: 11px;
+}
+.budget-edit-panda__mouth--sad {
+  top: 43px;
+  border-radius: 15px 15px 0 0;
+  border: 2px solid #2e3a3d;
+  border-bottom: none;
+  border-left-color: transparent;
+  border-right-color: transparent;
+}
+
+/* 眉毛：开心上扬 / 心疼下垂 */
+.budget-edit-panda__brow {
+  position: absolute;
+  top: 6px;
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: #2e3a3d;
+  opacity: 0;
+  transition: all 0.25s ease;
+}
+.budget-edit-panda__brow--left { left: 10px; }
+.budget-edit-panda__brow--right { right: 10px; }
+.budget-edit-panda--happy .budget-edit-panda__brow { opacity: 1; transform: rotate(-10deg); }
+.budget-edit-panda--happy .budget-edit-panda__brow--right { transform: rotate(10deg); }
+.budget-edit-panda--sad .budget-edit-panda__brow { opacity: 1; transform: rotate(12deg); }
+.budget-edit-panda--sad .budget-edit-panda__brow--right { transform: rotate(-12deg); }
+
+.budget-edit-panda__blush {
+  position: absolute;
+  top: 34px;
+  width: 11px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(184, 69, 62, 0.3);
+}
+.budget-edit-panda__blush--left { left: 6px; }
+.budget-edit-panda__blush--right { right: 6px; }
+
+.budget-edit-panda__tear {
+  position: absolute;
+  top: 32px;
+  width: 5px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(93, 164, 177, 0.85);
+  animation: budget-panda-tear 1.4s ease-in infinite;
+}
+.budget-edit-panda__tear--left { left: 14px; }
+.budget-edit-panda__tear--right { right: 14px; animation-delay: 0.35s; }
+
+@keyframes budget-panda-tear {
+  0% { transform: translateY(0); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateY(8px); opacity: 0; }
+}
+
+.budget-edit-panda__body {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 12px;
+  height: 36px;
+  z-index: 1;
+}
+
+.budget-edit-panda__belly {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 48% 48% 46% 46%;
+  background: #fffdf8;
+  border: 1px solid rgba(46, 58, 61, 0.12);
+  color: rgba(184, 69, 62, 0.55);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.budget-edit-panda__arm {
+  position: absolute;
+  top: 2px;
+  width: 15px;
+  height: 26px;
+  border-radius: 999px;
+  background: #2e3a3d;
+  transform-origin: top center;
+  animation: budget-panda-wave 2.6s ease-in-out infinite;
+}
+.budget-edit-panda__arm--left { left: -7px; }
+.budget-edit-panda__arm--right { right: -7px; animation-delay: 0.5s; }
+
+/* 开心时挥手更快 */
+.budget-edit-panda--happy .budget-edit-panda__arm {
+  animation-duration: 0.9s;
+}
+
+@keyframes budget-panda-wave {
+  0%, 100% { transform: rotate(8deg); }
+  50% { transform: rotate(-16deg); }
+}
+
+.budget-edit-panda__bamboo {
+  position: absolute;
+  right: 8px;
+  bottom: 14px;
+  width: 8px;
+  height: 46px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #6a7a6a, #4c5b4c);
+  transform: rotate(14deg);
+  z-index: 0;
+}
+
+.budget-edit-panda__bamboo::before,
+.budget-edit-panda__bamboo::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  background: #7d927d;
+}
+.budget-edit-panda__bamboo::before { top: 8px; transform: rotate(-18deg); }
+.budget-edit-panda__bamboo::after { top: 22px; transform: rotate(18deg); }
+
+/* 庆祝：整只熊猫左右摇摆 */
+.budget-edit-body--celebrating .budget-edit-panda {
+  animation: budget-panda-celebrate 0.55s ease-in-out 2;
+}
+@keyframes budget-panda-celebrate {
+  0%, 100% { transform: rotate(0) translateY(0); }
+  25% { transform: rotate(-7deg) translateY(-5px); }
+  75% { transform: rotate(7deg) translateY(-5px); }
+}
+@keyframes budget-panda-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* 庆祝撒花：竹叶 + 铜钱从熊猫头顶散开落下 */
+.budget-edit-confetti {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.budget-edit-confetti__leaf,
+.budget-edit-confetti__coin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  animation: budget-confetti-fall 1.1s ease-out forwards;
+}
+.budget-edit-confetti__leaf {
+  width: 9px;
+  height: 14px;
+  border-radius: 60% 10% 60% 10%;
+  background: #7d927d;
+}
+.budget-edit-confetti__leaf--2,
+.budget-edit-confetti__leaf--5,
+.budget-edit-confetti__leaf--8 { background: #6a7a6a; }
+.budget-edit-confetti__leaf--3,
+.budget-edit-confetti__leaf--7,
+.budget-edit-confetti__leaf--10 { background: #a4b89a; }
+.budget-edit-confetti__coin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c9a96e;
+  border: 1px solid #a8843c;
+  color: #fffdf8;
+  font-size: 10px;
+  font-weight: 800;
+}
+.budget-edit-confetti__leaf--1 { --tx: -64px; --r: -70deg; animation-delay: 0s; }
+.budget-edit-confetti__leaf--2 { --tx: -48px; --r: 50deg; animation-delay: 0.05s; }
+.budget-edit-confetti__leaf--3 { --tx: -30px; --r: -40deg; animation-delay: 0.1s; }
+.budget-edit-confetti__leaf--4 { --tx: -14px; --r: 80deg; animation-delay: 0.02s; }
+.budget-edit-confetti__leaf--5 { --tx: 4px; --r: -60deg; animation-delay: 0.08s; }
+.budget-edit-confetti__leaf--6 { --tx: 20px; --r: 40deg; animation-delay: 0s; }
+.budget-edit-confetti__leaf--7 { --tx: 36px; --r: -80deg; animation-delay: 0.06s; }
+.budget-edit-confetti__leaf--8 { --tx: 50px; --r: 60deg; animation-delay: 0.11s; }
+.budget-edit-confetti__leaf--9 { --tx: 62px; --r: -50deg; animation-delay: 0.03s; }
+.budget-edit-confetti__leaf--10 { --tx: -58px; --r: 75deg; animation-delay: 0.09s; }
+.budget-edit-confetti__coin--1 { --tx: -40px; --r: 180deg; animation-delay: 0.04s; }
+.budget-edit-confetti__coin--2 { --tx: -18px; --r: -180deg; animation-delay: 0.1s; }
+.budget-edit-confetti__coin--3 { --tx: 2px; --r: 180deg; animation-delay: 0s; }
+.budget-edit-confetti__coin--4 { --tx: 24px; --r: -180deg; animation-delay: 0.07s; }
+.budget-edit-confetti__coin--5 { --tx: 44px; --r: 180deg; animation-delay: 0.02s; }
+.budget-edit-confetti__coin--6 { --tx: -56px; --r: -180deg; animation-delay: 0.12s; }
+
+@keyframes budget-confetti-fall {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--tx, 0), 96px) rotate(var(--r, 90deg)); opacity: 0; }
+}
+
+.budget-edit-panda__mood {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #8a9a9e;
+}
+.budget-edit-body--happy .budget-edit-panda__mood { color: #3e7d8a; }
+.budget-edit-body--sad .budget-edit-panda__mood { color: #b8453e; }
+
+.budget-edit-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2E3A3D;
+  line-height: 1.5;
+}
+
+.budget-edit-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #8A9A9E;
+}
+
+.budget-edit-type {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(93, 164, 177, 0.12);
+  border: 1px solid rgba(93, 164, 177, 0.35);
+  color: #3E7D8A;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.budget-edit-current {
+  font-weight: 600;
+  color: #5E6E72;
+}
+
+.budget-edit-field {
+  margin-bottom: 0;
+}
+
+.budget-edit-input :deep(.ant-input-number-input) {
+  font-size: 18px;
+  font-weight: 700;
+  color: #B8453E;
+}
+
+.budget-edit-delta {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.budget-edit-delta--up {
+  background: rgba(184, 69, 62, 0.08);
+  border: 1px solid rgba(184, 69, 62, 0.3);
+  color: #B8453E;
+}
+
+.budget-edit-delta--down {
+  background: rgba(93, 164, 177, 0.08);
+  border: 1px solid rgba(93, 164, 177, 0.35);
+  color: #3E7D8A;
+}
+
+.budget-edit-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8A9A9E;
 }
 
 .right-budget-summary {

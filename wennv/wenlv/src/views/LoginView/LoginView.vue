@@ -243,7 +243,6 @@ onBeforeUnmount(() => {
               required
             />
           </div>
-          <p v-if="errorMsg" class="auth-form__error" role="alert">{{ errorMsg }}</p>
           <button type="submit" class="auth-form__submit" :disabled="submitting">
             {{ submitting ? langStore.t('login.loading') || '登录中…' : langStore.t('login.submit') }}
           </button>

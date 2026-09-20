@@ -17,7 +17,7 @@ export interface ApiResult<T = unknown> {
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || '/api',
+  baseURL: import.meta.env.VITE_API_BASE ?? '/api',
   timeout: 20000,
 })
 
