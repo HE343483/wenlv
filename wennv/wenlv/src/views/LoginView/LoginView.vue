@@ -25,6 +25,49 @@ const busy = ref(false)
 const submitting = ref(false)
 const errorMsg = ref('')
 
+/* 熊猫提示框：登录/注册成功与报错共用 */
+const toastVisible = ref(false)
+const toastKind = ref<'success' | 'error'>('success')
+const toastTitle = ref('')
+const toastMsg = ref('')
+let toastSeq = 0
+
+function hideToast() {
+  toastVisible.value = false
+}
+
+async function showToast(kind: 'success' | 'error', title: string, msg: string, autoHideMs = 3600) {
+  const seq = ++toastSeq
+  toastKind.value = kind
+  toastTitle.value = title
+  toastMsg.value = msg
+  toastVisible.value = true
+  await delay(autoHideMs)
+  if (seq === toastSeq) toastVisible.value = false
+}
+
+function authToastText(kind: 'login-success' | 'login-error' | 'register-success' | 'register-error', detail = '') {
+  const lang = langStore.lang
+  if (kind === 'login-success') {
+    if (lang === 'en') return { title: 'Welcome back!', msg: `Hi ${detail || 'friend'}, Panpan is rolling over to greet you!` }
+    if (lang === 'ja') return { title: 'おかえりなさい！', msg: `${detail || 'ともだち'}さん、パンダが転がってお出迎えします！` }
+    return { title: '登录成功', msg: `${detail ? `欢迎回来，${detail}！` : '欢迎回来！'}熊猫滚滚来迎接你啦` }
+  }
+  if (kind === 'register-success') {
+    if (lang === 'en') return { title: 'Account created!', msg: 'Panpan saved you a bamboo shoot. Logging you in…' }
+    if (lang === 'ja') return { title: '登録成功！', msg: 'パンダが笹を用意しました。ログインします…' }
+    return { title: '注册成功', msg: '熊猫给你留了一根竹笋，正在带你进入主页…' }
+  }
+  if (kind === 'register-error') {
+    if (lang === 'en') return { title: 'Registration failed', msg: detail || 'Please try another username.' }
+    if (lang === 'ja') return { title: '登録に失敗しました', msg: detail || '別のユーザー名をお試しください。' }
+    return { title: '注册失败', msg: detail || '换个用户名再试一次吧' }
+  }
+  if (lang === 'en') return { title: 'Login failed', msg: detail || 'Please check your username and password.' }
+  if (lang === 'ja') return { title: 'ログインに失敗しました', msg: detail || 'ユーザー名とパスワードを確認してください。' }
+  return { title: '登录失败', msg: detail || '检查一下账号密码，熊猫陪你再试一次' }
+}
+
 const username = ref('')
 const password = ref('')
 const regUsername = ref('')
@@ -58,21 +101,28 @@ async function switchTo(target: Mode) {
 function handleLogin() {
   if (submitting.value) return
   errorMsg.value = ''
+  hideToast()
   submitting.value = true
   apiLogin(username.value.trim(), password.value)
-    .then((res) => {
-      if (res.user?.username) {
+    .then(async (res) => {
+      const nickname = res.user?.username || ''
+      if (nickname) {
         userStore.updateProfile({
-          nickname: res.user.username,
+          nickname,
           email: '',
           phone: '',
           avatar: res.user.avatar_url || '',
         })
       }
+      const copy = authToastText('login-success', nickname)
+      await showToast('success', copy.title, copy.msg, 1600)
       router.push('/home')
     })
     .catch((err) => {
-      errorMsg.value = err?.message || '登录失败，请检查账号密码'
+      const detail = err?.message || ''
+      errorMsg.value = detail || authToastText('login-error').msg
+      const copy = authToastText('login-error', detail)
+      void showToast('error', copy.title, copy.msg, 4200)
     })
     .finally(() => {
       submitting.value = false
@@ -82,15 +132,25 @@ function handleLogin() {
 function handleRegister() {
   if (submitting.value) return
   if (regPassword.value !== regConfirm.value) {
-    errorMsg.value = '两次输入的密码不一致'
+    const copy = langStore.lang === 'en'
+      ? { title: 'Passwords do not match', msg: 'Panpan tilted its head: the two passwords are different.' }
+      : langStore.lang === 'ja'
+        ? { title: 'パスワードが一致しません', msg: 'パンダが首をかしげています：2つのパスワードが違います。' }
+        : { title: '两次密码不一致', msg: '熊猫歪头：两遍输入的密码不一样哦' }
+    errorMsg.value = copy.msg
+    void showToast('error', copy.title, copy.msg, 4200)
     return
   }
   errorMsg.value = ''
+  hideToast()
   submitting.value = true
   register2(regUsername.value.trim(), regPassword.value)
     .then(() => {
-      // 注册成功后自动登录并进入主页
-      return apiLogin(regUsername.value.trim(), regPassword.value)
+      const copy = authToastText('register-success')
+      return showToast('success', copy.title, copy.msg, 1600).then(() => {
+        // 注册成功后自动登录并进入主页
+        return apiLogin(regUsername.value.trim(), regPassword.value)
+      })
     })
     .then((res) => {
       if (res.user?.username) {
@@ -104,7 +164,10 @@ function handleRegister() {
       router.push('/home')
     })
     .catch((err) => {
-      errorMsg.value = err?.message || '注册失败，可能用户名已存在'
+      const detail = err?.message || ''
+      errorMsg.value = detail || authToastText('register-error').msg
+      const copy = authToastText('register-error', detail)
+      void showToast('error', copy.title, copy.msg, 4200)
     })
     .finally(() => {
       submitting.value = false
@@ -277,6 +340,41 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <AuthBamboo side="right" />
+
+    <!-- 熊猫提示框：成功 / 报错 -->
+    <Transition name="panda-toast">
+      <div v-if="toastVisible" class="panda-toast" :class="`panda-toast--${toastKind}`" role="status" aria-live="polite">
+        <button type="button" class="panda-toast__close" aria-label="关闭提示" @click="hideToast">×</button>
+        <div class="panda-toast__panda" aria-hidden="true">
+          <span class="panda-toast__bamboo"></span>
+          <span class="panda-toast__head">
+            <span class="panda-toast__ear panda-toast__ear--left"></span>
+            <span class="panda-toast__ear panda-toast__ear--right"></span>
+            <span class="panda-toast__face">
+              <span class="panda-toast__eye panda-toast__eye--left"><i></i></span>
+              <span class="panda-toast__eye panda-toast__eye--right"><i></i></span>
+              <span class="panda-toast__nose"></span>
+              <span class="panda-toast__mouth" :class="{ 'panda-toast__mouth--sad': toastKind === 'error' }"></span>
+              <span v-if="toastKind === 'error'" class="panda-toast__tear panda-toast__tear--left"></span>
+              <span v-if="toastKind === 'error'" class="panda-toast__tear panda-toast__tear--right"></span>
+              <span v-if="toastKind === 'success'" class="panda-toast__blush panda-toast__blush--left"></span>
+              <span v-if="toastKind === 'success'" class="panda-toast__blush panda-toast__blush--right"></span>
+            </span>
+          </span>
+          <span class="panda-toast__body">
+            <span class="panda-toast__arm panda-toast__arm--left"></span>
+            <span class="panda-toast__belly"></span>
+            <span class="panda-toast__arm panda-toast__arm--right"></span>
+          </span>
+          <span class="panda-toast__shadow"></span>
+        </div>
+        <div class="panda-toast__text">
+          <p class="panda-toast__title">{{ toastTitle }}</p>
+          <p class="panda-toast__msg">{{ toastMsg }}</p>
+        </div>
+        <span class="panda-toast__progress" :key="`${toastKind}-${toastTitle}-${toastMsg}`"></span>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -627,8 +725,347 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
+/* 熊猫提示框 */
+.panda-toast {
+  --toast-accent: var(--color-gold);
+  --toast-accent-soft: var(--color-gold-glow);
+  position: fixed;
+  top: calc(var(--nav-height) + var(--space-1));
+  right: var(--space-6);
+  bottom: auto;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: min(360px, calc(100vw - 48px));
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 18px 44px rgba(46, 58, 61, 0.16),
+    0 0 0 4px var(--toast-accent-soft);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+.panda-toast--success {
+  --toast-accent: var(--color-gold);
+  --toast-accent-soft: var(--color-gold-glow);
+}
+
+.panda-toast--error {
+  --toast-accent: var(--color-danger, #b8453e);
+  --toast-accent-soft: rgba(184, 69, 62, 0.12);
+}
+
+.panda-toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--toast-accent), transparent);
+}
+
+.panda-toast__close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.panda-toast__close:hover {
+  color: var(--toast-accent);
+  background: var(--toast-accent-soft);
+}
+
+.panda-toast__text {
+  min-width: 0;
+}
+
+.panda-toast__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: 2px;
+}
+
+.panda-toast__msg {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+.panda-toast__progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  transform-origin: left center;
+  background: var(--toast-accent);
+  animation: panda-toast-progress 3.6s linear forwards;
+}
+
+.panda-toast--success .panda-toast__progress {
+  animation-duration: 1.6s;
+}
+
+@keyframes panda-toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* 熊猫本体：CSS 拼出的坐姿小熊猫 */
+.panda-toast__panda {
+  position: relative;
+  flex: none;
+  width: 76px;
+  height: 84px;
+  animation: panda-toast-bob 2.6s ease-in-out infinite;
+}
+
+@keyframes panda-toast-bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-4px) rotate(1deg); }
+}
+
+.panda-toast__head {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  width: 60px;
+  height: 52px;
+  z-index: 2;
+}
+
+.panda-toast__ear {
+  position: absolute;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2e3a3d;
+}
+
+.panda-toast__ear--left { left: 0; transform: rotate(-12deg); }
+.panda-toast__ear--right { right: 0; transform: rotate(12deg); }
+
+.panda-toast__face {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 6px;
+  bottom: 0;
+  border-radius: 46% 46% 48% 48%;
+  background: #fffdf8;
+  border: 1px solid rgba(46, 58, 61, 0.12);
+  box-shadow: inset 0 -6px 12px rgba(46, 58, 61, 0.06);
+}
+
+.panda-toast__eye {
+  position: absolute;
+  top: 12px;
+  width: 16px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2e3a3d;
+  transform: rotate(-14deg);
+  animation: panda-toast-blink 4.2s infinite;
+}
+
+.panda-toast__eye--left { left: 8px; }
+.panda-toast__eye--right { right: 8px; transform: rotate(14deg); }
+
+.panda-toast__eye i {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+@keyframes panda-toast-blink {
+  0%, 93%, 100% { transform: rotate(-14deg) scaleY(1); }
+  95% { transform: rotate(-14deg) scaleY(0.12); }
+}
+
+.panda-toast__nose {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  width: 8px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2e3a3d;
+  transform: translateX(-50%);
+}
+
+.panda-toast__mouth {
+  position: absolute;
+  left: 50%;
+  top: 36px;
+  width: 14px;
+  height: 7px;
+  border: 2px solid #2e3a3d;
+  border-top: none;
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-radius: 0 0 14px 14px;
+  transform: translateX(-50%);
+}
+
+.panda-toast__mouth--sad {
+  top: 38px;
+  border-radius: 14px 14px 0 0;
+  border: 2px solid #2e3a3d;
+  border-bottom: none;
+  border-left-color: transparent;
+  border-right-color: transparent;
+}
+
+.panda-toast__blush {
+  position: absolute;
+  top: 30px;
+  width: 10px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(184, 69, 62, 0.28);
+}
+
+.panda-toast__blush--left { left: 4px; }
+.panda-toast__blush--right { right: 4px; }
+
+.panda-toast__tear {
+  position: absolute;
+  top: 30px;
+  width: 5px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(93, 164, 177, 0.85);
+  animation: panda-toast-tear 1.4s ease-in infinite;
+}
+
+.panda-toast__tear--left { left: 10px; }
+.panda-toast__tear--right { right: 10px; animation-delay: 0.35s; }
+
+@keyframes panda-toast-tear {
+  0% { transform: translateY(0); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateY(8px); opacity: 0; }
+}
+
+.panda-toast__body {
+  position: absolute;
+  left: 14px;
+  bottom: 10px;
+  width: 48px;
+  height: 34px;
+  z-index: 1;
+}
+
+.panda-toast__belly {
+  position: absolute;
+  inset: 0;
+  border-radius: 48% 48% 46% 46%;
+  background: #fffdf8;
+  border: 1px solid rgba(46, 58, 61, 0.12);
+}
+
+.panda-toast__arm {
+  position: absolute;
+  top: 2px;
+  width: 14px;
+  height: 24px;
+  border-radius: 999px;
+  background: #2e3a3d;
+  animation: panda-toast-wave 2.6s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.panda-toast__arm--left { left: -6px; }
+.panda-toast__arm--right { right: -6px; animation-delay: 0.5s; }
+
+@keyframes panda-toast-wave {
+  0%, 100% { transform: rotate(8deg); }
+  50% { transform: rotate(-16deg); }
+}
+
+.panda-toast__bamboo {
+  position: absolute;
+  right: 2px;
+  bottom: 12px;
+  width: 8px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #6a7a6a, #4c5b4c);
+  transform: rotate(14deg);
+  z-index: 0;
+}
+
+.panda-toast__bamboo::before,
+.panda-toast__bamboo::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  background: #7d927d;
+}
+
+.panda-toast__bamboo::before { top: 8px; transform: rotate(-18deg); }
+.panda-toast__bamboo::after { top: 22px; transform: rotate(18deg); }
+
+.panda-toast__shadow {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 2px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(46, 58, 61, 0.14);
+  filter: blur(2px);
+}
+
+.panda-toast-enter-active,
+.panda-toast-leave-active {
+  transition: transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s ease;
+}
+
+.panda-toast-enter-from {
+  transform: translateY(-28px) scale(0.94);
+  opacity: 0;
+}
+
+.panda-toast-leave-to {
+  transform: translateY(-12px) scale(0.96);
+  opacity: 0;
+}
+
 /* 窄屏：风景在上、表单在下，纵向排列 */
 @media (max-width: 860px) {
+  .panda-toast {
+    top: var(--space-1);
+    right: var(--space-4);
+    left: var(--space-4);
+    bottom: auto;
+    width: auto;
+  }
+
   .auth-back {
     top: var(--space-3);
     left: var(--space-3);
