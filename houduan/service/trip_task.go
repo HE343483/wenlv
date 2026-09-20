@@ -619,6 +619,47 @@ func (s *TripTaskStore) GetPlanRecord(planID string) (*model.TripPlanRecord, err
 	return &record, nil
 }
 
+// SaveStoryCard 将故事卡片文案按语言持久化到 trip_plans.story_card_json,
+// 避免每次打开弹窗都重复调用 LLM;按 plan_id+language 覆盖更新。
+func (s *TripTaskStore) SaveStoryCard(planID string, lang string, content *TripStoryCardContent) error {
+	if s.db == nil {
+		return gorm.ErrInvalidDB
+	}
+	var record model.TripPlanRecord
+	if err := s.db.Where("plan_id = ?", planID).First(&record).Error; err != nil {
+		return err
+	}
+	cards := map[string]*TripStoryCardContent{}
+	if strings.TrimSpace(record.StoryCardJSON) != "" {
+		if err := json.Unmarshal([]byte(record.StoryCardJSON), &cards); err != nil {
+			cards = map[string]*TripStoryCardContent{}
+		}
+	}
+	cards[lang] = content
+	buf, err := json.Marshal(cards)
+	if err != nil {
+		return err
+	}
+	return s.db.Model(&model.TripPlanRecord{}).Where("plan_id = ?", planID).
+		Update("story_card_json", string(buf)).Error
+}
+
+// GetStoryCard 读取已缓存的故事卡片文案(未缓存返回 nil,不视为错误)。
+func (s *TripTaskStore) GetStoryCard(planID string, lang string) (*TripStoryCardContent, error) {
+	record, err := s.GetPlanRecord(planID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(record.StoryCardJSON) == "" {
+		return nil, nil
+	}
+	var cards map[string]*TripStoryCardContent
+	if err := json.Unmarshal([]byte(record.StoryCardJSON), &cards); err != nil {
+		return nil, nil
+	}
+	return cards[lang], nil
+}
+
 // DeletePlan 删除一条落库的历史计划。
 func (s *TripTaskStore) DeletePlan(planID string) error {
 	if s.db == nil {

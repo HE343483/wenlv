@@ -20,6 +20,8 @@ export default {
     register: 'Register',
     langSwitch: '日本語',
     weather: 'Weather',
+    guide: 'Travel Guide',
+    passport: 'Travel Passport',
   },
   hero: {
     title: 'Bashu Culture · Splendid Tianfu',
@@ -327,6 +329,93 @@ export default {
     ingredientsZh: 'Ingredients (Chinese)',
     ingredientsEn: 'Ingredients (English)',
     spice: 'Spice Level',
+  },
+  voice: {
+    play: 'Listen',
+    stop: 'Stop',
+    unsupported: 'No voice available for this language in your browser',
+  },
+  dialect: {
+    title: 'One Minute of Sichuanese',
+    hint: 'Learn one line of Sichuan dialect and speak Chengdu like a local',
+    words: [
+      { word: '巴适', pinyin: 'bā shì', meaning: 'comfortable, great', scene: 'Use it to praise food or scenery' },
+      { word: '安逸', pinyin: 'ān yì', meaning: 'cozy and at ease', scene: 'Say it while sipping tea in the sun' },
+      { word: '雄起', pinyin: 'xióng qǐ', meaning: 'Go for it! Cheer up!', scene: 'Cheering at a ball game or match' },
+      { word: '摆龙门阵', pinyin: 'bǎi lóngmén zhèn', meaning: 'to chat and swap stories', scene: 'Idle chats with old friends at a teahouse' },
+      { word: '要得', pinyin: 'yào dé', meaning: 'OK, sounds good', scene: 'When you agree to a request' },
+      { word: '扎起', pinyin: 'zhā qǐ', meaning: 'to back someone up', scene: 'When a friend needs support' },
+    ],
+  },
+  guide: {
+    eyebrow: 'Travel Guide',
+    title: 'Inbound Visitor Toolbox',
+    hero: 'Designed for first-time visitors to China',
+    payment: {
+      title: 'Payments',
+      items: [
+        { title: 'Link a card, scan away', desc: 'Alipay and WeChat Pay accept international bank cards (Visa/Mastercard, etc.) — verify your identity in the app and pay by QR code almost everywhere.' },
+        { title: 'Mind the card limits', desc: 'International cards carry per-transaction and daily limits — check the in-app notice before large payments.' },
+        { title: 'Keep some cash', desc: 'Street stalls and small shops may take cash only — carry a small amount of RMB as backup.' },
+      ],
+    },
+    transport: {
+      title: 'Getting Around',
+      items: [
+        { title: '12306 in English', desc: 'China Railway\'s official site and app have an English version — register with your passport to buy tickets, or use the counter at the station.' },
+        { title: 'Metro by QR code', desc: 'Chengdu Metro sells tickets at counters; you can also enter by scanning the ride code in Alipay or WeChat Pay.' },
+        { title: 'Ride-hailing in English', desc: 'Apps like DiDi offer an English interface — type your destination and a car comes to you, no spoken Chinese needed.' },
+      ],
+    },
+    hotel: {
+      title: 'Where to Stay',
+      items: [
+        { title: 'Book foreign-guest licensed hotels', desc: 'Check that your hotel is licensed to receive international guests — some guesthouses cannot host foreign passport holders.' },
+        { title: 'Passport registration at check-in', desc: 'Show your passport at check-in; the front desk scans and uploads your accommodation registration — a required step for all foreign guests.' },
+      ],
+    },
+    telecom: {
+      title: 'Connectivity',
+      items: [
+        { title: 'eSIM & roaming', desc: 'Buy a mainland-China-compatible eSIM before departure, or turn on international roaming and get a local SIM after landing.' },
+        { title: 'Install the essentials', desc: 'Set up map (Amap/Baidu), translation and payment apps in advance, and download offline maps in case you lose signal.' },
+      ],
+    },
+    emergency: {
+      title: 'Emergency',
+      items: [
+        { title: 'Emergency numbers', desc: 'Police 110 · Ambulance 120 · Fire 119.' },
+        { title: 'Consular hotline 12308', desc: 'The Ministry of Foreign Affairs\' 24/7 consular protection hotline: 12308 (+86-10-12308) — call whenever you are in trouble.' },
+        { title: 'If your passport is lost', desc: 'Report to the nearest police station right away, then contact your country\'s embassy or consulate in China to reissue documents.' },
+      ],
+    },
+    etiquette: {
+      title: 'Etiquette Tips',
+      items: [
+        { title: 'Don\'t plant chopsticks in rice', desc: 'Chopsticks standing upright in a rice bowl resemble incense sticks — a taboo at the dining table.' },
+        { title: 'Queue up', desc: 'Line up politely at stations, attractions and restaurant entrances — cutting in line draws stares.' },
+        { title: 'No haggling in restaurants', desc: 'Prices are fixed in proper restaurants and malls; polite bargaining is fine at markets and antique stalls.' },
+      ],
+    },
+  },
+  passport: {
+    eyebrow: 'Digital Footprints',
+    title: 'Travel Passport',
+    hero: 'Visit an attraction, earn a stamp automatically — collect them all and generate your own passport certificate',
+    progress: '{count} / {total} stamps collected',
+    stampEmpty: 'No stamps yet — browse the attractions and start your collection',
+    generate: 'Generate Passport Certificate',
+    download: 'Download PNG',
+    close: 'Close',
+    generating: 'Generating certificate…',
+    generateFailed: 'Failed to generate the certificate. Please try again later',
+    loadFailed: 'Failed to load attractions. Please try again later',
+    posterTitle: 'Chengdu Travel Passport',
+    brand: 'Shu·Chengdu',
+    scanTip: 'Scan to open my travel passport',
+    issuedAt: 'Issued on {date}',
+    cardBadge: '{count} stamps collected',
+    collect: 'Collect stamps',
   },
   login: {
     title: 'Login',

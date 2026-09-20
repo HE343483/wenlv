@@ -21,6 +21,8 @@ const navItems = [
   { key: 'food', path: '/home/food' },
   { key: 'routes', path: '/home/routes' },
   { key: 'favorites', path: '/home/favorites' },
+  { key: 'guide', path: '/guide' },
+  { key: 'passport', path: '/passport' },
 ] as const
 
 const router = useRouter()
@@ -82,8 +84,10 @@ watch(open, (val) => {
 
 function navigate(path: string) {
   if (path === '/') {
-    if (route.path === '/') window.scrollTo({ top: 0, behavior: 'smooth' })
-    else router.push('/')
+    // 已登录用户点「首页/品牌」应回到登录态主站首页,而非游客落地页(如 /guide、/passport 等页面上的导航)
+    const homePath = loggedIn.value ? '/home/index' : '/'
+    if (route.path === homePath) window.scrollTo({ top: 0, behavior: 'smooth' })
+    else router.push(homePath)
     return
   }
   router.push(path)

@@ -398,6 +398,7 @@ type TripPlanRecord struct {
 	RequestJSON        string    `gorm:"type:longtext;comment:原始规划请求JSON" json:"-"`
 	Status             string    `gorm:"size:16;index;default:completed;comment:状态(completed/failed)" json:"status"`
 	ErrorMessage       string    `gorm:"type:text;comment:失败原因" json:"error_message"`
+	StoryCardJSON      string    `gorm:"type:longtext;comment:故事卡片文案缓存(按语言存储的JSON:title/body),避免重复调用LLM" json:"-"`
 	CreatedAt          time.Time `gorm:"comment:创建时间" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"comment:更新时间" json:"updated_at"`
 }

@@ -6,8 +6,8 @@ import (
 )
 
 // GormWriter 把 GORM 的 SQL 日志接入统一日志模块:
-// 普通 SQL 进 debug 文件、慢 SQL 进 warn 文件、SQL 错误进 error 文件(严重程度 LOW)。
-// 这样 SQL 细节不会再和控制台/业务日志混在一起,排查时按级别去对应文件找即可。
+// 普通 SQL 进 DEBUG 级别、慢 SQL 进 WARN 级别、SQL 错误进 ERROR 级别(严重程度 LOW)。
+// 这样 SQL 细节不会和控制台/业务日志混在一起,排查时按 level 字段到 log_entries 表里筛选即可。
 type GormWriter struct{}
 
 // Printf 实现 gorm logger.Writer 接口。

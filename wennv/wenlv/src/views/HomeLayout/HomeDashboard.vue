@@ -13,9 +13,17 @@ import HomeBanner from '@/components/HomeBanner.vue'
 import { getRecommendedSpots, newsItems, funFacts } from '@/data/chengdu'
 import { listScenics, listHotspots, type ScenicItem, type HotspotItem } from '@/api/content'
 import { pickName } from '@/utils/storyI18n'
+import { stampCount } from '@/utils/passport'
 
 const router = useRouter()
 const langStore = useLanguageStore()
+
+/** 数字足迹护照:进入本页时读取的集章数(徽标展示) */
+const stampCountValue = ref(stampCount())
+
+function goPassport() {
+  router.push('/passport')
+}
 
 /** 统一的推荐景点展示结构(接口数据优先,静态数据兜底) */
 interface RecSpot {
@@ -235,6 +243,24 @@ onMounted(async () => {
       watermark="蜀"
     />
 
+    <!-- ──── 数字足迹护照入口 ──── -->
+    <section class="passport-entry">
+      <button type="button" class="passport-entry__card" @click="goPassport">
+        <span class="passport-entry__icon" aria-hidden="true">🐼</span>
+        <span class="passport-entry__body">
+          <span class="passport-entry__title">{{ langStore.t('passport.title') }}</span>
+          <span class="passport-entry__desc">{{ langStore.t('passport.hero') }}</span>
+        </span>
+        <span class="passport-entry__badge">
+          {{ langStore.t('passport.cardBadge', { count: stampCountValue }) }}
+        </span>
+        <span class="passport-entry__cta">
+          {{ langStore.t('passport.collect') }}
+          <span class="passport-entry__arrow" aria-hidden="true">→</span>
+        </span>
+      </button>
+    </section>
+
     <!-- ──── 推荐景点 ──── -->
     <section class="recommend">
       <header class="section-head">
@@ -416,6 +442,97 @@ onMounted(async () => {
 }
 
 .section-head__more:hover .section-head__arrow {
+  transform: translateX(4px);
+}
+
+/* ========================================
+   数字足迹护照入口
+   ======================================== */
+.passport-entry__card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  padding: var(--space-6) var(--space-8);
+  text-align: left;
+  background:
+    radial-gradient(ellipse 60% 90% at 8% 50%, rgba(45, 106, 79, 0.10) 0%, transparent 70%),
+    var(--color-surface);
+  border: 1px solid color-mix(in srgb, #2d6a4f 35%, transparent);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color var(--transition-base), transform var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.passport-entry__card:hover {
+  border-color: #2d6a4f;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(45, 106, 79, 0.18), var(--shadow-lg);
+}
+
+.passport-entry__icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-3xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.passport-entry__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.passport-entry__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: #2d6a4f;
+  letter-spacing: var(--tracking-wide);
+}
+
+.passport-entry__desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-wide);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passport-entry__badge {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-cinnabar);
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-cinnabar) 45%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-cinnabar) 6%, transparent);
+  white-space: nowrap;
+}
+
+.passport-entry__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: #2d6a4f;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
+}
+
+.passport-entry__arrow {
+  transition: transform var(--transition-fast);
+}
+
+.passport-entry__card:hover .passport-entry__arrow {
   transform: translateX(4px);
 }
 
@@ -747,6 +864,14 @@ onMounted(async () => {
   }
   .dashboard__weather {
     max-width: 100%;
+  }
+  .passport-entry__card {
+    padding: var(--space-5);
+    gap: var(--space-3);
+  }
+  .passport-entry__desc,
+  .passport-entry__cta {
+    display: none;
   }
 }
 </style>

@@ -16,8 +16,8 @@ import (
 // InitMySQL 建立 GORM 连接并自动迁移表结构。
 func InitMySQL(cfg *config.Config) (*gorm.DB, error) {
 	// SQL 日志统一走日志模块(见 logger.GormWriter):
-	// 默认只记录慢 SQL(>=1s)与 SQL 错误,避免远程库常规查询把 warn/error 文件刷满;
-	// 需要逐条 SQL 明细时把 LOG_LEVEL 调成 debug,明细会进 logs/debug-*.log。
+	// 默认只记录慢 SQL(>=1s)与 SQL 错误,避免远程库常规查询把 WARN/ERROR 级别日志刷满;
+	// 需要逐条 SQL 明细时把 LOG_LEVEL 调成 debug,明细会以 DEBUG 级别落库 log_entries。
 	gormLevel := gormlogger.Warn
 	if logger.ParseLevel(cfg.Log.Level) == logger.LevelDebug {
 		gormLevel = gormlogger.Info

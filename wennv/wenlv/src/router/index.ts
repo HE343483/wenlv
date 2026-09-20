@@ -67,6 +67,18 @@ const router = createRouter({
       component: () => import('@/views/ScenicDetail/ScenicDetail.vue'),
     },
     {
+      // 入境游实用工具箱 — 公开静态内容页
+      path: '/guide',
+      name: 'travel-guide',
+      component: () => import('@/views/TravelGuidePage.vue'),
+    },
+    {
+      // 数字足迹护照 — 公开集章页
+      path: '/passport',
+      name: 'travel-passport',
+      component: () => import('@/views/PassportPage.vue'),
+    },
+    {
       // 美食详情页
       path: '/food/:id',
       name: 'food-detail',
@@ -98,6 +110,8 @@ router.beforeEach((to) => {
   }
   if (to.name === 'home') return true
   if (to.path.startsWith('/scenic/') || to.path.startsWith('/food/')) return true
+  // 入境游工具箱/旅行护照:面向境外游客的公开内容页,未登录也可访问
+  if (to.name === 'travel-guide' || to.name === 'travel-passport') return true
   if (!hasToken()) {
     return { name: 'login' }
   }

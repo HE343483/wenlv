@@ -20,10 +20,9 @@ import (
 func main() {
 	cfg := config.Load()
 
-	// 日志模块:按级别分文件落盘到 logs/(info/warn/error/access/debug/fatal),
+	// 日志模块:统一落库 MySQL log_entries 表(按 level 区分运行节点/警告/报错等),
 	// 报错自动生成带日期与严重程度的错误 ID,便于精确定位
 	logger.Configure(logger.Options{
-		Dir:            cfg.Log.Dir,
 		Level:          cfg.Log.Level,
 		DisableConsole: !cfg.Log.Console,
 		RetentionDays:  cfg.Log.RetentionDays,
@@ -35,7 +34,11 @@ func main() {
 	if err != nil {
 		logger.Fatalf("MySQL 连接失败: %v", err)
 	}
-	logger.Infof("MySQL 连接成功: %s:%s/%s", cfg.MySQL.Host, cfg.MySQL.Port, cfg.MySQL.DBName)
+	// 日志接入数据库:此后所有日志(含刚才的连接日志)开始异步批量落库 log_entries 表
+	if err := logger.SetDB(db); err != nil {
+		logger.Fatalf("日志表 log_entries 初始化失败: %v", err)
+	}
+	logger.Infof("MySQL 连接成功: %s:%s/%s (日志开始落库 log_entries)", cfg.MySQL.Host, cfg.MySQL.Port, cfg.MySQL.DBName)
 	database.MustAutoMigrate(db)
 	logger.Infof("数据库自动迁移完成")
 
@@ -189,8 +192,8 @@ func main() {
 	engine := router.Setup(h, authSvc.ValidateAccess, rateLimiter)
 
 	addr := fmt.Sprintf(":%s", cfg.Server.Port)
-	logger.Infof("wenlv-backend 服务已就绪,监听 %s (日志目录: %s, 日志级别: %s)",
-		addr, logger.LogDir(), cfg.Log.Level)
+	logger.Infof("wenlv-backend 服务已就绪,监听 %s (日志落库: log_entries, 日志级别: %s)",
+		addr, cfg.Log.Level)
 	if err := engine.Run(addr); err != nil {
 		logger.Fatalf("服务启动失败: %v", err)
 	}

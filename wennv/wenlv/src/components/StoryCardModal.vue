@@ -21,7 +21,7 @@
       <p class="story-card-tip">{{ t('storyCard.tip') }}</p>
       <div class="story-card-actions">
         <a-space size="middle">
-          <a-button :disabled="generating" @click="generate">
+          <a-button :disabled="generating" @click="generate(true)">
             {{ posterUrl ? t('storyCard.regenerate') : t('storyCard.generate') }}
           </a-button>
           <a-button type="primary" :disabled="generating || !posterUrl" @click="savePoster">
@@ -53,7 +53,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import QRCode from 'qrcode'
-import { generateStoryCard, type StoryCardLanguage } from '@/trip/services/api'
+import { generateStoryCard, type StoryCardLanguage } from '@/api/trip'
 
 const props = defineProps<{
   open: boolean
@@ -438,12 +438,13 @@ const drawPoster = async (story: StoryCopy) => {
   posterUrl.value = canvas.toDataURL('image/png')
 }
 
-const generate = async () => {
+const generate = async (forceRegenerate = false) => {
   generating.value = true
   let story: StoryCopy | null = null
   if (props.planId) {
     try {
-      const response = await generateStoryCard(props.planId, currentLanguage.value)
+      // 打开弹窗默认走后端持久化缓存;点击"重新生成"按钮才强制重调 LLM
+      const response = await generateStoryCard(props.planId, currentLanguage.value, forceRegenerate)
       if (response && !response.fallback && response.title && response.body) {
         story = { title: response.title, body: response.body }
       }
@@ -490,7 +491,8 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
-      void generate()
+      // 打开弹窗:优先后端缓存,避免重复调用 LLM
+      void generate(false)
     }
   }
 )

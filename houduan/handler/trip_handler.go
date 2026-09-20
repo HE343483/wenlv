@@ -318,8 +318,9 @@ func (h *TripHandler) AskStream(c *gin.Context) {
 // 入参 {plan_id, language};LLM 失败时返回 fallback 标记,前端用本地模板兜底,不报错。
 func (h *TripHandler) StoryCard(c *gin.Context) {
 	var req struct {
-		PlanID   string `json:"plan_id"`
-		Language string `json:"language"`
+		PlanID     string `json:"plan_id"`
+		Language   string `json:"language"`
+		Regenerate bool   `json:"regenerate"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.PlanID) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"detail": "参数错误:plan_id 必填"})
@@ -331,7 +332,7 @@ func (h *TripHandler) StoryCard(c *gin.Context) {
 		return
 	}
 	lang := service.NormalizeStoryLang(req.Language)
-	resp := gin.H{"success": true, "language": lang, "fallback": false}
+	resp := gin.H{"success": true, "language": lang, "fallback": false, "cached": false}
 	if record.PlanJSON == "" {
 		resp["fallback"] = true
 		c.JSON(http.StatusOK, resp)
@@ -343,6 +344,17 @@ func (h *TripHandler) StoryCard(c *gin.Context) {
 		c.JSON(http.StatusOK, resp)
 		return
 	}
+	// 非重新生成请求优先返回持久化缓存,避免每次打开弹窗都调用 LLM
+	if !req.Regenerate {
+		if card, cerr := h.tasks.GetStoryCard(req.PlanID, lang); cerr == nil && card != nil &&
+			strings.TrimSpace(card.Title) != "" && strings.TrimSpace(card.Body) != "" {
+			resp["title"] = card.Title
+			resp["body"] = card.Body
+			resp["cached"] = true
+			c.JSON(http.StatusOK, resp)
+			return
+		}
+	}
 	content, err := h.storyCard.Generate(c.Request.Context(), lang, &plan)
 	if err != nil {
 		// 降级:不 500,前端用本地模板文案兜底
@@ -350,6 +362,10 @@ func (h *TripHandler) StoryCard(c *gin.Context) {
 		resp["message"] = "AI 文案生成失败,已回退模板文案: " + err.Error()
 		c.JSON(http.StatusOK, resp)
 		return
+	}
+	// 生成成功后持久化,下次直接复用(失败不影响本次返回)
+	if serr := h.tasks.SaveStoryCard(req.PlanID, lang, content); serr != nil {
+		logger.Warnf("[StoryCard] 故事卡片文案落库失败 plan_id=%s lang=%s: %v", req.PlanID, lang, serr)
 	}
 	resp["title"] = content.Title
 	resp["body"] = content.Body

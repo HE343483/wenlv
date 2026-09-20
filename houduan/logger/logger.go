@@ -1,23 +1,18 @@
-// Package logger 是后端统一的日志模块:按级别分文件落盘、按天轮转,
-// 并给每条报错生成「含日期 + 严重程度」的错误 ID,便于精确定位线上问题。
+// Package logger 是后端统一的日志模块:所有日志统一落库 MySQL 的 log_entries 表,
+// 用 level 字段区分运行节点/访问/警告/报错等类别,报错自动生成「含日期 + 严重程度」的错误 ID,
+// 便于在数据库中一步检索定位线上问题。
 //
-// 目录结构(默认 logs/,可用 LOG_DIR 覆盖):
+// 各级别的含义与排查方式(均落在 log_entries 一张表内,按 level 筛选即可):
 //
-//	logs/
-//	  debug-2026-09-20.log   调试细节(GORM SQL、LLM 原始响应等)
-//	  info-2026-09-20.log    程序运行节点(启动、任务阶段、关键流程)
-//	  access-2026-09-20.log  HTTP 访问日志(方法/路径/状态码/耗时)
-//	  warn-2026-09-20.log    警告(可恢复异常、降级、上游风控)
-//	  error-2026-09-20.log   报错(含错误 ID 与严重程度)
-//	  fatal-2026-09-20.log   致命错误(进程退出前写入,同时会记入 error 文件)
-//
-// 日志行格式:
-//
-//	时间 | 级别 | 错误ID(- 表示无) | 位置 | 消息 | 字段
-//	2026-09-20 14:25:31.456 | ERROR | ERR-20260920-0001-HIGH | handler/trip_handler.go:94 | 规划失败 | request_id=REQ-...
+//	DEBUG    调试细节(GORM SQL、LLM 原始响应等)
+//	INFO     程序运行节点(启动、任务阶段、关键流程)
+//	ACCESS   HTTP 访问日志(方法/路径/状态码/耗时/请求ID)
+//	WARN     警告(可恢复异常、降级、上游风控)
+//	ERROR    报错(含错误 ID 与严重程度)
+//	FATAL    致命错误(进程退出前写入,同时标记为 ERROR 级别可查)
 //
 // 错误 ID 形如 ERR-20260920-0001-HIGH:日期 + 当日序号 + 严重程度,
-// 直接 grep `ERR-20260920-0001` 即可定位到唯一一条报错。
+// 在数据库中直接 `WHERE error_id = 'ERR-20260920-0001-HIGH'` 即可定位到唯一一条报错。
 package logger
 
 import (
@@ -30,22 +25,19 @@ import (
 )
 
 const (
-	defaultDir           = "logs"
 	defaultLevel         = "info"
 	defaultRetentionDays = 30
-	// timeLayout 落盘时间格式(毫秒精度,便于排查并发时序)。
+	// timeLayout 落库/控制台时间格式(毫秒精度,便于排查并发时序)。
 	timeLayout = "2006-01-02 15:04:05.000"
 	// idDayLayout 错误 ID 中的日期格式。
 	idDayLayout = "20060102"
-	// fileDayLayout 日志文件名中的日期格式。
-	fileDayLayout = "2006-01-02"
 )
 
-// Level 日志级别,每个级别对应一个独立的日志文件。
+// Level 日志级别,落库时写入 level 字段。
 type Level int
 
 const (
-	// LevelDebug 调试细节,仅落盘(控制台需 LOG_LEVEL=debug)。
+	// LevelDebug 调试细节(控制台需 LOG_LEVEL=debug 才输出)。
 	LevelDebug Level = iota
 	// LevelInfo 程序运行节点。
 	LevelInfo
@@ -61,24 +53,15 @@ const (
 
 var (
 	levelNames = [...]string{"DEBUG", "INFO", "ACCESS", "WARN", "ERROR", "FATAL"}
-	levelFiles = [...]string{"debug", "info", "access", "warn", "error", "fatal"}
 	levelColor = [...]string{"\x1b[90m", "\x1b[36m", "\x1b[35m", "\x1b[33m", "\x1b[31m", "\x1b[41;97m"}
 )
 
-// String 返回级别的可读名称。
+// String 返回级别的可读名称(即落库 level 字段的取值)。
 func (l Level) String() string {
 	if l < LevelDebug || int(l) >= len(levelNames) {
 		return "UNKNOWN"
 	}
 	return levelNames[l]
-}
-
-// fileName 返回该级别日志的文件名前缀。
-func (l Level) fileName() string {
-	if l < LevelDebug || int(l) >= len(levelFiles) {
-		return "unknown"
-	}
-	return levelFiles[l]
 }
 
 // ParseLevel 解析级别名(大小写不敏感),无法识别时按 INFO 处理。
@@ -129,14 +112,12 @@ func ParseSeverity(s string) Severity {
 
 // Options 日志模块配置。
 type Options struct {
-	// Dir 日志根目录,默认 logs。
-	Dir string
 	// Level 控制台输出的最低级别(debug/info/access/warn/error/fatal),默认 info。
-	// 文件始终按级别完整落盘,不受该配置影响。
+	// 数据库始终按级别完整落库,不受该配置影响。
 	Level string
-	// DisableConsole 关闭控制台输出(仅落盘)。
+	// DisableConsole 关闭控制台输出(仅落库)。
 	DisableConsole bool
-	// RetentionDays 日志保留天数,<=0 表示不清理。
+	// RetentionDays 日志在数据库中的保留天数,<=0 表示不清理。
 	RetentionDays int
 }
 
@@ -161,7 +142,7 @@ func (l *Logger) With(kv ...any) *Logger {
 
 // ===== 全局日志函数 =====
 
-// Debugf 调试细节(含 GORM SQL),写入 debug 文件。
+// Debugf 调试细节(含 GORM SQL),落库为 DEBUG 级别。
 func Debugf(format string, args ...any) { std.logAt(LevelDebug, "", nil, "", 0, format, args...) }
 
 // Infof 记录程序运行节点。
@@ -231,7 +212,7 @@ func (l *Logger) Fatalf(format string, args ...any) {
 
 // ===== 内部实现 =====
 
-// logAt 是唯一的落盘入口。callerFile 为空时自动取调用方位置(调用栈第 2 层)。
+// logAt 是唯一的日志入口。callerFile 为空时自动取调用方位置(调用栈第 2 层)。
 func (l *Logger) logAt(level Level, sev Severity, err error, callerFile string, callerLine int, format string, args ...any) string {
 	now := time.Now()
 	msg := fmt.Sprintf(format, args...)
@@ -264,8 +245,8 @@ func (l *Logger) logAt(level Level, sev Severity, err error, callerFile string, 
 		}
 	}
 
-	entry := compose(now, level, errID, formatCaller(file, line), msg, kv)
-	mgr.emit(now, level, entry)
+	entry := buildEntry(now, level, errID, sev, formatCaller(file, line), msg, kv)
+	emitEntry(now, level, entry)
 	return errID
 }
 
@@ -277,58 +258,12 @@ func formatCaller(file string, line int) string {
 	return fmt.Sprintf("%s:%d", file, line)
 }
 
-// compose 拼装日志行。
-func compose(t time.Time, level Level, errID, caller, msg string, kv []any) string {
-	var b strings.Builder
-	b.WriteString(t.Format(timeLayout))
-	b.WriteString(" | ")
-	b.WriteString(fmt.Sprintf("%-6s", level.String()))
-	b.WriteString(" | ")
-	if errID == "" {
-		b.WriteString("-")
-	} else {
-		b.WriteString(errID)
-	}
-	b.WriteString(" | ")
-	b.WriteString(caller)
-	b.WriteString(" | ")
-	b.WriteString(msg)
-	if len(kv) > 0 {
-		b.WriteString(" | ")
-		b.WriteString(renderFields(kv))
-	}
-	return b.String()
-}
-
-// renderFields 将 key/value 对渲染为 k=v 形式。
-func renderFields(kv []any) string {
-	var b strings.Builder
-	for i := 0; i < len(kv); i += 2 {
-		if i > 0 {
-			b.WriteByte(' ')
-		}
-		b.WriteString(fmt.Sprint(kv[i]))
-		b.WriteByte('=')
-		if i+1 < len(kv) {
-			b.WriteString(escapeValue(fmt.Sprint(kv[i+1])))
-		} else {
-			b.WriteString(`""`)
-		}
-	}
-	return b.String()
-}
-
-// escapeValue 压缩值中的换行,避免破坏「一行一条日志」的结构。
-func escapeValue(s string) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	if s == "" {
-		return `""`
-	}
-	if strings.ContainsAny(s, " \t") {
-		return `"` + s + `"`
-	}
-	return s
+// nextErrorID 生成错误 ID:ERR-YYYYMMDD-序号-严重程度,序号按天从 1 开始
+// (连接数据库后会从库里读取当日最大序号续接,重启不重复)。
+func nextErrorID(t time.Time, sev Severity) string {
+	day := t.Format(idDayLayout)
+	seq := nextErrorSeq(day)
+	return fmt.Sprintf("ERR-%s-%04d-%s", day, seq, sev)
 }
 
 // trimPath 取相对包路径(保留最后两级),如 service/trip_xhs.go。
@@ -339,4 +274,9 @@ func trimPath(p string) string {
 		return strings.Join(parts[len(parts)-2:], "/")
 	}
 	return p
+}
+
+// consoleOnly 判断当前是否处于「数据库尚未接入」阶段,便于提示日志暂未落库。
+func consoleOnly() bool {
+	return !dbReady()
 }

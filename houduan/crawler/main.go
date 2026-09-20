@@ -794,6 +794,10 @@ func mustConnectDB() *gorm.DB {
 	if err != nil {
 		logger.Fatalf("连接数据库失败: %v", err)
 	}
+	// 爬虫日志同样落库 log_entries(module=crawler)
+	if err := logger.SetDB(db); err != nil {
+		logger.Fatalf("日志表 log_entries 初始化失败: %v", err)
+	}
 	// 与主服务保持一致,确保表存在且字段注释齐全
 	if err := db.AutoMigrate(&model.ScenicSpot{}, &model.Food{}, &model.FoodCard{}, &model.Route{}); err != nil {
 		logger.Fatalf("数据库迁移失败: %v", err)
