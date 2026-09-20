@@ -138,6 +138,14 @@ func (r *FoodRepo) UpdateFields(id uint, updates map[string]any) error {
 	return r.db.Model(&model.Food{}).Where("id = ?", id).Updates(updates).Error
 }
 
+// FindSolarFoods 查询适用节气包含 term 的美食(solar_terms 为逗号分隔值,
+// FIND_IN_SET 对单个节气名精确匹配,避免 LIKE 误命中子串);无匹配返回空切片。
+func (r *FoodRepo) FindSolarFoods(term string) ([]model.Food, error) {
+	var items []model.Food
+	err := r.db.Where("FIND_IN_SET(?, solar_terms)", term).Order("id asc").Find(&items).Error
+	return items, err
+}
+
 // FoodCardRepo 美食名片数据访问。
 type FoodCardRepo struct {
 	db *gorm.DB

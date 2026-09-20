@@ -55,6 +55,12 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.TripPlanRecord{},
 		&model.TripSetting{},
 		&model.HotTopic{},
+		&model.Poem{},
+		&model.CultureDaily{},
+		&model.QuizQuestion{},
+		&model.ChatSession{},
+		&model.ChatMessageRecord{},
+		&model.PersonaMemory{},
 	); err != nil {
 		return err
 	}
@@ -78,6 +84,12 @@ var tableComments = map[string]string{
 	"trip_plans":      "AI行程计划历史表",
 	"trip_settings":   "AI行程模块设置表",
 	"hot_topics":      "文旅热点资讯表(定时抓取官方文旅新闻源)",
+	"poems":           "景点关联诗词表(原文人工权威录入,LLM仅生成译文与赏析)",
+	"culture_daily":   "每日蜀签表(诗句/方言/冷知识三语日签)",
+	"quiz_questions":  "蜀文化知识闯关题目表(景点答题得徽章,三语)",
+	"chat_sessions":   "AI对话会话表(普通助手与历史人物角色统一存储,仅登录用户)",
+	"chat_messages":   "AI对话消息表(按会话存储用户与助手消息)",
+	"persona_memories": "角色长期记忆表(LLM异步提取的访客事实,按用户+角色存储)",
 }
 
 // idComments 自增主键 id 的注释(GORM AutoMigrate 不修改主键定义,需单独补)。
@@ -95,6 +107,12 @@ var idComments = map[string]string{
 	"articles":        "游记ID",
 	"trip_plans":      "行程记录ID",
 	"hot_topics":      "文旅热点ID",
+	"poems":           "诗词ID",
+	"culture_daily":   "蜀签ID",
+	"quiz_questions":  "题目ID",
+	"chat_sessions":   "会话ID",
+	"chat_messages":   "消息ID",
+	"persona_memories": "记忆ID",
 }
 
 // applyTableComments 给所有表补充表级注释,便于 Navicat 等工具阅读。

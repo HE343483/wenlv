@@ -8,16 +8,19 @@
  * QRCode 失败不阻塞海报生成。
  */
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import QRCode from 'qrcode'
 import { useLanguageStore } from '@/stores/language'
 import type { ScenicItem } from '@/api/content'
-import { getStamps } from '@/utils/passport'
 import { pickName } from '@/utils/storyI18n'
+import { drawMaskPoster } from '@/utils/mask-poster'
 
 const props = defineProps<{
   open: boolean
   scenics: ScenicItem[]
+  /** 已集章景点 id 集合（由父组件从后端打卡记录计算后传入） */
+  stampIds: Set<number>
 }>()
 
 const emit = defineEmits<{
@@ -25,14 +28,18 @@ const emit = defineEmits<{
 }>()
 
 const langStore = useLanguageStore()
+/** 模板切换按钮文案走 vue-i18n(src/i18n)的 storyCard.* 键 */
+const { t: sharedT } = useI18n()
 
 const generating = ref(false)
 const posterUrl = ref('')
+/** 海报模板:熊猫(默认) / 川剧脸谱 */
+const posterTemplate = ref<'panda' | 'mask'>('panda')
 /** 打开弹窗时的盖章快照（保证绘制与预览进度一致） */
-const stampIds = ref<Set<number>>(new Set())
+const stampSnapshot = ref<Set<number>>(new Set())
 
 const collected = computed(() =>
-  props.scenics.filter((s) => stampIds.value.has(s.id)).length
+  props.scenics.filter((s) => stampSnapshot.value.has(s.id)).length
 )
 
 const handleOpenChange = (value: boolean) => {
@@ -174,6 +181,47 @@ const generateQrCanvas = async (): Promise<HTMLCanvasElement | null> => {
 }
 
 const drawPoster = async () => {
+  const now = new Date()
+  const dateText = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+
+  // 脸谱模板:委托共享绘制模块,异常时回落到下方熊猫模板(内容数据不变)
+  if (posterTemplate.value === 'mask') {
+    try {
+      const progressText = langStore.t('passport.progress', {
+        count: collected.value,
+        total: props.scenics.length,
+      })
+      posterUrl.value = await drawMaskPoster({
+        brand: langStore.t('passport.brand'),
+        headline: langStore.t('passport.posterTitle'),
+        headlineEn: 'CHENGDU TRAVEL PASSPORT',
+        metaText: progressText,
+        qrUrl: `${window.location.origin}/passport`,
+        footerBrand: langStore.t('passport.brand'),
+        footerLines: [
+          langStore.t('passport.issuedAt', { date: dateText }),
+          progressText,
+          langStore.t('passport.scanTip'),
+        ],
+        stamps: {
+          items: props.scenics.map((item) => ({
+            name: stampSnapshot.value.has(item.id)
+              ? item.name_zh
+              : pickName(item, langStore.lang),
+            got: stampSnapshot.value.has(item.id),
+          })),
+        },
+      })
+      return
+    } catch (error) {
+      console.error('绘制脸谱模板护照失败,回落熊猫模板:', error)
+    }
+  }
+
   const canvas = document.createElement('canvas')
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   canvas.width = POSTER_W * dpr
@@ -237,7 +285,7 @@ const drawPoster = async () => {
     const x = PAD_X + col * (cellW + GAP)
     const y = GRID_TOP + row * rowH
     const cx = x + cellW / 2
-    const got = stampIds.value.has(item.id)
+    const got = stampSnapshot.value.has(item.id)
     const sealR = Math.min(cellW * 0.27, rowH * 0.28)
     const cy = y + rowH * 0.38
     const nameY = cy + sealR + 32
@@ -284,13 +332,6 @@ const drawPoster = async () => {
     ctx.drawImage(qrCanvas, PAD_X + 16, 1224, 132, 132)
   }
 
-  const now = new Date()
-  const dateText = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-')
-
   ctx.fillStyle = COLOR_INK
   ctx.font = `800 32px ${FONT_STACK}`
   ctx.fillText(langStore.t('passport.brand'), 300, 1258)
@@ -310,6 +351,20 @@ const drawPoster = async () => {
 }
 
 const generate = async () => {
+  generating.value = true
+  try {
+    await drawPoster()
+  } catch (error) {
+    console.error('绘制护照证书失败:', error)
+    message.error(langStore.t('passport.generateFailed'))
+  } finally {
+    generating.value = false
+  }
+}
+
+/** 模板切换:直接重绘,集章数据不变 */
+const handleTemplateChange = async () => {
+  if (generating.value) return
   generating.value = true
   try {
     await drawPoster()
@@ -341,7 +396,7 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
-      stampIds.value = new Set(getStamps().map((s) => s.id))
+      stampSnapshot.value = new Set(props.stampIds)
       void generate()
     }
   }
@@ -352,13 +407,23 @@ watch(
   <a-modal
     :open="open"
     class="passport-modal"
-    :title="`🐼 ${langStore.t('passport.title')}`"
+    :title="langStore.t('passport.title')"
     :width="560"
     :footer="null"
     :mask-closable="false"
     @update:open="handleOpenChange"
   >
     <a-spin :spinning="generating" :tip="langStore.t('passport.generating')">
+      <div class="passport-certificate__templates">
+        <a-radio-group
+          v-model:value="posterTemplate"
+          size="small"
+          @change="handleTemplateChange"
+        >
+          <a-radio-button value="panda">{{ sharedT('storyCard.templatePanda') }}</a-radio-button>
+          <a-radio-button value="mask">{{ sharedT('storyCard.templateMask') }}</a-radio-button>
+        </a-radio-group>
+      </div>
       <div class="passport-certificate">
         <img
           v-if="posterUrl"
@@ -386,6 +451,12 @@ watch(
 </template>
 
 <style scoped>
+.passport-certificate__templates {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
 .passport-certificate {
   display: flex;
   justify-content: center;

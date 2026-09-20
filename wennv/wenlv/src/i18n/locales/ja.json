@@ -370,6 +370,48 @@
     "scanTip": "扫码开启你的成都故事",
     "scanTipEn": "Scan to start your Chengdu story",
     "scanTipJa": "QRコードであなたの成都の物語を",
-    "filePrefix": "成都ストーリーカード"
+    "filePrefix": "成都ストーリーカード",
+    "templatePanda": "パンダ",
+    "templateMask": "変顔"
+  },
+  "ics": {
+    "export": "カレンダーに書き出す",
+    "exportTip": ".ics ファイルをダウンロードして、カレンダーアプリに取り込むと予定を確認できます",
+    "filePrefix": "旅程",
+    "success": "カレンダーファイルを書き出しました",
+    "failed": "カレンダーの書き出しに失敗しました: {error}"
+  },
+  "personas": {
+    "switchLabel": "対話キャラクター",
+    "chatModeTip": "{name} と対話中",
+    "assistant": {
+      "name": "AIアシスタント",
+      "title": "旅の案内人"
+    },
+    "duFu": {
+      "name": "杜甫",
+      "title": "詩聖",
+      "greeting": "わしは杜甫、字は子美。官を捨てて蜀に流れ、浣花渓のほとりに草堂を結んでから、いくつもの季節が巡った。客人はどちらからお越しのか。草堂の粗末さを気になさるのであれば、どうぞ座って、成都の風物と詩心について語らおうではないか。",
+      "placeholder": "杜甫に聞く…"
+    },
+    "zhuge": {
+      "name": "諸葛亮",
+      "title": "臥龍先生",
+      "greeting": "私は亮、字を孔明と申す。先帝の三顧の礼に応え、蜀に身を捧げてまいった。今は錦官城に座して蜀を治め、民を安んずるところだ。遠路はるばるお越しの由、何かご用か。存分に申し聞かせてほしい。",
+      "placeholder": "諸葛亮に聞く…"
+    }
+  },
+  "chatHistory": {
+    "open": "履歴",
+    "newChat": "新しい会話",
+    "empty": "履歴はまだありません",
+    "loginTip": "ログインすると会話履歴を保存できます"
+  },
+  "personaMemory": {
+    "toggle": "キャラ記憶",
+    "clear": "記憶を消去",
+    "clearConfirm": "このキャラの記憶をすべて消去しますか？",
+    "cleared": "キャラの記憶を消去しました",
+    "loginTip": "ログインするとキャラ記憶を利用できます"
   }
 }

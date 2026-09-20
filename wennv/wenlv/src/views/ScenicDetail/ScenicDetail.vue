@@ -7,11 +7,12 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
-import { getScenic, getScenicAround, getScenicTransport } from '@/api/content'
-import type { ScenicItem, ScenicAroundItem, ScenicTransitStop } from '@/api/content'
+import { getScenic, getScenicAround, getScenicTransport, getScenicPoems } from '@/api/content'
+import type { ScenicItem, ScenicAroundItem, ScenicTransitStop, PoemItem } from '@/api/content'
 import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
 import { pickDesc, pickCultureNote, pickName } from '@/utils/storyI18n'
-import { addStamp } from '@/utils/passport'
+import { listCheckIns } from '@/api/checkin'
+import { hasToken } from '@/utils/token'
 import { isSpeaking as voiceSpeaking, speak, stopSpeaking, hasVoiceFor } from '@/utils/speech'
 import dictZh from '@/locales/zh'
 import dictEn from '@/locales/en'
@@ -19,6 +20,9 @@ import dictJa from '@/locales/ja'
 import { getRuntimeMapJsKey } from '@/api/trip'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
+import CheckInModal from '@/components/CheckInModal.vue'
+import StampReward from '@/components/StampReward.vue'
+import QuizCard from '@/components/QuizCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,25 +59,56 @@ onMounted(async () => {
   if (!numericId.value) return
   try {
     scenic.value = await getScenic(numericId.value)
-    // 数字足迹护照：数据加载成功即无感盖章（不弹窗不打扰）
-    if (scenic.value) addStamp(scenic.value)
   } catch {
     /* 加载失败时保持占位展示 */
   }
+  refreshCheckInState()
   await initMap()
-  /* 两个接口相互独立:任一失败仅清空自身字段,不影响另一个 */
-  const [aroundRes, transitRes] = await Promise.allSettled([
+  /* 三个接口相互独立:任一失败仅清空自身字段,不影响其他 */
+  const [aroundRes, transitRes, poemsRes] = await Promise.allSettled([
     getScenicAround(numericId.value, 6),
     getScenicTransport(numericId.value),
+    getScenicPoems(numericId.value),
   ])
   around.value = aroundRes.status === 'fulfilled' ? (aroundRes.value || []) : []
   transit.value = transitRes.status === 'fulfilled' ? (transitRes.value || []) : []
+  poems.value = poemsRes.status === 'fulfilled' ? (poemsRes.value || []) : []
 })
 
 const displayName = computed(() => {
   if (!scenic.value) return placeholderName.value
   return pickName(scenic.value, langStore.lang)
 })
+
+/* ── 打卡集章:上传现场照片落库 MySQL 后获得护照印章 ── */
+const checkedIn = ref(false)
+const checkinModalOpen = ref(false)
+const rewardShow = ref(false)
+
+async function refreshCheckInState() {
+  if (!hasToken() || !numericId.value) return
+  try {
+    const items = await listCheckIns()
+    checkedIn.value = items.some((it) => it.scenic_id === numericId.value)
+  } catch {
+    /* 网络失败按未打卡处理,不阻塞详情页主流程 */
+  }
+}
+
+function onCheckinClick() {
+  if (checkedIn.value) return
+  if (!hasToken()) {
+    router.push('/login')
+    return
+  }
+  checkinModalOpen.value = true
+}
+
+function onCheckinSuccess() {
+  checkedIn.value = true
+  rewardShow.value = true
+}
+
 const subName = computed(() => {
   if (!scenic.value) return ''
   return langStore.lang === 'zh' ? (scenic.value.name_en || '') : scenic.value.name_zh
@@ -85,6 +120,30 @@ const spotTags = computed(() =>
 const spotDesc = computed(() => pickDesc(scenic.value, langStore.lang))
 /* 文化注解:仅非中文语言且后端已生成时展示 */
 const cultureNotes = computed(() => pickCultureNote(scenic.value, langStore.lang))
+
+/* ── 相关诗词(诗词地图):中文原文任何界面语言都展示;译文/赏析按语言展开 ── */
+const poems = ref<PoemItem[]>([])
+const openPoemId = ref(0)
+
+function togglePoem(poem: PoemItem) {
+  openPoemId.value = openPoemId.value === poem.id ? 0 : poem.id
+}
+
+/** 中文原文按行拆分(原文入库时以 \n 分行) */
+function poemLines(contentZh: string): string[] {
+  return contentZh.split('\n').map((line) => line.trim()).filter(Boolean)
+}
+
+/** 当前语言下的展开内容:中文界面显示白话赏析;外语界面显示对应译文 */
+function poemExtras(poem: PoemItem): { key: string; label: string; text: string }[] {
+  if (langStore.lang === 'zh') {
+    return poem.plain_zh
+      ? [{ key: 'analysis', label: langStore.t('poems.analysis'), text: poem.plain_zh }]
+      : []
+  }
+  const text = langStore.lang === 'en' ? (poem.content_en || '') : (poem.content_ja || '')
+  return text ? [{ key: 'translation', label: langStore.t('poems.translation'), text }] : []
+}
 const heroImage = computed(() => (scenic.value?.images && !imgFailed.value) ? scenic.value.images : '')
 
 /* ── 多语语音导览:朗读当前语言的故事正文 ── */
@@ -257,6 +316,16 @@ onBeforeUnmount(() => {
                 {{ t }}
               </span>
             </div>
+            <!-- 打卡集章:需上传现场照片,通过后落库并盖护照印章 -->
+            <button
+              type="button"
+              class="detail-hero__checkin"
+              :class="{ 'detail-hero__checkin--done': checkedIn }"
+              @click="onCheckinClick"
+            >
+              <span class="detail-hero__checkin-seal" aria-hidden="true">印</span>
+              {{ checkedIn ? langStore.t('checkin.done') : langStore.t('checkin.button') }}
+            </button>
           </div>
         </div>
       </section>
@@ -334,6 +403,53 @@ onBeforeUnmount(() => {
                   <span>{{ note }}</span>
                 </li>
               </ul>
+            </div>
+
+            <!-- 相关诗词(诗词地图):原文人工权威录入,任何界面语言都显示中文原文 -->
+            <div v-if="poems.length" class="poem-card">
+              <div class="poem-card__head">
+                <span class="poem-card__icon" aria-hidden="true">🖌️</span>
+                <div class="poem-card__titles">
+                  <h3 class="poem-card__title">{{ langStore.t('poems.title') }}</h3>
+                  <p class="poem-card__hint">{{ langStore.t('poems.hint') }}</p>
+                </div>
+              </div>
+              <div class="poem-card__list">
+                <article
+                  v-for="poem in poems"
+                  :key="poem.id"
+                  class="poem-item"
+                  :class="{ 'poem-item--open': openPoemId === poem.id }"
+                >
+                  <header class="poem-item__head">
+                    <div class="poem-item__meta">
+                      <h4 class="poem-item__title">{{ poem.title }}</h4>
+                      <span class="poem-item__author">{{ poem.dynasty }}·{{ poem.author }}</span>
+                    </div>
+                    <button
+                      v-if="poemExtras(poem).length"
+                      type="button"
+                      class="poem-item__toggle"
+                      @click="togglePoem(poem)"
+                    >
+                      {{ openPoemId === poem.id ? langStore.t('poems.collapse') : langStore.t('poems.expand') }}
+                      <span aria-hidden="true">{{ openPoemId === poem.id ? '▴' : '▾' }}</span>
+                    </button>
+                  </header>
+                  <div class="poem-item__original">
+                    <p v-for="(line, i) in poemLines(poem.content_zh)" :key="i" class="poem-item__line">{{ line }}</p>
+                  </div>
+                  <div
+                    v-if="openPoemId === poem.id && poemExtras(poem).length"
+                    class="poem-item__extra"
+                  >
+                    <div v-for="block in poemExtras(poem)" :key="block.key" class="poem-item__extra-block">
+                      <span class="poem-item__extra-label">{{ block.label }}</span>
+                      <p class="poem-item__extra-text">{{ block.text }}</p>
+                    </div>
+                  </div>
+                </article>
+              </div>
             </div>
 
             <!-- 四川话一分钟:方言彩蛋,所有语言均展示 -->
@@ -487,7 +603,21 @@ onBeforeUnmount(() => {
           <template v-if="estimated.size">· {{ langStore.t('scenicDetail.estimatedTip') }}</template>
         </p>
       </section>
+
+      <!-- ──── 蜀文化知识闯关:答对得徽章,与旅行护照集章打通;无题目时组件自隐藏 ──── -->
+      <section v-if="numericId" class="detail-section container">
+        <QuizCard :spot-id="numericId" />
+      </section>
     </main>
+
+    <!-- 打卡弹窗 + 集章奖励动画 -->
+    <CheckInModal
+      v-model:open="checkinModalOpen"
+      :scenic-id="numericId"
+      :spot-name="displayName"
+      @success="onCheckinSuccess"
+    />
+    <StampReward :show="rewardShow" :spot-name="displayName" @close="rewardShow = false" />
   </div>
 </template>
 
@@ -715,6 +845,51 @@ onBeforeUnmount(() => {
   color: var(--color-gold);
 }
 
+/* 打卡集章按钮（hero 浮层内） */
+.detail-hero__checkin {
+  margin-top: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 20px 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-cinnabar) 55%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-cinnabar) 82%, black);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+}
+
+.detail-hero__checkin:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-cinnabar) 45%, transparent);
+}
+
+.detail-hero__checkin--done {
+  border-color: color-mix(in srgb, var(--color-cinnabar) 45%, transparent);
+  background: color-mix(in srgb, var(--color-cinnabar) 16%, rgba(0, 0, 0, 0.35));
+  color: color-mix(in srgb, var(--color-cinnabar) 35%, #fff);
+  cursor: default;
+  opacity: 0.9;
+}
+
+.detail-hero__checkin-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid currentColor;
+  font-size: 12px;
+  font-weight: 800;
+  transform: rotate(-8deg);
+}
+
 /* ========================================
    概要 — 评价横条 + 简介
    ======================================== */
@@ -877,6 +1052,147 @@ onBeforeUnmount(() => {
   margin-top: 8px;
   border-radius: var(--radius-full);
   background: #c98a2b;
+}
+
+/* ========================================
+   相关诗词卡(诗词地图:淡雅宣纸色系,与文化注解卡呼应)
+   ======================================== */
+.poem-card {
+  margin-top: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(107, 79, 38, 0.26);
+  background: linear-gradient(150deg, rgba(252, 250, 244, 0.92) 0%, rgba(247, 242, 230, 0.88) 55%, rgba(252, 248, 238, 0.92) 100%);
+}
+
+.poem-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.poem-card__icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-xl);
+}
+
+.poem-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #5b4a2f;
+  letter-spacing: var(--tracking-wide);
+}
+
+.poem-card__hint {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: rgba(91, 74, 47, 0.66);
+  letter-spacing: var(--tracking-wide);
+}
+
+.poem-card__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.poem-item {
+  padding: var(--space-3) 0;
+  border-top: 1px dashed rgba(107, 79, 38, 0.24);
+}
+
+.poem-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.poem-item__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.poem-item__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.poem-item__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #3f3222;
+  letter-spacing: var(--tracking-wide);
+}
+
+.poem-item__author {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: rgba(91, 74, 47, 0.72);
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
+}
+
+.poem-item__toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: var(--text-xs);
+  color: #6b4f26;
+  letter-spacing: var(--tracking-wide);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(107, 79, 38, 0.28);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.poem-item__toggle:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.poem-item__original {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.poem-item__line {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  line-height: var(--leading-relaxed);
+  letter-spacing: 0.08em;
+  color: #4a3b26;
+}
+
+.poem-item__extra {
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.poem-item__extra-label {
+  display: inline-block;
+  margin-bottom: 4px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: #8a5a12;
+  letter-spacing: var(--tracking-wide);
+}
+
+.poem-item__extra-text {
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: #6b5c42;
 }
 
 /* ── 语音导览按钮(故事标题旁) ── */

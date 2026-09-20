@@ -327,12 +327,28 @@ type TripChatRequest struct {
 	History  []ChatMessage  `json:"history"`
 	// Language 界面语言(zh/en/ja),决定 AI 回答语言;空视为 zh
 	Language string `json:"language"`
+	// SessionID 会话ID(登录用户传有效ID时,本轮对话落库 chat_sessions/chat_messages;0=不落库)
+	SessionID uint `json:"session_id"`
 }
 
 // TripChatResponse 行程问答响应。
 type TripChatResponse struct {
 	Success bool   `json:"success"`
 	Reply   string `json:"reply"`
+}
+
+// PersonaChatRequest 历史人物角色对话请求。
+type PersonaChatRequest struct {
+	// PersonaID 角色 ID(du-fu / zhuge-liang)
+	PersonaID string        `json:"persona_id"`
+	// Messages 对话消息列表,最后一条为本次用户提问
+	Messages  []ChatMessage `json:"messages"`
+	// Language 界面语言(zh/en/ja),决定角色回复语言;空视为 zh
+	Language  string        `json:"language"`
+	// SessionID 会话ID(登录用户传有效ID时,本轮对话落库;0=不落库)
+	SessionID uint `json:"session_id"`
+	// MemoryEnabled 角色长期记忆开关:true 时读取并异步提取该用户的角色记忆;默认 false
+	MemoryEnabled bool `json:"memory_enabled"`
 }
 
 // ============ 任务事件 ============

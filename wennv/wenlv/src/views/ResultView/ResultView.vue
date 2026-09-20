@@ -51,7 +51,12 @@
               </a-button>
 
               <a-button v-if="!editMode" type="default" @click="storyCardOpen = true">
-                🐼 {{ t('storyCard.title') }}
+                {{ t('storyCard.title') }}
+              </a-button>
+
+              <!-- 导出 .ics 日历文件,可导入手机/电脑日历 App -->
+              <a-button v-if="!editMode" type="default" :title="t('ics.exportTip')" @click="exportIcsFile">
+                {{ t('ics.export') }}
               </a-button>
             </a-space>
           </div>
@@ -692,6 +697,8 @@ import TripNavBar from '@/components/TripNavBar.vue'
 import OverviewAttractionCard from '@/components/OverviewAttractionCard.vue'
 import AIChat from '@/components/AIChat.vue'
 import type { TripPlan, TripPlanResponse, KnowledgeGraphData, GraphCategory, Attraction, Meal, Hotel, WeatherInfo } from '@/types/trip'
+import type { Language } from '@/types'
+import { exportTripIcs } from '@/utils/tripIcs'
 import {
   getRuntimeApiBaseUrl,
   getRuntimeMapJsKey,
@@ -829,6 +836,9 @@ const localeTag = computed(() => {
   if (currentLocale.startsWith('ja')) return 'ja-JP'
   return 'en-US'
 })
+
+/** 当前界面语言短码(zh/en/ja),供 .ics 描述文本多语取值 */
+const uiLang = computed<Language>(() => localeTag.value.split('-')[0] as Language)
 
 const weatherList = computed<WeatherInfo[]>(() => tripPlan.value?.weather_info ?? [])
 
@@ -2427,6 +2437,30 @@ const exportAsImage = async () => {
   } catch (error: any) {
     console.error('导出图片失败:', error)
     message.error({ content: t('result.messages.imageFailed', { error: error.message }), key: 'export' })
+  }
+}
+
+// ========== .ics 日历导出 ==========
+/** 把当前行程导出为 .ics 日历文件并触发下载(文件名: 前缀-城市-起始日.ics) */
+const exportIcsFile = () => {
+  const plan = tripPlan.value
+  if (!plan) return
+  try {
+    const blob = exportTripIcs(plan, uiLang.value)
+    // 文件名日期取行程起始日(缺失时以今天兜底,与 ics 内部逻辑一致);过滤文件系统非法字符
+    const safeCity = (plan.city || 'trip').replace(/[\\/:*?"<>|]/g, '')
+    const startDate = (plan.start_date || new Date().toISOString().slice(0, 10)).replace(/[/:]/g, '-')
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.download = `${t('ics.filePrefix')}-${safeCity}-${startDate}.ics`
+    link.href = url
+    link.click()
+    // 延迟释放对象 URL,避免部分浏览器在下载发起前就回收资源
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    message.success({ content: t('ics.success'), key: 'ics-export' })
+  } catch (error: any) {
+    console.error('导出日历失败:', error)
+    message.error({ content: t('ics.failed', { error: error?.message ?? String(error) }), key: 'ics-export' })
   }
 }
 // ========== 知识图谱初始化 ==========

@@ -370,6 +370,48 @@
     "scanTip": "扫码开启你的成都故事",
     "scanTipEn": "Scan to start your Chengdu story",
     "scanTipJa": "QRコードであなたの成都の物語を",
-    "filePrefix": "Chengdu-Story-Card"
+    "filePrefix": "Chengdu-Story-Card",
+    "templatePanda": "Panda",
+    "templateMask": "Opera Mask"
+  },
+  "ics": {
+    "export": "Export to Calendar",
+    "exportTip": "Download the .ics file and import it into your calendar app for reminders",
+    "filePrefix": "Trip",
+    "success": "Calendar file exported — import it into your calendar app",
+    "failed": "Failed to export calendar: {error}"
+  },
+  "personas": {
+    "switchLabel": "Chat persona",
+    "chatModeTip": "You are chatting with {name}",
+    "assistant": {
+      "name": "AI Concierge",
+      "title": "Trip Assistant"
+    },
+    "duFu": {
+      "name": "Du Fu",
+      "title": "Poet Sage",
+      "greeting": "I am Du Fu, courtesy name Zimei. Since leaving office and wandering into Shu, I have built my humble cottage by the Huanhua Stream, and seasons have come and gone. Where do you travel from, friend? If the simplicity of my thatched hall does not put you off, do sit — let us talk of Chengdu, its sights, and the heart within my poems.",
+      "placeholder": "Ask Du Fu…"
+    },
+    "zhuge": {
+      "name": "Zhuge Liang",
+      "title": "The Sleeping Dragon",
+      "greeting": "I am Liang, styled Kongming. Graced by the late Emperor's three visits, I devoted myself to Shu. From the Brocade City I now govern and shelter its people. You have come from afar, sir — what counsel do you seek? I would gladly hear your thoughts.",
+      "placeholder": "Ask Zhuge Liang…"
+    }
+  },
+  "chatHistory": {
+    "open": "History",
+    "newChat": "New chat",
+    "empty": "No past conversations yet",
+    "loginTip": "Log in to save your chat history"
+  },
+  "personaMemory": {
+    "toggle": "Persona memory",
+    "clear": "Clear memory",
+    "clearConfirm": "Clear all memories for this persona?",
+    "cleared": "Persona memory cleared",
+    "loginTip": "Log in to enable persona memory"
   }
 }
