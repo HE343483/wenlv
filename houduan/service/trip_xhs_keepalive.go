@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"wenlv-backend/logger"
 )
 
 // ============ 小红书 Cookie 保活 ============
@@ -65,7 +67,7 @@ func (k *XHSKeepalive) runOnce() {
 		err := k.refreshAt(ctx, idx, cookie)
 		cancel()
 		if err != nil {
-			fmt.Printf("🔄 [Cookie保活] 第 %d/%d 个 Cookie: %v\n", idx+1, len(cookies), err)
+			logger.Warnf("[Cookie保活] 第 %d/%d 个 Cookie: %v", idx+1, len(cookies), err)
 		}
 	}
 }
@@ -117,8 +119,7 @@ func (k *XHSKeepalive) refreshAt(ctx context.Context, idx int, cookie string) er
 	// 只替换该 Cookie 所在行,避免覆盖配置里的其它 Cookie
 	raw := k.settings.Snapshot().XHSCookie
 	k.settings.Update(map[string]string{"xhs_cookie": replaceXHSCookieAt(raw, idx, updated)})
-	fmt.Printf("🔄 [Cookie保活] 第 %d 个 Cookie 已从小红书响应续期并持久化 (旧长度=%d 新长度=%d)\n",
-		idx+1, len(cookie), len(updated))
+	logger.Infof("[Cookie保活] 第 %d 个 Cookie 已从小红书响应续期并持久化 (旧长度=%d 新长度=%d)", idx+1, len(cookie), len(updated))
 	return nil
 }
 

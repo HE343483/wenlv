@@ -98,7 +98,7 @@ func (h *CheckInHandler) CheckIn(c *gin.Context) {
 		case service.ErrInvalidInput:
 			pkg.BadRequest(c, "参数错误:缺少景点")
 		default:
-			pkg.ServerError(c, "打卡失败")
+			pkg.ServerErrorWithErr(c, err, "打卡失败")
 		}
 		return
 	}
@@ -110,7 +110,7 @@ func (h *CheckInHandler) List(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	items, err := h.svc.List(uid)
 	if err != nil {
-		pkg.ServerError(c, "查询打卡失败")
+		pkg.ServerErrorWithErr(c, err, "查询打卡失败")
 		return
 	}
 	pkg.OK(c, items)

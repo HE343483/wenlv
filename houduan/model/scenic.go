@@ -7,12 +7,17 @@ type ScenicSpot struct {
 	ID       uint    `gorm:"primaryKey;comment:景点ID" json:"id"`
 	NameZH   string  `gorm:"size:128;index;comment:景点中文名称" json:"name_zh"`
 	NameEN   string  `gorm:"size:128;comment:景点英文名称" json:"name_en"`
+	NameJA   string  `gorm:"size:128;comment:景点日文名称(LLM翻译,参考值)" json:"name_ja"`
 	District string  `gorm:"size:64;index;comment:所属区县" json:"district"`
 	Tags     string  `gorm:"size:255;comment:特色标签(逗号分隔)" json:"tags"` // 逗号分隔
 	Score    float64 `gorm:"type:decimal(3,1);comment:评分" json:"score"`
 	Lat      float64 `gorm:"comment:纬度" json:"lat"`
 	Lng      float64 `gorm:"comment:经度" json:"lng"`
 	Desc     string  `gorm:"type:text;comment:景点介绍" json:"desc"`
+	DescEN   string  `gorm:"type:text;comment:景点故事版英文介绍(LLM基于中文desc改写,参考值)" json:"desc_en"`
+	DescJA   string  `gorm:"type:text;comment:景点故事版日语介绍(LLM基于中文desc改写,参考值)" json:"desc_ja"`
+	CultureNoteEN string `gorm:"type:text;comment:文化注解英文(向外国游客解释文化背景,参考值)" json:"culture_note_en"`
+	CultureNoteJA string `gorm:"type:text;comment:文化注解日语(向外国游客解释文化背景,参考值)" json:"culture_note_ja"`
 	Images   string  `gorm:"type:text;comment:图片URL列表(逗号分隔)" json:"images"` // 逗号分隔 URL
 	// ===== 详情页扩展字段(高德 POI 采集 + LLM 参考值) =====
 	Address         string     `gorm:"size:255;comment:详细地址" json:"address"`

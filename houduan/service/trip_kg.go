@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -101,7 +102,7 @@ func kgT(key, lang string, kv ...string) string {
 // BuildKnowledgeGraph 由行程计划构建知识图谱。
 func BuildKnowledgeGraph(plan *model.TripPlan, language string) *model.KnowledgeGraphData {
 	lang := model.NormalizeLang(language)
-	fmt.Printf("[KG] build_knowledge_graph language='%s' -> resolved='%s'\n", language, lang)
+	logger.Infof("[KG] build_knowledge_graph language='%s' -> resolved='%s'", language, lang)
 
 	nodes := make([]model.GraphNode, 0, 32)
 	edges := make([]model.GraphEdge, 0, 32)

@@ -9,6 +9,7 @@ import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { listFoods, listFoodCards } from '@/api/content'
 import type { FoodItem } from '@/api/content'
+import { pickDesc, pickName } from '@/utils/storyI18n'
 import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 
@@ -383,7 +384,7 @@ const foodStreets = [
               v-if="f.images"
               class="food-grid__photo"
               :src="f.images"
-              :alt="langStore.lang === 'zh' ? f.name_zh : (f.name_en || f.name_zh)"
+              :alt="pickName(f, langStore.lang)"
               loading="lazy"
               referrerpolicy="no-referrer"
               @error="($event.target as HTMLImageElement).style.display = 'none'"
@@ -392,10 +393,10 @@ const foodStreets = [
           </div>
           <div class="food-grid__body">
             <h3 class="food-grid__name">
-              {{ langStore.lang === 'zh' ? f.name_zh : (f.name_en || f.name_zh) }}
+              {{ pickName(f, langStore.lang) }}
             </h3>
             <p v-if="langStore.lang !== 'zh' && f.name_zh" class="food-grid__en">{{ f.name_zh }}</p>
-            <p class="food-grid__desc">{{ foodBrief(f.desc) }}</p>
+            <p class="food-grid__desc">{{ foodBrief(pickDesc(f, langStore.lang)) }}</p>
           </div>
         </article>
       </div>

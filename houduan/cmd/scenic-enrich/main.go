@@ -12,7 +12,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 
 	"wenlv-backend/config"
 	"wenlv-backend/database"
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 	"wenlv-backend/repository"
@@ -39,6 +39,9 @@ func main() {
 
 	_ = godotenv.Load()
 	cfg := config.Load()
+
+	logger.ConfigureTool("scenic-enrich")
+	defer logger.Close()
 
 	db := mustDB(cfg, !*dryRun)
 	repo := repository.NewScenicRepo(db)
@@ -72,18 +75,18 @@ func main() {
 		Bucket:    os.Getenv("OSS_BUCKET"),
 	})
 	if !amap.Available() {
-		log.Fatal("高德 Web 服务 Key 未配置:请在 .env 的 AMAP_WEB_KEY 或前端设置页配置后重试")
+		logger.Fatalf("高德 Web 服务 Key 未配置:请在 .env 的 AMAP_WEB_KEY 或前端设置页配置后重试")
 	}
 	if !signer.Configured() {
-		log.Println("提示:OSS 未配置,将跳过相册图片采集")
+		logger.Infof("提示:OSS 未配置,将跳过相册图片采集")
 	}
 	if !llm.Available() {
-		log.Println("提示:LLM 未配置,将跳过图文详情与参考值生成")
+		logger.Infof("提示:LLM 未配置,将跳过图文详情与参考值生成")
 	}
 
 	spots, err := repo.ListAll()
 	if err != nil {
-		log.Fatalf("读取景点失败: %v", err)
+		logger.Fatalf("读取景点失败: %v", err)
 	}
 	if *only != "" {
 		filtered := make([]model.ScenicSpot, 0, 1)
@@ -97,11 +100,11 @@ func main() {
 	if *limit > 0 && *limit < len(spots) {
 		spots = spots[:*limit]
 	}
-	log.Printf("待处理景点 %d 个(dry-run=%v, with-llm=%v, with-images=%v)", len(spots), *dryRun, *withLLM, *withImages)
+	logger.Infof("待处理景点 %d 个(dry-run=%v, with-llm=%v, with-images=%v)", len(spots), *dryRun, *withLLM, *withImages)
 
 	// dry-run 时不落库、不上传:把 enricher 的写库动作短路
 	if *dryRun {
-		log.Println("dry-run 模式:复用正式跑的 POI 判定逻辑打印匹配结果,不写库、不上传")
+		logger.Infof("dry-run 模式:复用正式跑的 POI 判定逻辑打印匹配结果,不写库、不上传")
 	}
 
 	enricher := service.NewScenicEnricher(repo, amap, llm, signer, tripXHS)
@@ -109,7 +112,7 @@ func main() {
 	okCnt, failCnt, skipCnt := 0, 0, 0
 	for i, s := range spots {
 		time.Sleep(300 * time.Millisecond) // 控制高德 QPS:dry-run 与正式跑都节流,每轮只 sleep 一次
-		log.Printf("[%d/%d] %s", i+1, len(spots), s.NameZH)
+		logger.Infof("[%d/%d] %s", i+1, len(spots), s.NameZH)
 		if *dryRun {
 			// dry-run 复用 enricher 的真实判定,只打印匹配与字段取值,不落库
 			printDryRun(ctx, enricher, amap, s)
@@ -122,15 +125,15 @@ func main() {
 			Force:      *force,
 		})
 		if err != nil {
-			log.Printf("    落库失败: %v", err)
+			logger.Errorf("    落库失败: %v", err)
 			failCnt++
 			continue
 		}
-		log.Printf("    POI匹配=%v 上传图片=%d LLM=%v 更新字段=%v 备注=%s",
+		logger.Infof("    POI匹配=%v 上传图片=%d LLM=%v 更新字段=%v 备注=%s",
 			res.POIMatched, res.Uploaded, res.LLMUsed, res.UpdatedFields, res.Note)
 		okCnt++
 	}
-	log.Printf("完成: 成功 %d / 失败 %d / 试跑跳过 %d", okCnt, failCnt, skipCnt)
+	logger.Infof("完成: 成功 %d / 失败 %d / 试跑跳过 %d", okCnt, failCnt, skipCnt)
 }
 
 // printDryRun 打印高德匹配与字段取值,供人工核对后再正式跑。
@@ -139,16 +142,16 @@ func main() {
 func printDryRun(ctx context.Context, e *service.ScenicEnricher, amap *service.AmapService, s model.ScenicSpot) {
 	poiID, poiName, ok := e.MatchPOI(ctx, s)
 	if !ok {
-		log.Printf("    未匹配到高德 POI(与正式跑同一判定逻辑)")
+		logger.Infof("    未匹配到高德 POI(与正式跑同一判定逻辑)")
 		return
 	}
-	log.Printf("    匹配 POI: %s / %s", poiID, poiName)
+	logger.Infof("    匹配 POI: %s / %s", poiID, poiName)
 	d, err := amap.GetPOIDetail(ctx, poiID)
 	if err != nil {
-		log.Printf("    详情获取失败: %v", err)
+		logger.Warnf("    详情获取失败: %v", err)
 		return
 	}
-	log.Printf("    地址=%s 电话=%s 开放时间=%q 相册=%d 张", d.Address, d.Tel, d.OpenHours, len(d.Photos))
+	logger.Infof("    地址=%s 电话=%s 开放时间=%q 相册=%d 张", d.Address, d.Tel, d.OpenHours, len(d.Photos))
 }
 
 // getEnvOr 读取环境变量,为空时返回默认值(与 houduan/main.go 的同名工具保持一致)。
@@ -164,10 +167,10 @@ func getEnvOr(key, def string) string {
 func mustDB(cfg *config.Config, migrate bool) *gorm.DB {
 	db, err := database.InitMySQL(cfg)
 	if err != nil {
-		log.Fatalf("MySQL 连接失败: %v", err)
+		logger.Fatalf("MySQL 连接失败: %v", err)
 	}
 	if !migrate {
-		log.Println("dry-run 模式:跳过数据库迁移(不写库)")
+		logger.Infof("dry-run 模式:跳过数据库迁移(不写库)")
 		return db
 	}
 	database.MustAutoMigrate(db)

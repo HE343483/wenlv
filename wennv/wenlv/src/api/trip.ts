@@ -369,6 +369,35 @@ export async function getTripPlan(planId: string): Promise<any> {
   }
 }
 
+export interface StoryCardResponse {
+  success: boolean
+  language: 'zh' | 'en' | 'ja'
+  fallback: boolean
+  title?: string
+  body?: string
+}
+
+export type StoryCardLanguage = 'zh' | 'en' | 'ja'
+
+/**
+ * 生成旅行故事卡文案(AI 生成失败时后端返回 fallback:true,前端需用本地模板兜底)
+ */
+export async function generateStoryCard(
+  planId: string,
+  language: StoryCardLanguage
+): Promise<StoryCardResponse> {
+  try {
+    const response = await apiClient.post<StoryCardResponse>('/api/trip/story-card', {
+      plan_id: planId,
+      language,
+    })
+    return response.data
+  } catch (error: any) {
+    console.error('生成旅行故事卡失败:', error)
+    throw new Error(error.response?.data?.detail || error.message || t('api.generateStoryCardFailed'))
+  }
+}
+
 /**
  * 删除落库的历史计划
  */

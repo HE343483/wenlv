@@ -10,6 +10,7 @@ import { districts } from '@/data/chengdu'
 import { listScenics } from '@/api/content'
 import type { ScenicItem } from '@/api/content'
 import type { ScenicSpot } from '@/types'
+import { pickName } from '@/utils/storyI18n'
 import TagFilter from '@/components/TagFilter.vue'
 import DistrictFilter from '@/components/DistrictFilter.vue'
 import ScenicCard from '@/components/ScenicCard.vue'
@@ -29,7 +30,7 @@ function mapScenic(item: ScenicItem): ScenicSpot {
     id: `scenic-${item.id}`,
     districtId: d?.id ?? '',
     nameZh: item.name_zh,
-    nameEn: item.name_en || item.name_zh,
+    nameEn: pickName(item, langStore.lang),
     shortDescZh: desc.length > 30 ? desc.slice(0, 30) + '…' : desc,
     shortDescEn: desc.length > 60 ? desc.slice(0, 60) + '…' : desc,
     descriptionZh: desc,

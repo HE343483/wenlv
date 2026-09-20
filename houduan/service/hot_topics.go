@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/repository"
 )
@@ -147,7 +147,7 @@ func (s *HotTopicService) ListPage(page, pageSize int) (*HotTopicPage, error) {
 				return &p, nil
 			}
 		} else if err != redis.Nil {
-			log.Printf("[热点缓存] 读取失败(回源数据库): %v", err)
+			logger.Warnf("[热点缓存] 读取失败(回源数据库): %v", err)
 		}
 	}
 	p, err := s.listPageFromDB(page, pageSize)
@@ -158,7 +158,7 @@ func (s *HotTopicService) ListPage(page, pageSize int) (*HotTopicPage, error) {
 	if s.rdb != nil {
 		if data, err := json.Marshal(p); err == nil {
 			if err := s.rdb.Set(ctx, key, data, hotTopicCacheTTL).Err(); err != nil {
-				log.Printf("[热点缓存] 写入失败: %v", err)
+				logger.Warnf("[热点缓存] 写入失败: %v", err)
 			}
 		}
 	}
@@ -191,12 +191,12 @@ func (s *HotTopicService) invalidateCache() {
 	ctx := context.Background()
 	keys, err := s.rdb.Keys(ctx, "wenlv:hot_topics:list:*").Result()
 	if err != nil {
-		log.Printf("[热点缓存] 查找缓存键失败: %v", err)
+		logger.Warnf("[热点缓存] 查找缓存键失败: %v", err)
 		return
 	}
 	if len(keys) > 0 {
 		if err := s.rdb.Del(ctx, keys...).Err(); err != nil {
-			log.Printf("[热点缓存] 清除失败: %v", err)
+			logger.Warnf("[热点缓存] 清除失败: %v", err)
 		}
 	}
 }
@@ -211,10 +211,10 @@ type hotTopicEntry struct {
 
 // CrawlOnce 抓取一轮:遍历列表页所有分页 → 过滤已入库 → 抓详情补摘要/时间 → 翻译 → 落库。
 func (s *HotTopicService) CrawlOnce() {
-	log.Printf("[热点抓取] 开始抓取 %s", hotTopicListURL)
+	logger.Infof("[热点抓取] 开始抓取 %s", hotTopicListURL)
 	entries, err := s.parseListPages(hotTopicListURL)
 	if err != nil {
-		log.Printf("[热点抓取] 列表页抓取失败: %v", err)
+		logger.Errorf("[热点抓取] 列表页抓取失败: %v", err)
 		return
 	}
 	fetched := 0
@@ -224,7 +224,7 @@ func (s *HotTopicService) CrawlOnce() {
 		}
 		exists, err := s.repo.ExistsByURL(e.url)
 		if err != nil {
-			log.Printf("[热点抓取] 查重失败 %s: %v", e.url, err)
+			logger.Warnf("[热点抓取] 查重失败 %s: %v", e.url, err)
 			continue
 		}
 		if exists {
@@ -233,13 +233,13 @@ func (s *HotTopicService) CrawlOnce() {
 		// 每轮只对最新的一批文章做 LLM 翻译,控制调用成本
 		translate := fetched < hotTopicMaxTranslatePerRun
 		if err := s.crawlArticle(e, translate); err != nil {
-			log.Printf("[热点抓取] 文章抓取失败 %s: %v", e.url, err)
+			logger.Warnf("[热点抓取] 文章抓取失败 %s: %v", e.url, err)
 			continue
 		}
 		fetched++
 		time.Sleep(hotTopicFetchDelay)
 	}
-	log.Printf("[热点抓取] 本轮完成,列表 %d 条,新增 %d 条", len(entries), fetched)
+	logger.Infof("[热点抓取] 本轮完成,列表 %d 条,新增 %d 条", len(entries), fetched)
 	// 有新文章入库时清除列表缓存,让前端立即看到最新内容
 	if fetched > 0 {
 		s.invalidateCache()
@@ -260,7 +260,7 @@ func (s *HotTopicService) parseListPages(firstPageURL string) ([]hotTopicEntry, 
 			if page == 1 {
 				return nil, err // 首页失败直接报错
 			}
-			log.Printf("[热点抓取] 第 %d 页抓取结束: %v", page, err)
+			logger.Warnf("[热点抓取] 第 %d 页抓取结束: %v", page, err)
 			break // 后续页 404/超时视为抓取完毕
 		}
 		pageEntries := s.parseList(html)
@@ -327,7 +327,7 @@ func (s *HotTopicService) crawlArticle(e hotTopicEntry, translate bool) error {
 	if err := s.repo.Upsert(topic); err != nil {
 		return err
 	}
-	log.Printf("[热点抓取] 已入库: %s", topic.TitleZH)
+	logger.Infof("[热点抓取] 已入库: %s", topic.TitleZH)
 	return nil
 }
 
@@ -410,11 +410,11 @@ func (s *HotTopicService) translateTopic(topic *model.HotTopic) {
 		{Role: "user", Content: prompt},
 	}, 0.2, 1024)
 	if err != nil {
-		log.Printf("[热点抓取] LLM 翻译失败(保留中文): %v", err)
+		logger.Warnf("[热点抓取] LLM 翻译失败(保留中文): %v", err)
 		return
 	}
 	if strings.TrimSpace(resp) == "" {
-		log.Printf("[热点抓取] LLM 翻译返回为空,跳过翻译(保留中文)")
+		logger.Warnf("[热点抓取] LLM 翻译返回为空,跳过翻译(保留中文)")
 		return
 	}
 	var tr struct {
@@ -425,7 +425,7 @@ func (s *HotTopicService) translateTopic(topic *model.HotTopic) {
 	}
 	// 兼容模型输出带代码块/多余文本的情况
 	if err := json.Unmarshal([]byte(extractJSONObjectText(resp, resp)), &tr); err != nil {
-		log.Printf("[热点抓取] LLM 翻译结果解析失败: %v", err)
+		logger.Warnf("[热点抓取] LLM 翻译结果解析失败: %v", err)
 		return
 	}
 	topic.TitleEN = strings.TrimSpace(tr.TitleEN)

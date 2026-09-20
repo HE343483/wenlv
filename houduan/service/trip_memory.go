@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/repository"
 )
@@ -168,7 +169,7 @@ func (s *TripMemoryService) SavePreferencesAfterTrip(ctx context.Context, userID
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("⚠️  偏好记忆提取异常: %v\n", r)
+			logger.Warnf("偏好记忆提取异常: %v", r)
 		}
 	}()
 
@@ -190,7 +191,7 @@ func (s *TripMemoryService) SavePreferencesAfterTrip(ctx context.Context, userID
 	prompt := fmt.Sprintf(tripExtractPrompt, userQuery, content)
 	reply, err := s.llm.Chat(ctx, NewLLMMessages("你是一个旅行偏好分析助手,只输出JSON。", prompt), 0.2, 800)
 	if err != nil {
-		fmt.Printf("⚠️  偏好记忆提取失败: %v\n", err)
+		logger.Warnf("偏好记忆提取失败: %v", err)
 		return
 	}
 	jsonText := extractJSONArray(reply)
@@ -202,7 +203,7 @@ func (s *TripMemoryService) SavePreferencesAfterTrip(ctx context.Context, userID
 		Score   float64 `json:"score"`
 	}
 	if err := json.Unmarshal([]byte(jsonText), &parsed); err != nil {
-		fmt.Printf("⚠️  偏好记忆 JSON 解析失败: %v\n", err)
+		logger.Warnf("偏好记忆 JSON 解析失败: %v", err)
 		return
 	}
 	added := 0
@@ -217,7 +218,7 @@ func (s *TripMemoryService) SavePreferencesAfterTrip(ctx context.Context, userID
 		}
 	}
 	if added > 0 {
-		fmt.Printf("🧠 用户 %s 偏好记忆已更新,新增/合并 %d 条\n", truncateText(userID, 8), added)
+		logger.Infof("用户 %s 偏好记忆已更新,新增/合并 %d 条", truncateText(userID, 8), added)
 	}
 }
 

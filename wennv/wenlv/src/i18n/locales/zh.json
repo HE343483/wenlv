@@ -31,6 +31,7 @@
     "queryTaskStatusFailed": "查询任务状态失败",
     "deleteTripPlanFailed": "删除历史计划失败",
     "generateTripPlanFailed": "生成旅行计划失败",
+    "generateStoryCardFailed": "生成旅行故事卡失败",
     "healthCheckFailed": "健康检查失败"
   },
   "settings": {
@@ -38,6 +39,7 @@
     "title": "配置",
     "saveApply": "保存并应用",
     "cancel": "取消",
+    "notice": "无需任何配置即可直接使用系统内置服务。以下选项仅供希望使用自己的 API Key / Cookie 的高级用户填写。",
     "labels": {
       "apiBaseUrl": "后端地址",
       "amapJsKey": "高德地图 JS Key",
@@ -186,6 +188,7 @@
     "exportTrip": "导出行程",
     "exportImage": "导出攻略",
     "exportPdf": "导出为 PDF",
+    "planLangNotice": "该行程以{lang}生成保存，内容语言与当前界面不同",
     "side": {
       "overview": "行程概览",
       "budget": "预算明细",
@@ -335,5 +338,27 @@
     "mapInfo": {
       "dayAttraction": "第 {day} 天 景点 {index}"
     }
+  },
+  "storyCard": {
+    "title": "旅行故事卡",
+    "generate": "生成",
+    "regenerate": "重新生成",
+    "save": "保存图片",
+    "download": "下载",
+    "tip": "卡片为纯 Canvas 绘制，保存后即可分享",
+    "generating": "正在生成你的成都故事…",
+    "fallbackNotice": "AI 文案暂不可用，已为你套用本地模板",
+    "saveSuccess": "故事卡已保存",
+    "saveFailed": "保存失败: {error}",
+    "close": "关闭",
+    "cityName": "成都",
+    "cityNameEn": "CHENGDU",
+    "brand": "蜀韵智游 · AI 文旅行程",
+    "routeLabel": "行程路线",
+    "daysMeta": "{count} 天漫游",
+    "scanTip": "扫码开启你的成都故事",
+    "scanTipEn": "Scan to start your Chengdu story",
+    "scanTipJa": "QRコードであなたの成都の物語を",
+    "filePrefix": "成都旅行故事卡"
   }
 }

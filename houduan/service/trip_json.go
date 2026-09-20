@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -299,7 +300,7 @@ func llmRepairJSON(ctx context.Context, llm *TripLLM, broken string) string {
 
 	reply, err := llm.Chat(ctx, UserMessage(prompt), 0.0, 8000)
 	if err != nil {
-		fmt.Printf("⚠️  LLM 修复 JSON 失败: %v\n", err)
+		logger.Warnf("LLM 修复 JSON 失败: %v", err)
 		return broken
 	}
 	return extractJSONObjectText(reply, broken)
@@ -366,25 +367,25 @@ func ParseTripPlan(ctx context.Context, llm *TripLLM, response string, req *mode
 		var plan model.TripPlan
 		if err := json.Unmarshal([]byte(a.candidate), &plan); err == nil {
 			if a.name != "基础清理" {
-				fmt.Printf("✅ 行程 JSON 通过「%s」成功解析\n", a.name)
+				logger.Infof("行程 JSON 通过「%s」成功解析", a.name)
 			}
 			return &plan, nil
 		} else {
 			lastErr = err
 			if a.name == "基础清理" {
-				fmt.Printf("⚠️  首次行程 JSON 解析失败: %v\n", err)
+				logger.Warnf("首次行程 JSON 解析失败: %v", err)
 			} else {
-				fmt.Printf("⚠️  「%s」仍失败: %v\n", a.name, err)
+				logger.Warnf("「%s」仍失败: %v", a.name, err)
 			}
 		}
 	}
 
 	// 最终手段:LLM 修复
-	fmt.Println("🔧 所有本地修复均失败,尝试使用 LLM 修复行程 JSON...")
+	logger.Warnf("所有本地修复均失败,尝试使用 LLM 修复行程 JSON...")
 	llmFixed := sanitizeJSONString(llmRepairJSON(ctx, llm, jsonStr))
 	var plan model.TripPlan
 	if err := json.Unmarshal([]byte(llmFixed), &plan); err == nil {
-		fmt.Println("✅ 行程 JSON 通过 LLM 修复成功解析")
+		logger.Infof("行程 JSON 通过 LLM 修复成功解析")
 		return &plan, nil
 	}
 	if lastErr == nil {

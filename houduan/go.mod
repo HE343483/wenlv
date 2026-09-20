@@ -10,6 +10,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/redis/go-redis/v9 v9.22.0
 	golang.org/x/crypto v0.31.0
+	golang.org/x/image v0.46.0
 	golang.org/x/net v0.33.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.2

@@ -7,12 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 	"wenlv-backend/repository"
@@ -258,12 +258,12 @@ func fetchWikiArticle(ctx context.Context, client *http.Client, titles []string)
 		text, resolved, err := fetchWikiExtract(ctx, client, title)
 		if err != nil {
 			lastErr = err
-			log.Printf("    维基条目 %s 抓取失败: %v", title, err)
+			logger.Warnf("维基条目 %s 抓取失败: %v", title, err)
 			continue
 		}
 		if strings.TrimSpace(text) == "" {
 			lastErr = fmt.Errorf("条目 %s 正文为空", title)
-			log.Printf("    维基条目 %s 正文为空,尝试下一个候选", title)
+			logger.Warnf("维基条目 %s 正文为空,尝试下一个候选", title)
 			continue
 		}
 		if strings.TrimSpace(resolved) == "" {
@@ -340,7 +340,7 @@ func (e *FoodCategoryEnricher) searchCommonsCandidates(ctx context.Context, seed
 		requests++
 		results, err := searchCommonsImagesFor(ctx, client, kw, names, want-len(out))
 		if err != nil {
-			log.Printf("    Commons 搜索失败 (%s): %v", kw, err)
+			logger.Warnf("Commons 搜索失败 (%s): %v", kw, err)
 			continue
 		}
 		for _, r := range results {
@@ -474,10 +474,10 @@ func (e *FoodCategoryEnricher) Enrich(ctx context.Context, seed CategorySeed, op
 			if n > 0 {
 				images = append(images, urls...)
 				res.CommonsImageCount = n
-				log.Printf("    Commons 补图上传 %d 张", n)
+				logger.Infof("Commons 补图上传 %d 张", n)
 			}
 		} else {
-			log.Printf("    Commons 未找到可用补图,保持 %d 张", len(images))
+			logger.Warnf("Commons 未找到可用补图,保持 %d 张", len(images))
 		}
 	}
 	res.ImageCount = len(images)

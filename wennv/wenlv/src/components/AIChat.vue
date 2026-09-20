@@ -168,7 +168,7 @@ const props = defineProps<{
   tripPlan: TripPlan | null
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const chatOpen = ref(false)
 const chatInput = ref('')
 const chatHistory = ref<ChatMessage[]>([])
@@ -322,6 +322,7 @@ const sendChatMessage = async () => {
         message: text,
         trip_plan: props.tripPlan,
         history: chatHistory.value.slice(0, -2),
+        language: locale.value,
       }),
     })
     if (!res.ok || !res.body) {

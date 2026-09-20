@@ -35,7 +35,7 @@ func (h *HotTopicHandler) List(c *gin.Context) {
 	}
 	result, err := h.svc.ListPage(page, pageSize)
 	if err != nil {
-		pkg.ServerError(c, "查询文旅热点失败")
+		pkg.ServerErrorWithErr(c, err, "查询文旅热点失败")
 		return
 	}
 	pkg.OK(c, result)

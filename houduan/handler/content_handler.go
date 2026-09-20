@@ -52,7 +52,7 @@ func (h *ScenicHandler) List(c *gin.Context) {
 	opts := parseQuery(c)
 	items, total, err := h.svc.List(opts)
 	if err != nil {
-		pkg.ServerError(c, "查询景点失败")
+		pkg.ServerErrorWithErr(c, err, "查询景点失败")
 		return
 	}
 	listOK(c, items, total, opts)
@@ -87,7 +87,7 @@ func (h *FoodHandler) List(c *gin.Context) {
 	opts := parseQuery(c)
 	items, total, err := h.svc.List(opts)
 	if err != nil {
-		pkg.ServerError(c, "查询美食失败")
+		pkg.ServerErrorWithErr(c, err, "查询美食失败")
 		return
 	}
 	listOK(c, items, total, opts)
@@ -121,7 +121,7 @@ func NewFoodCardHandler(svc *service.FoodCardService) *FoodCardHandler {
 func (h *FoodCardHandler) List(c *gin.Context) {
 	items, err := h.svc.List()
 	if err != nil {
-		pkg.ServerError(c, "查询美食名片失败")
+		pkg.ServerErrorWithErr(c, err, "查询美食名片失败")
 		return
 	}
 	pkg.OK(c, items)
@@ -149,7 +149,7 @@ func (h *FoodCategoryHandler) Get(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		pkg.ServerError(c, "查询美食大类失败")
+		pkg.ServerErrorWithErr(c, err, "查询美食大类失败")
 		return
 	}
 	pkg.OK(c, v)
@@ -170,7 +170,7 @@ func (h *RouteHandler) List(c *gin.Context) {
 	opts := parseQuery(c)
 	items, total, err := h.svc.List(opts)
 	if err != nil {
-		pkg.ServerError(c, "查询路线失败")
+		pkg.ServerErrorWithErr(c, err, "查询路线失败")
 		return
 	}
 	listOK(c, items, total, opts)

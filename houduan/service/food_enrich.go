@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 	"wenlv-backend/repository"
@@ -175,14 +175,14 @@ func (e *FoodEnricher) Enrich(ctx context.Context, f model.Food, opts FoodEnrich
 					candidates = append(candidates, ScenicImageCandidate{URL: it.URL, Source: "commons"})
 				}
 			} else {
-				log.Printf("    Commons 取图失败: %v", err)
+				logger.Warnf("Commons 取图失败: %v", err)
 			}
 		}
 		if urls, n := uploadImageCandidates(ctx, newCommonsHTTPClient(), e.signer, fmt.Sprintf("food/%d", f.ID), candidates, foodGalleryWant); n > 0 {
 			images = urls
 			res.Uploaded = n
 			updates["gallery_images"] = strings.Join(urls, ",")
-			log.Printf("    图片: 上传 %d 张", n)
+			logger.Infof("图片: 上传 %d 张", n)
 		}
 	}
 	if isPlaceholderCover(f.Images) && len(images) > 0 {

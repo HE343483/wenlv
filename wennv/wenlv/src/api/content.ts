@@ -21,6 +21,7 @@ export interface ScenicItem {
   id: number
   name_zh: string
   name_en?: string
+  name_ja?: string
   district: string
   tags?: string
   score?: number
@@ -51,6 +52,15 @@ export interface ScenicItem {
   data_source?: string
   /** 数据采集时间 */
   data_updated_at?: string
+  // ===== 多语种故事字段(LLM 生成,未生成为空串,展示时回落 desc) =====
+  /** 故事版英文介绍 */
+  desc_en?: string
+  /** 故事版日语介绍 */
+  desc_ja?: string
+  /** 文化注解英文(1-3 条,每条一句换行分隔) */
+  culture_note_en?: string
+  /** 文化注解日语(1-3 条,每条一句换行分隔) */
+  culture_note_ja?: string
 }
 
 export function listScenics(params?: QueryParams): Promise<PageResult<ScenicItem>> {
@@ -98,6 +108,7 @@ export interface FoodItem {
   id: number
   name_zh: string
   name_en?: string
+  name_ja?: string
   district: string
   tags?: string
   desc?: string
@@ -133,6 +144,21 @@ export interface FoodItem {
   data_source?: string
   /** 数据采集时间 */
   data_updated_at?: string
+  // ===== 多语种故事 + 国际点菜卡字段(LLM 生成,未生成为空串) =====
+  /** 故事版英文介绍 */
+  desc_en?: string
+  /** 故事版日语介绍 */
+  desc_ja?: string
+  /** 文化注解英文(1-3 条,每条一句换行分隔) */
+  culture_note_en?: string
+  /** 文化注解日语(1-3 条,每条一句换行分隔) */
+  culture_note_ja?: string
+  /** 菜名字面直译(如 夫妻肺片→Husband and Wife Lung Slices) */
+  name_literal_en?: string
+  /** 主要食材中文(含过敏原) */
+  ingredients_zh?: string
+  /** 食材英文 */
+  ingredients_en?: string
 }
 
 export function listFoods(params?: QueryParams): Promise<PageResult<FoodItem>> {
@@ -149,6 +175,7 @@ export interface FoodCardItem {
   card_key: string
   name_zh: string
   name_en?: string
+  name_ja?: string
   /** 配图 OSS 地址 */
   image?: string
   sort?: number
@@ -171,6 +198,7 @@ export interface FoodCategoryItem {
   key: string
   name_zh: string
   name_en?: string
+  name_ja?: string
   /** 类别概述(LLM 依据维基素材改写,参考值) */
   intro?: string
   /** 类别图文段落 JSON 串 */
@@ -198,6 +226,10 @@ export interface RouteStop {
   name_ja?: string
   /** 站点简介(维基百科导言,无词条时为运营文案) */
   desc?: string
+  /** 站点简介英文(LLM 生成,可能未生成) */
+  desc_en?: string
+  /** 站点简介日语(LLM 生成,可能未生成) */
+  desc_ja?: string
   /** 站点配图 OSS 地址 */
   image?: string
 }
@@ -212,6 +244,10 @@ export interface RouteItem {
   title_ja?: string
   theme?: string
   description?: string
+  /** 路线简介英文(LLM 生成,可能未生成) */
+  description_en?: string
+  /** 路线简介日语(LLM 生成,可能未生成) */
+  description_ja?: string
   /** 建议游玩天数 */
   days?: number
   /** 偏好标签(逗号分隔,与 AI 行程兴趣项一致) */

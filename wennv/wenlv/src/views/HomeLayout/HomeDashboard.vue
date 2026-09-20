@@ -12,6 +12,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 import { getRecommendedSpots, newsItems, funFacts } from '@/data/chengdu'
 import { listScenics, listHotspots, type ScenicItem, type HotspotItem } from '@/api/content'
+import { pickName } from '@/utils/storyI18n'
 
 const router = useRouter()
 const langStore = useLanguageStore()
@@ -34,7 +35,7 @@ function fromRemoteScenic(item: ScenicItem): RecSpot {
   return {
     key: `db-${item.id}`,
     nameZh: item.name_zh,
-    nameEn: item.name_en || item.name_zh,
+    nameEn: pickName(item, langStore.lang),
     descZh: item.desc || '',
     descEn: item.desc || '',
     tags: (item.tags || '').split(',').map(t => t.trim()).filter(Boolean),

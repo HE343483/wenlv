@@ -12,7 +12,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 
 	"wenlv-backend/config"
 	"wenlv-backend/database"
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 	"wenlv-backend/pkg"
 	"wenlv-backend/repository"
@@ -39,6 +39,9 @@ func main() {
 
 	_ = godotenv.Load()
 	cfg := config.Load()
+
+	logger.ConfigureTool("food-enrich")
+	defer logger.Close()
 
 	db := mustDB(cfg, !*dryRun)
 	repo := repository.NewFoodRepo(db)
@@ -70,18 +73,18 @@ func main() {
 		Bucket:    os.Getenv("OSS_BUCKET"),
 	})
 	if !amap.Available() {
-		log.Fatal("高德 Web 服务 Key 未配置:请在 .env 的 AMAP_WEB_KEY 或前端设置页配置后重试")
+		logger.Fatalf("高德 Web 服务 Key 未配置:请在 .env 的 AMAP_WEB_KEY 或前端设置页配置后重试")
 	}
 	if !signer.Configured() {
-		log.Println("提示:OSS 未配置,将跳过相册图片采集")
+		logger.Infof("提示:OSS 未配置,将跳过相册图片采集")
 	}
 	if !llm.Available() {
-		log.Println("提示:LLM 未配置,将跳过风味故事与参考值生成")
+		logger.Infof("提示:LLM 未配置,将跳过风味故事与参考值生成")
 	}
 
 	foods, err := repo.ListAll()
 	if err != nil {
-		log.Fatalf("读取美食失败: %v", err)
+		logger.Fatalf("读取美食失败: %v", err)
 	}
 	if *only != "" {
 		filtered := make([]model.Food, 0, 1)
@@ -95,9 +98,9 @@ func main() {
 	if *limit > 0 && *limit < len(foods) {
 		foods = foods[:*limit]
 	}
-	log.Printf("待处理美食 %d 个(dry-run=%v, with-llm=%v, with-images=%v)", len(foods), *dryRun, *withLLM, *withImages)
+	logger.Infof("待处理美食 %d 个(dry-run=%v, with-llm=%v, with-images=%v)", len(foods), *dryRun, *withLLM, *withImages)
 	if *dryRun {
-		log.Println("dry-run 模式:复用正式跑的 POI 判定逻辑打印匹配结果,不写库、不上传、不调 LLM")
+		logger.Infof("dry-run 模式:复用正式跑的 POI 判定逻辑打印匹配结果,不写库、不上传、不调 LLM")
 	}
 
 	enricher := service.NewFoodEnricher(repo, amap, llm, signer)
@@ -105,7 +108,7 @@ func main() {
 	okCnt, failCnt, skipCnt := 0, 0, 0
 	for i, f := range foods {
 		time.Sleep(300 * time.Millisecond) // 控制高德 QPS:dry-run 与正式跑都节流,每轮只 sleep 一次
-		log.Printf("[%d/%d] %s", i+1, len(foods), f.NameZH)
+		logger.Infof("[%d/%d] %s", i+1, len(foods), f.NameZH)
 		if *dryRun {
 			printFoodDryRun(ctx, enricher, amap, f)
 			skipCnt++
@@ -117,15 +120,15 @@ func main() {
 			Force:      *force,
 		})
 		if err != nil {
-			log.Printf("    落库失败: %v", err)
+			logger.Errorf("    落库失败: %v", err)
 			failCnt++
 			continue
 		}
-		log.Printf("    POI匹配=%v 上传图片=%d LLM=%v 更新字段=%v 备注=%s",
+		logger.Infof("    POI匹配=%v 上传图片=%d LLM=%v 更新字段=%v 备注=%s",
 			res.POIMatched, res.Uploaded, res.LLMUsed, res.UpdatedFields, res.Note)
 		okCnt++
 	}
-	log.Printf("完成: 成功 %d / 失败 %d / 试跑跳过 %d", okCnt, failCnt, skipCnt)
+	logger.Infof("完成: 成功 %d / 失败 %d / 试跑跳过 %d", okCnt, failCnt, skipCnt)
 }
 
 // printFoodDryRun 打印门店匹配结果(门店名/地址/评分/人均/相册张数),供人工核对后再正式跑。
@@ -134,16 +137,16 @@ func main() {
 func printFoodDryRun(ctx context.Context, e *service.FoodEnricher, amap *service.AmapService, f model.Food) {
 	poi, ok := e.MatchPOI(ctx, f)
 	if !ok {
-		log.Printf("    未匹配到同名门店(门店事实留空,评分/人均改由 LLM 出参考值)")
+		logger.Infof("    未匹配到同名门店(门店事实留空,评分/人均改由 LLM 出参考值)")
 		return
 	}
-	log.Printf("    匹配门店: %s", poi.Name)
+	logger.Infof("    匹配门店: %s", poi.Name)
 	d, err := amap.GetPOIDetail(ctx, poi.ID)
 	if err != nil {
-		log.Printf("    门店详情获取失败: %v", err)
+		logger.Warnf("    门店详情获取失败: %v", err)
 		return
 	}
-	log.Printf("    门店名=%s 地址=%s 评分=%s 人均=%s 相册=%d 张",
+	logger.Infof("    门店名=%s 地址=%s 评分=%s 人均=%s 相册=%d 张",
 		d.Name, d.Address, d.Rating, d.Cost, len(d.Photos))
 }
 
@@ -152,10 +155,10 @@ func printFoodDryRun(ctx context.Context, e *service.FoodEnricher, amap *service
 func mustDB(cfg *config.Config, migrate bool) *gorm.DB {
 	db, err := database.InitMySQL(cfg)
 	if err != nil {
-		log.Fatalf("MySQL 连接失败: %v", err)
+		logger.Fatalf("MySQL 连接失败: %v", err)
 	}
 	if !migrate {
-		log.Println("dry-run 模式:跳过数据库迁移(不写库)")
+		logger.Infof("dry-run 模式:跳过数据库迁移(不写库)")
 		return db
 	}
 	database.MustAutoMigrate(db)

@@ -10,6 +10,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
 import { listRoutes, parseRouteStops, type RouteItem, type RouteStop } from '@/api/content'
+import { pickDesc } from '@/utils/storyI18n'
 import { curatedRoutes, type Locale } from '@/data/curatedRoutes'
 import dictZh from '@/locales/zh'
 import dictEn from '@/locales/en'
@@ -41,6 +42,9 @@ function dictValue(key: string): unknown {
 interface RouteStopView {
   name: string
   desc: string
+  /** 站点简介多语种故事(LLM 生成,可能未生成,展示时经 pickDesc 回落 desc) */
+  desc_en?: string
+  desc_ja?: string
   image: string
 }
 interface RouteView {
@@ -48,6 +52,9 @@ interface RouteView {
   image: string
   title: string
   desc: string
+  /** 路线简介多语种故事(LLM 生成,可能未生成,展示时经 pickDesc 回落 desc) */
+  desc_en?: string
+  desc_ja?: string
   days: number
   tags: string[]
   stops: RouteStopView[]
@@ -76,11 +83,15 @@ function fromDB(item: RouteItem): RouteView {
     image: item.cover_image || '',
     title,
     desc: item.description || '',
+    desc_en: item.description_en || '',
+    desc_ja: item.description_ja || '',
     days: item.days || 1,
     tags,
     stops: parseRouteStops(item.stops).map(s => ({
       name: stopName(s),
       desc: s.desc || '',
+      desc_en: s.desc_en || '',
+      desc_ja: s.desc_ja || '',
       image: s.image || '',
     })),
   }
@@ -217,7 +228,7 @@ function pad(n: number): string {
         <div class="route-row__body">
           <span v-if="r.tags.length" class="route-row__theme">{{ r.tags.join(' · ') }}</span>
           <h3 class="route-row__title">{{ r.title }}</h3>
-          <p class="route-row__desc">{{ r.desc }}</p>
+          <p class="route-row__desc">{{ pickDesc(r, langStore.lang) }}</p>
 
           <div class="route-row__stops">
             <span v-for="(s, j) in r.stops.slice(0, 5)" :key="j" class="route-row__stop">
@@ -278,7 +289,7 @@ function pad(n: number): string {
               <div class="route-modal__tags">
                 <span v-for="tag in activeRoute.tags" :key="tag" class="route-modal__tag">{{ tag }}</span>
               </div>
-              <p class="route-modal__desc">{{ activeRoute.desc }}</p>
+              <p class="route-modal__desc">{{ pickDesc(activeRoute, langStore.lang) }}</p>
 
               <h4 class="route-modal__stops-title">{{ langStore.t('routes.stopsLabel') }}</h4>
               <ol class="route-modal__stops">
@@ -286,7 +297,7 @@ function pad(n: number): string {
                   <span class="route-modal__stop-index">{{ pad(i) }}</span>
                   <div class="route-modal__stop-main">
                     <span class="route-modal__stop-name">{{ s.name }}</span>
-                    <p v-if="s.desc" class="route-modal__stop-desc">{{ s.desc }}</p>
+                    <p v-if="pickDesc(s, langStore.lang)" class="route-modal__stop-desc">{{ pickDesc(s, langStore.lang) }}</p>
                   </div>
                   <img v-if="s.image" class="route-modal__stop-img" :src="s.image" :alt="s.name" loading="lazy" />
                 </li>

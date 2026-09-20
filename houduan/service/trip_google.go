@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -110,7 +111,7 @@ func (s *GoogleMapService) Geocode(ctx context.Context, address, city string) *m
 	params.Set("language", "zh-CN")
 	raw, err := s.get(ctx, "https://maps.googleapis.com/maps/api/geocode/json", params, nil)
 	if err != nil {
-		fmt.Printf("[Google] 地理编码失败 (%s): %v\n", address, err)
+		logger.Warnf("[Google] 地理编码失败 (%s): %v", address, err)
 		return nil
 	}
 	var result struct {
@@ -149,7 +150,7 @@ func (s *GoogleMapService) SearchPOI(ctx context.Context, keywords, city string,
 	raw, err := s.postJSON(ctx, "https://places.googleapis.com/v1/places:searchText",
 		map[string]any{"textQuery": textQuery, "languageCode": "zh-CN"}, headers)
 	if err != nil {
-		fmt.Printf("[Google] POI 搜索失败: %v\n", err)
+		logger.Warnf("[Google] POI 搜索失败: %v", err)
 		return nil
 	}
 	var result struct {
@@ -285,7 +286,7 @@ func (s *GoogleMapService) GetWeather(ctx context.Context, city string) []model.
 	}
 	loc := s.Geocode(ctx, city, "")
 	if loc == nil {
-		fmt.Printf("[Google] 天气查询: 无法解析城市 '%s' 的坐标\n", city)
+		logger.Warnf("[Google] 天气查询: 无法解析城市 '%s' 的坐标", city)
 		return nil
 	}
 	params := url.Values{}
@@ -298,7 +299,7 @@ func (s *GoogleMapService) GetWeather(ctx context.Context, city string) []model.
 
 	raw, err := s.get(ctx, "https://weather.googleapis.com/v1/forecast/days:lookup", params, nil)
 	if err != nil {
-		fmt.Printf("[Google] 天气查询失败: %v\n", err)
+		logger.Warnf("[Google] 天气查询失败: %v", err)
 		return nil
 	}
 	var result struct {
@@ -362,7 +363,7 @@ func (s *GoogleMapService) GetWeather(ctx context.Context, city string) []model.
 			WindPower:     windPower,
 		})
 	}
-	fmt.Printf("[Google] 天气查询成功: %s, %d 天预报\n", city, len(out))
+	logger.Infof("[Google] 天气查询成功: %s, %d 天预报", city, len(out))
 	return out
 }
 
@@ -412,7 +413,7 @@ func GeocodeUnified(ctx context.Context, settings *TripSettings, amap *AmapServi
 			googleGeoFailedMu.Lock()
 			if !googleGeoFailedFlg {
 				googleGeoFailedFlg = true
-				fmt.Printf("⚠️ [Dispatcher] Google 地理编码失败(后续景点采用高德): %s\n", firstNonEmpty(addressEn, address))
+				logger.Warnf("[Dispatcher] Google 地理编码失败(后续景点采用高德): %s", firstNonEmpty(addressEn, address))
 			}
 			googleGeoFailedMu.Unlock()
 		}

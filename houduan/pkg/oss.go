@@ -179,7 +179,29 @@ func (s *OssSigner) DeleteObject(key string) error {
 	return nil
 }
 
+// 上传前压缩参数:维基等来源原图常达 10MB+,直传既占桶空间又拖慢前端加载,
+// 统一在入 OSS 前缩到 1920px 宽(前端详情大图展示宽度 ≤1280,留足高分屏余量)。
+const (
+	uploadImageMaxWidth = 1920
+	uploadImageQuality  = 85
+)
+
+// compressImageForUpload 上传前压缩图片字节,返回压缩后内容与 Content-Type。
+// 仅对图片类内容(或类型未知的二进制)尝试,非图片会因解码失败自动跳过;
+// 压缩后输出格式与原图一致,故调用方按原扩展名拼的 key 无需改动。
+func compressImageForUpload(data []byte, contentType string) ([]byte, string) {
+	if !strings.HasPrefix(contentType, "image/") && contentType != "application/octet-stream" {
+		return data, contentType
+	}
+	resized, ct, ok := ResizeImage(data, uploadImageMaxWidth, uploadImageQuality)
+	if !ok {
+		return data, contentType
+	}
+	return resized, ct
+}
+
 // PutObjectBytes 直传字节内容,contentType 为空时按 key 后缀推断。
+// 图片类内容会先压缩(见 compressImageForUpload);非图片或压缩无收益时按原样上传。
 func (s *OssSigner) PutObjectBytes(data []byte, key, contentType string) (string, error) {
 	if !s.Configured() {
 		return "", errors.New("OSS 未配置")
@@ -187,6 +209,7 @@ func (s *OssSigner) PutObjectBytes(data []byte, key, contentType string) (string
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
+	data, contentType = compressImageForUpload(data, contentType)
 	date := time.Now().UTC().Format(http.TimeFormat)
 	// StringToSign = VERB \n Content-MD5 \n Content-Type \n Date \n /Bucket/Key
 	stringToSign := fmt.Sprintf("PUT\n\n%s\n%s\n/%s/%s", contentType, date, s.Bucket, key)

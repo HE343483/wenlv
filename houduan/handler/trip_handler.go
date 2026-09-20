@@ -11,22 +11,28 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"wenlv-backend/logger"
+	"wenlv-backend/middleware"
 	"wenlv-backend/model"
 	"wenlv-backend/service"
 )
 
 // TripHandler AI 行程规划接口(移植自 TripStar,响应结构保持与前端一致)。
 type TripHandler struct {
-	planner *service.TripPlanner
-	chat    *service.TripChatService
-	tasks   *service.TripTaskStore
-	settings *service.TripSettings
+	planner     *service.TripPlanner
+	chat        *service.TripChatService
+	tasks       *service.TripTaskStore
+	settings    *service.TripSettings
+	ratelimiter *middleware.RateLimiter
+	// storyCard 旅行故事卡片文案生成(出海分享功能)
+	storyCard *service.TripStoryCardService
 }
 
 // NewTripHandler 构造行程规划处理器。
 func NewTripHandler(planner *service.TripPlanner, chat *service.TripChatService,
-	tasks *service.TripTaskStore, settings *service.TripSettings) *TripHandler {
-	return &TripHandler{planner: planner, chat: chat, tasks: tasks, settings: settings}
+	tasks *service.TripTaskStore, settings *service.TripSettings, ratelimiter *middleware.RateLimiter,
+	storyCard *service.TripStoryCardService) *TripHandler {
+	return &TripHandler{planner: planner, chat: chat, tasks: tasks, settings: settings, ratelimiter: ratelimiter, storyCard: storyCard}
 }
 
 var tripUpgrader = websocket.Upgrader{
@@ -66,13 +72,26 @@ func (h *TripHandler) Plan(c *gin.Context) {
 		}
 		cityDisplay = joinArrow(names)
 	}
-	fmt.Printf("\n📥 收到旅行规划请求 (task_id=%s): %s\n", taskID, cityDisplay)
+	logger.Infof("收到旅行规划请求 task_id=%s 城市=%s", taskID, cityDisplay)
+
+	// 全局并发生成上限:LLM 生成是分钟级长任务,超限直接拒绝,防止额度被打爆
+	if h.ratelimiter != nil && !h.ratelimiter.AcquirePlanSlot() {
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"success": false,
+			"detail":  "当前生成任务较多，请稍后再试",
+			"message": "当前生成任务较多，请稍后再试",
+		})
+		return
+	}
 
 	// 后台执行规划,通过 WebSocket / 轮询推送进度。
 	// 这里必须脱离请求上下文:HTTP 响应返回后请求上下文会被取消,而规划任务需要继续执行。
 	planCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	go func() {
 		defer cancel()
+		if h.ratelimiter != nil {
+			defer h.ratelimiter.ReleasePlanSlot()
+		}
 		h.planner.RunPlanning(planCtx, taskID, &req)
 	}()
 
@@ -256,7 +275,7 @@ func (h *TripHandler) Ask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"detail": "参数错误:message 与 trip_plan 必填"})
 		return
 	}
-	reply, err := h.chat.ChatWithTripContext(c.Request.Context(), req.Message, req.TripPlan, req.History)
+	reply, err := h.chat.ChatWithTripContext(c.Request.Context(), req.Message, req.Language, req.TripPlan, req.History)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"detail": "AI问答服务异常: " + err.Error()})
 		return
@@ -283,7 +302,7 @@ func (h *TripHandler) AskStream(c *gin.Context) {
 		c.Writer.Flush()
 	}
 
-	err := h.chat.ChatWithTripContextStream(c.Request.Context(), req.Message, req.TripPlan, req.History, func(delta string) {
+	err := h.chat.ChatWithTripContextStream(c.Request.Context(), req.Message, req.Language, req.TripPlan, req.History, func(delta string) {
 		data, _ := json.Marshal(map[string]string{"delta": delta})
 		writeEvent(string(data))
 	})
@@ -293,6 +312,48 @@ func (h *TripHandler) AskStream(c *gin.Context) {
 		return
 	}
 	writeEvent("[DONE]")
+}
+
+// StoryCard 生成旅行故事卡片文案(出海分享)。
+// 入参 {plan_id, language};LLM 失败时返回 fallback 标记,前端用本地模板兜底,不报错。
+func (h *TripHandler) StoryCard(c *gin.Context) {
+	var req struct {
+		PlanID   string `json:"plan_id"`
+		Language string `json:"language"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.PlanID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"detail": "参数错误:plan_id 必填"})
+		return
+	}
+	record, err := h.tasks.GetPlanRecord(req.PlanID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"detail": "计划不存在或已删除"})
+		return
+	}
+	lang := service.NormalizeStoryLang(req.Language)
+	resp := gin.H{"success": true, "language": lang, "fallback": false}
+	if record.PlanJSON == "" {
+		resp["fallback"] = true
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	var plan model.TripPlan
+	if err := json.Unmarshal([]byte(record.PlanJSON), &plan); err != nil {
+		resp["fallback"] = true
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	content, err := h.storyCard.Generate(c.Request.Context(), lang, &plan)
+	if err != nil {
+		// 降级:不 500,前端用本地模板文案兜底
+		resp["fallback"] = true
+		resp["message"] = "AI 文案生成失败,已回退模板文案: " + err.Error()
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	resp["title"] = content.Title
+	resp["body"] = content.Body
+	c.JSON(http.StatusOK, resp)
 }
 
 func joinArrow(items []string) string {

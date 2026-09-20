@@ -175,6 +175,16 @@ func (h *TripToolHandler) photoBytesBySource(ctx context.Context, source, name, 
 	return h.xhs.PhotoBytes(ctx, name, city)
 }
 
+// PhotoBytesWithFallback 取景点图片字节,内容源失败时回退高德 POI 图片。
+// 供行程图片 OSS 上传器复用(与 /api/poi/image 代理同一套缓存与兜底逻辑)。
+func (h *TripToolHandler) PhotoBytesWithFallback(ctx context.Context, source, name, city string) ([]byte, string, error) {
+	content, contentType, err := h.photoBytesBySource(ctx, normalizeImageSource(source), name, city)
+	if err != nil {
+		return h.amapPhotoBytes(ctx, name, city)
+	}
+	return content, contentType, nil
+}
+
 // amapPhotoBytes 高德图片兜底:按名称+城市检索 POI,取详情首图并下载字节。
 // 结果带内存缓存(命中 24h,负缓存 10min),避免同一景点反复调用高德接口。
 func (h *TripToolHandler) amapPhotoBytes(ctx context.Context, name, city string) ([]byte, string, error) {

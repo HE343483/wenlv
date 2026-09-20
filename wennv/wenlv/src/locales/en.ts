@@ -315,6 +315,19 @@ export default {
     categoryStories: 'Stories of This Category',
     contentSource: 'Content source: Wikipedia (CC BY-SA)',
   },
+  cultureNote: {
+    title: 'Culture Notes',
+    hint: 'A little context to help you understand the local culture',
+  },
+  menuCard: {
+    title: 'Ordering Card',
+    literal: 'Literal translation',
+    literalTip: 'This literal translation may scare the waiter 😅',
+    ingredients: 'Ingredients / Allergens',
+    ingredientsZh: 'Ingredients (Chinese)',
+    ingredientsEn: 'Ingredients (English)',
+    spice: 'Spice Level',
+  },
   login: {
     title: 'Login',
     backHome: 'Back to Home',

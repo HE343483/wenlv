@@ -246,6 +246,8 @@ type TripPlan struct {
 	WeatherInfo        []WeatherInfo `json:"weather_info"`
 	OverallSuggestions string        `json:"overall_suggestions"`
 	Budget             *Budget       `json:"budget,omitempty"`
+	// Language 计划生成时的界面语言(zh/en/ja),用于历史回看时提示语言版本,不做自动重译
+	Language string `json:"language,omitempty"`
 	// AttractionSource 景点数据来源:xhs=小红书真人推荐 / douyin=抖音真人分享 / map=高德地图检索,用于前端展示图片来源标注
 	AttractionSource string `json:"attraction_source,omitempty"`
 }
@@ -323,6 +325,8 @@ type TripChatRequest struct {
 	Message  string         `json:"message"`
 	TripPlan map[string]any `json:"trip_plan"`
 	History  []ChatMessage  `json:"history"`
+	// Language 界面语言(zh/en/ja),决定 AI 回答语言;空视为 zh
+	Language string `json:"language"`
 }
 
 // TripChatResponse 行程问答响应。
@@ -357,6 +361,7 @@ type TripHistoryItem struct {
 	TravelDays         int      `json:"travel_days"`
 	UpdatedAt          string   `json:"updated_at"`
 	OverallSuggestions string   `json:"overall_suggestions,omitempty"`
+	Language           string   `json:"language,omitempty"`      // 计划生成时的界面语言(zh/en/ja)
 	Status             string   `json:"status,omitempty"`        // completed/failed
 	ErrorMessage       string   `json:"error_message,omitempty"` // 失败原因
 }
@@ -387,6 +392,7 @@ type TripPlanRecord struct {
 	EndDate            string    `gorm:"size:32;comment:结束日期" json:"end_date"`
 	TravelDays         int       `gorm:"comment:行程天数" json:"travel_days"`
 	OverallSuggestions string    `gorm:"type:text;comment:AI总体建议" json:"overall_suggestions"`
+	Language           string    `gorm:"size:8;comment:计划生成时的界面语言(zh/en/ja)" json:"language"`
 	PlanJSON           string    `gorm:"type:longtext;comment:行程计划完整JSON" json:"-"`
 	GraphJSON          string    `gorm:"type:longtext;comment:知识图谱JSON" json:"-"`
 	RequestJSON        string    `gorm:"type:longtext;comment:原始规划请求JSON" json:"-"`

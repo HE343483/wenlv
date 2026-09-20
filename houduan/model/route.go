@@ -13,6 +13,8 @@ type Route struct {
 	TitleJA     string    `gorm:"size:128;comment:路线日语名称" json:"title_ja"`
 	Theme       string    `gorm:"size:64;comment:路线主题" json:"theme"`
 	Description string    `gorm:"type:text;comment:路线简介" json:"description"`
+	DescriptionEN string  `gorm:"type:text;comment:路线故事版英文简介(LLM基于中文description改写,参考值)" json:"description_en"`
+	DescriptionJA string  `gorm:"type:text;comment:路线故事版日语简介(LLM基于中文description改写,参考值)" json:"description_ja"`
 	Days        int       `gorm:"default:1;comment:建议游玩天数" json:"days"`
 	Interests   string    `gorm:"size:128;comment:偏好标签(逗号分隔,对应AI行程兴趣项)" json:"interests"`
 	CoverImage  string    `gorm:"type:text;comment:封面图片URL(OSS地址)" json:"cover_image"`

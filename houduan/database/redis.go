@@ -2,12 +2,12 @@ package database
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"wenlv-backend/config"
+	"wenlv-backend/logger"
 )
 
 // InitRedis 建立 Redis 连接并 Ping 验证。
@@ -30,7 +30,7 @@ func InitRedis(cfg *config.Config) (*redis.Client, error) {
 func MustRedis(cfg *config.Config) *redis.Client {
 	rdb, err := InitRedis(cfg)
 	if err != nil {
-		log.Fatalf("Redis 连接失败: %v", err)
+		logger.Fatalf("Redis 连接失败: %v", err)
 	}
 	return rdb
 }

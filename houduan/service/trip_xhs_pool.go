@@ -2,10 +2,11 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"wenlv-backend/logger"
 )
 
 // ============ 小红书 Cookie 池 ============
@@ -149,8 +150,7 @@ func withXHSCookie[T any](s *XHSService, ctx context.Context, fn func(cookie str
 		}
 		// 风控/Cookie 失效:冷却当前 Cookie,换下一个重试
 		s.pool.markBad(cookie)
-		fmt.Printf("⚠️  [Cookie轮换] 当前小红书 Cookie 不可用,已冷却 %v(共 %d 个,尝试第 %d 个)\n",
-			xhsCookieCooldown, len(cookies), attempt+1)
+		logger.Warnf("[Cookie轮换] 当前小红书 Cookie 不可用,已冷却 %v(共 %d 个,尝试第 %d 个)", xhsCookieCooldown, len(cookies), attempt+1)
 	}
 
 	if lastErr == nil {

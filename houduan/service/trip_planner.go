@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"wenlv-backend/logger"
 	"wenlv-backend/model"
 )
 
@@ -150,9 +151,9 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 		cityNames = append(cityNames, cs.City)
 	}
 
-	fmt.Printf("\n%s\n🚀 开始多智能体协作规划旅行...\n途经城市: %s\n日期: %s 至 %s\n天数: %d天\n偏好: %s\n%s\n",
-		strings.Repeat("=", 60), strings.Join(cityNames, " → "), req.StartDate, req.EndDate, req.TravelDays,
-		firstNonEmpty(strings.Join(req.Preferences, ", "), "无"), strings.Repeat("=", 60))
+	logger.Infof("开始多智能体协作规划旅行 | 途经城市: %s | 日期: %s 至 %s | 天数: %d天 | 偏好: %s",
+		strings.Join(cityNames, " → "), req.StartDate, req.EndDate, req.TravelDays,
+		firstNonEmpty(strings.Join(req.Preferences, ", "), "无"))
 
 	p.updateTask(taskID, func(t *TripTask) {
 		t.Status = TripTaskProcessing
@@ -198,7 +199,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 			t.Progress = progressBase
 			t.Message = fmt.Sprintf("正在搜索 %s 的景点...%s", city, cityLabel)
 		})
-		fmt.Printf("  [%d/%d] 正在搜索 %s 的景点...\n", idx+1, totalCities, city)
+		logger.Infof("[%d/%d] 正在搜索 %s 的景点...", idx+1, totalCities, city)
 		var attractionText string
 		switch req.AttractionSource {
 		case "map":
@@ -214,7 +215,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 					return
 				}
 				// 抖音不可用(未配置 Cookie / 抓取失败)时降级为地图 POI 兜底,保证行程仍能生成
-				fmt.Printf("  ⚠️ %s 抖音景点获取失败,降级使用地图 POI 兜底: %v\n", city, err)
+				logger.Warnf("%s 抖音景点获取失败,降级使用地图 POI 兜底: %v", city, err)
 				text = p.attractionsFromMap(ctx, city, keywords)
 			}
 			attractionText = text
@@ -229,7 +230,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 					return
 				}
 				// 小红书不可用(未配置 Cookie / 抓取失败)时降级为地图 POI 兜底,保证行程仍能生成
-				fmt.Printf("  ⚠️ %s 小红书景点获取失败,降级使用地图 POI 兜底: %v\n", city, err)
+				logger.Warnf("%s 小红书景点获取失败,降级使用地图 POI 兜底: %v", city, err)
 				text = p.attractionsFromMap(ctx, city, keywords)
 			}
 			attractionText = text
@@ -242,7 +243,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 			t.Progress = progressBase + progressStep
 			t.Message = fmt.Sprintf("正在查询 %s 的天气...%s", city, cityLabel)
 		})
-		fmt.Printf("  [%d/%d] 正在查询 %s 的天气...\n", idx+1, totalCities, city)
+		logger.Infof("[%d/%d] 正在查询 %s 的天气...", idx+1, totalCities, city)
 		weather[city] = p.queryWeatherText(ctx, city, provider, langHint)
 
 		// [3] 酒店搜索
@@ -251,11 +252,11 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 			t.Progress = progressBase + progressStep*2
 			t.Message = fmt.Sprintf("正在搜索 %s 的酒店...%s", city, cityLabel)
 		})
-		fmt.Printf("  [%d/%d] 正在搜索 %s 的酒店...\n", idx+1, totalCities, city)
+		logger.Infof("[%d/%d] 正在搜索 %s 的酒店...", idx+1, totalCities, city)
 		hotels[city] = p.queryHotelText(ctx, city, req.Accommodation, provider, langHint)
 	}
 
-	fmt.Printf("\n✅ 全部 %d 个城市基础信息搜集完成\n\n", totalCities)
+	logger.Infof("全部 %d 个城市基础信息搜集完成", totalCities)
 
 	// ========== 统一规划阶段 ==========
 	planningLabel := "正在生成旅行计划..."
@@ -278,7 +279,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 		p.failTask(taskID, fmt.Sprintf("旅行计划生成失败: %v", err))
 		return
 	}
-	fmt.Printf("行程规划结果: %s...\n\n", truncateText(plannerResponse, 300))
+	logger.Infof("行程规划结果: %s...", truncateText(plannerResponse, 300))
 
 	plan, err := ParseTripPlan(ctx, p.llm, plannerResponse, req)
 	if err != nil {
@@ -307,6 +308,8 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 	}
 	// 记录景点数据来源,供前端展示图片来源标注
 	plan.AttractionSource = req.AttractionSource
+	// 记录生成时的界面语言,供历史回看时提示语言版本
+	plan.Language = lang
 	if totalCities == 1 {
 		for i := range plan.Days {
 			if plan.Days[i].City == "" {
@@ -335,7 +338,7 @@ func (p *TripPlanner) RunPlanning(ctx context.Context, taskID string, req *model
 		Data:      plan,
 		GraphData: graph,
 	}
-	fmt.Printf("✅ 任务 %s 完成\n", taskID)
+	logger.Infof("任务 %s 完成", taskID)
 	p.updateTask(taskID, func(t *TripTask) {
 		t.Status = TripTaskCompleted
 		t.Stage = "completed"
@@ -518,7 +521,7 @@ func FallbackSuggestions(plan *model.TripPlan, cities []string, lang string) str
 }
 
 func (p *TripPlanner) failTask(taskID, msg string) {
-	fmt.Printf("❌ 任务 %s 失败: %s\n", taskID, msg)
+	logger.Errorf("任务 %s 失败: %s", taskID, msg)
 	p.updateTask(taskID, func(t *TripTask) {
 		t.Status = TripTaskFailed
 		t.Stage = "failed"
@@ -591,7 +594,7 @@ func (p *TripPlanner) queryWeatherText(ctx context.Context, city, provider, lang
 			list := svc.GetWeather(ctx, city)
 			if len(list) == 0 {
 				// Google 无数据,降级高德天气 REST
-				fmt.Printf("  ⚠️ %s Google 天气查询失败,降级到高德天气 API...\n", city)
+				logger.Warnf("%s Google 天气查询失败,降级到高德天气 API...", city)
 				return p.amap.WeatherText(ctx, city)
 			}
 			lines := make([]string, 0, len(list))
@@ -656,7 +659,7 @@ func (p *TripPlanner) runPlannerWithRetry(ctx context.Context, req *model.TripRe
 		if !strings.Contains(lower, "timeout") && !strings.Contains(lower, "超时") && !strings.Contains(lower, "deadline") {
 			return "", err
 		}
-		fmt.Println("⚠️  首次行程规划超时,正在重试一次...")
+		logger.Warnf("首次行程规划超时,正在重试一次...")
 		retryQuery := query + "\n\n**补充要求:** 如果部分辅助信息不足,请使用保守、常见、可执行的建议补齐,但必须输出完整合法的 JSON,不要输出解释性文字。"
 		return p.llm.ChatWithTimeout(ctx, p.settings.PlannerTimeoutSeconds(), NewLLMMessages(tripPlannerPrompt, retryQuery), 0.2, 16000)
 	}

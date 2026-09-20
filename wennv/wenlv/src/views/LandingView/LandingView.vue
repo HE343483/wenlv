@@ -217,7 +217,7 @@
             <h2 class="stepper-title">{{ t('home.loading.planCode', { code: tripTask.planCode }) }}</h2>
             <p class="stepper-subtitle">{{ t('home.loading.preparing') }}</p>
           </div>
-          
+
           <div class="stepper-container">
             <!-- Step 1: Searching Attractions -->
             <div class="step-node" :class="{ active: tripTask.progress >= 0 && tripTask.progress <= 30, completed: tripTask.progress > 30 }">
@@ -263,7 +263,7 @@
               <p class="node-text">{{ tripTask.progress >= 100 ? t('home.loading.done') : t('home.loading.generatingPlan') }}</p>
             </div>
           </div>
-          
+
           <div class="stepper-footer">
             <h3>{{ tripTask.statusText }}</h3>
             <p v-if="tripTask.progress < 100">{{ t('home.loading.workingTogether') }}</p>
@@ -306,6 +306,9 @@
                 <a-tag v-if="item.status === 'failed'" color="error" class="history-failed-tag">
                   {{ t('home.history.failedTag') }}
                 </a-tag>
+                <a-tag v-if="planLangLabel(item.language)" color="blue" class="history-lang-tag">
+                  {{ planLangLabel(item.language) }}
+                </a-tag>
                 <span class="history-date">{{ item.start_date }} {{ t('common.to') }} {{ item.end_date }}</span>
               </div>
               <p class="history-meta">
@@ -336,6 +339,18 @@
         </div>
       </div>
     </section>
+
+    <!-- 悬浮设置按钮:配置 LLM / 地图 Key / Cookie 等运行时参数 -->
+    <button
+      type="button"
+      class="floating-settings-btn"
+      :title="t('settings.open')"
+      :aria-label="t('settings.open')"
+      @click="settingsVisible = true"
+    >
+      <svg width="22px" height="22px" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M600.704 64a32 32 0 0 1 30.464 22.208l35.2 109.376c14.784 7.232 28.928 15.36 42.432 24.512l112.384-24.192a32 32 0 0 1 34.432 15.36L944.32 364.8a32 32 0 0 1-4.032 37.504l-77.12 85.12a357.12 357.12 0 0 1 0 49.024l77.12 85.248a32 32 0 0 1 4.032 37.504l-88.704 153.6a32 32 0 0 1-34.432 15.296L708.8 803.904c-13.44 9.088-27.648 17.28-42.368 24.512l-35.264 109.376A32 32 0 0 1 600.704 960H423.296a32 32 0 0 1-30.464-22.208L357.696 828.48a351.616 351.616 0 0 1-42.56-24.64l-112.32 24.256a32 32 0 0 1-34.432-15.36L79.68 659.2a32 32 0 0 1 4.032-37.504l77.12-85.248a357.12 357.12 0 0 1 0-48.896l-77.12-85.248A32 32 0 0 1 79.68 364.8l88.704-153.6a32 32 0 0 1 34.432-15.296l112.32 24.256c13.568-9.152 27.776-17.408 42.56-24.64l35.2-109.312A32 32 0 0 1 423.232 64H600.64zm-23.424 64H446.72l-36.352 113.088-24.512 11.968a294.113 294.113 0 0 0-34.816 20.096l-22.656 15.36-116.224-25.088-65.28 113.152 79.68 88.192-1.92 27.136a293.12 293.12 0 0 0 0 40.192l1.92 27.136-79.808 88.192 65.344 113.152 116.224-25.024 22.656 15.296a294.113 294.113 0 0 0 34.816 20.096l24.512 11.968L446.72 896h130.688l36.48-113.152 24.448-11.904a288.282 288.282 0 0 0 34.752-20.096l22.592-15.296 116.288 25.024 65.28-113.152-79.744-88.192 1.92-27.136a293.12 293.12 0 0 0 0-40.256l-1.92-27.136 79.808-88.128-65.344-113.152-116.288 24.96-22.592-15.232a287.616 287.616 0 0 0-34.752-20.096l-24.448-11.904L577.344 128zM512 320a192 192 0 1 1 0 384 192 192 0 0 1 0-384zm0 64a128 128 0 1 0 0 256 128 128 0 0 0 0-256z"/></svg>
+    </button>
+    <TripSettingsModal v-model:open="settingsVisible" />
   </div>
 </template>
 
@@ -378,6 +393,17 @@ const panelHeight = ref<number | string>('auto')
 const fogEnabled = ref(true)
 const historyLoading = ref(false)
 const historyPlans = ref<TripHistoryItem[]>([])
+
+/** 计划生成语言的展示名(语言自称,无需翻译);旧记录无 language 字段时返回空不显示 */
+const PLAN_LANG_LABELS: Record<string, string> = {
+  zh: '🇨🇳 中文',
+  en: '🇬🇧 English',
+  ja: '🇯🇵 日本語',
+}
+const planLangLabel = (lang?: string) => (lang ? PLAN_LANG_LABELS[lang] || '' : '')
+
+/** 运行时配置弹窗(LLM / 地图 Key / Cookie) */
+const settingsVisible = ref(false)
 
 /** 用户偏好记忆开关:持久化到 localStorage,提交行程时随请求发送 */
 const memoryEnabled = ref(isMemoryEnabled())
@@ -1506,6 +1532,40 @@ const handleSubmit = async () => {
 
   .interest-group {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 悬浮设置按钮:固定在右下角,不随页面滚动 */
+.floating-settings-btn {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1040;
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(20, 32, 38, 0.72);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.floating-settings-btn:hover {
+  background: rgba(34, 52, 60, 0.9);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 520px) {
+  .floating-settings-btn {
+    right: 14px;
+    bottom: 14px;
+    width: 40px;
+    height: 40px;
   }
 }
 </style>
