@@ -29,6 +29,8 @@ const quickNavs = [
   { route: '/home/food', key: 'nav.food' },
   { route: '/home/routes', key: 'nav.routes' },
   { route: '/home/favorites', key: 'nav.favorites' },
+  { route: '/guide', key: 'nav.guide' },
+  { route: '/passport', key: 'nav.passport' },
 ] as const
 
 const isQuickActive = (target: string) => {

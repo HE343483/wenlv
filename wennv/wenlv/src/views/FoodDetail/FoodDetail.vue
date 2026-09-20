@@ -13,6 +13,11 @@ import { useLanguageStore } from '@/stores/language'
 import { getFood, listFoods, getFoodCategory } from '@/api/content'
 import type { FoodItem, FoodCategoryItem } from '@/api/content'
 import { parseSections, estimatedSet, splitList, displayFact } from '@/utils/scenicDetail'
+import { pickDesc, pickCultureNote, pickName } from '@/utils/storyI18n'
+import { isSpeaking as voiceSpeaking, speak, stopSpeaking, hasVoiceFor } from '@/utils/speech'
+import dictZh from '@/locales/zh'
+import dictEn from '@/locales/en'
+import dictJa from '@/locales/ja'
 import { getRuntimeMapJsKey } from '@/api/trip'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import AppIcon from '@/components/AppIcon.vue'
@@ -140,6 +145,32 @@ const displayDesc = computed(() => {
 /* 文化注解:仅非中文语言且后端已生成时展示(类别页无此字段,自动为空) */
 const cultureNotes = computed(() => pickCultureNote(food.value, langStore.lang))
 
+/* ── 多语语音导览:朗读当前语言的美食故事(类别页无 desc,按钮置灰) ── */
+const speakText = computed(() => (food.value ? pickDesc(food.value, langStore.lang).trim() : ''))
+const voiceAvailable = computed(() => !!speakText.value && hasVoiceFor(langStore.lang))
+const voiceTitle = computed(() => {
+  if (voiceSpeaking.value) return langStore.t('voice.stop')
+  return voiceAvailable.value ? langStore.t('voice.play') : langStore.t('voice.unsupported')
+})
+
+function toggleVoice() {
+  if (voiceSpeaking.value) {
+    stopSpeaking()
+    return
+  }
+  if (speakText.value) speak(speakText.value, langStore.lang)
+}
+
+/* 切换语言时停止朗读,避免跨语言续播 */
+watch(() => langStore.lang, () => stopSpeaking())
+
+/* ── 四川话一分钟:结构化方言数据(数组取值走语言字典,langStore.t 仅支持字符串) ── */
+interface DialectWord { word: string; pinyin: string; meaning: string; scene: string }
+const dialectDicts = { zh: dictZh, en: dictEn, ja: dictJa } as const
+const dialectWords = computed<DialectWord[]>(
+  () => (dialectDicts[langStore.lang] as unknown as { dialect: { words: DialectWord[] } }).dialect.words
+)
+
 /* 事实 / 参考值字段：空值统一显示"暂无数据" */
 const ratingText = computed(() => displayFact(food.value?.rating, noData.value))
 const flavorText = computed(() => displayFact(food.value?.flavor, noData.value))
@@ -198,6 +229,7 @@ async function initMap() {
 }
 
 onBeforeUnmount(() => {
+  stopSpeaking()
   if (amapInstance) amapInstance.destroy()
 })
 
@@ -433,6 +465,18 @@ watch(foodId, () => { loadDetail() })
               <span>◈</span>
               {{ langStore.t(isFallback ? 'foodDetail.categoryOverview' : 'foodDetail.overview') }}
               <span>◈</span>
+              <!-- 语音导览:朗读当前语言的美食故事 -->
+              <button
+                type="button"
+                class="voice-btn"
+                :class="{ 'voice-btn--active': voiceSpeaking }"
+                :disabled="!voiceAvailable && !voiceSpeaking"
+                :title="voiceTitle"
+                @click="toggleVoice"
+              >
+                <span class="voice-btn__icon" aria-hidden="true">{{ voiceSpeaking ? '⏹' : '🔊' }}</span>
+                {{ voiceSpeaking ? langStore.t('voice.stop') : langStore.t('voice.play') }}
+              </button>
             </div>
             <p class="detail-summary__text">
               {{ displayDesc }}
@@ -452,6 +496,25 @@ watch(foodId, () => { loadDetail() })
                 <li v-for="(note, i) in cultureNotes" :key="i" class="culture-note__item">
                   <span class="culture-note__dot" aria-hidden="true" />
                   <span>{{ note }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- 四川话一分钟:方言彩蛋,所有语言均展示 -->
+            <div class="dialect-card">
+              <div class="dialect-card__head">
+                <span class="dialect-card__icon" aria-hidden="true">🌶</span>
+                <div class="dialect-card__titles">
+                  <h3 class="dialect-card__title">{{ langStore.t('dialect.title') }}</h3>
+                  <p class="dialect-card__hint">{{ langStore.t('dialect.hint') }}</p>
+                </div>
+              </div>
+              <ul class="dialect-card__list">
+                <li v-for="w in dialectWords" :key="w.word" class="dialect-card__item">
+                  <span class="dialect-card__word">{{ w.word }}</span>
+                  <span class="dialect-card__pinyin">{{ w.pinyin }}</span>
+                  <span class="dialect-card__meaning">{{ w.meaning }}</span>
+                  <span class="dialect-card__scene">{{ w.scene }}</span>
                 </li>
               </ul>
             </div>
@@ -1148,6 +1211,141 @@ watch(foodId, () => { loadDetail() })
   margin-top: 8px;
   border-radius: var(--radius-full);
   background: #c98a2b;
+}
+
+/* ── 语音导览按钮(故事标题旁) ── */
+.voice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--space-3);
+  padding: 3px 12px;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-cinnabar);
+  border: 1px solid color-mix(in srgb, var(--color-cinnabar) 45%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-cinnabar) 6%, transparent);
+  transition: color var(--transition-fast), background var(--transition-fast),
+    border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.voice-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-cinnabar) 14%, transparent);
+  border-color: var(--color-cinnabar);
+  transform: translateY(-1px);
+}
+
+.voice-btn--active {
+  color: var(--color-cinnabar);
+  border-color: var(--color-cinnabar);
+  background: color-mix(in srgb, var(--color-cinnabar) 14%, transparent);
+}
+
+.voice-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.voice-btn__icon {
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+/* ========================================
+   四川话一分钟卡(方言彩蛋:辣椒红渐变,与琥珀色 Culture Note 区分)
+   ======================================== */
+.dialect-card {
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(190, 47, 30, 0.32);
+  background: linear-gradient(135deg, rgba(248, 218, 208, 0.6) 0%, rgba(253, 244, 239, 0.9) 60%, rgba(250, 226, 216, 0.55) 100%);
+}
+
+.dialect-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.dialect-card__icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-xl);
+}
+
+.dialect-card__title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: #a02c1d;
+  letter-spacing: var(--tracking-wide);
+}
+
+.dialect-card__hint {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: rgba(160, 44, 29, 0.72);
+  letter-spacing: var(--tracking-wide);
+}
+
+.dialect-card__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dialect-card__item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed rgba(190, 47, 30, 0.22);
+}
+
+.dialect-card__item:last-child {
+  border-bottom: none;
+}
+
+.dialect-card__word {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--color-cinnabar);
+  letter-spacing: var(--tracking-wide);
+  line-height: 1.2;
+}
+
+.dialect-card__pinyin {
+  font-family: var(--font-en-body);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: rgba(160, 44, 29, 0.78);
+  letter-spacing: var(--tracking-wide);
+}
+
+.dialect-card__meaning {
+  font-size: var(--text-sm);
+  color: #6f2a20;
+}
+
+.dialect-card__scene {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: rgba(111, 42, 32, 0.6);
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .dialect-card {
+    padding: var(--space-4);
+  }
+  .dialect-card__scene {
+    margin-left: 0;
+    width: 100%;
+    text-align: left;
+  }
 }
 
 /* ========================================

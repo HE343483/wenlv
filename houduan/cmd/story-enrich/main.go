@@ -96,6 +96,10 @@ func mustDB(cfg *config.Config) *gorm.DB {
 	if err != nil {
 		logger.Fatalf("MySQL 连接失败: %v", err)
 	}
+	// 工具日志落库 log_entries(module=story-enrich)
+	if err := logger.SetDB(db); err != nil {
+		logger.Fatalf("日志表 log_entries 初始化失败: %v", err)
+	}
 	database.MustAutoMigrate(db)
 	return db
 }

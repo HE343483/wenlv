@@ -20,6 +20,8 @@ export default {
     register: '注册',
     langSwitch: 'EN',
     weather: '获取天气',
+    guide: '入境指南',
+    passport: '旅行护照',
   },
   hero: {
     title: '巴蜀文化 · 锦绣天府',
@@ -327,6 +329,93 @@ export default {
     ingredientsZh: '食材（中文）',
     ingredientsEn: 'Ingredients（英文）',
     spice: '辣度',
+  },
+  voice: {
+    play: '朗读',
+    stop: '停止',
+    unsupported: '当前浏览器没有该语言的语音',
+  },
+  dialect: {
+    title: '四川话一分钟',
+    hint: '学一句四川话，把成都说进心里',
+    words: [
+      { word: '巴适', pinyin: 'bā shì', meaning: '舒服、棒', scene: '夸食物、夸风景都好用' },
+      { word: '安逸', pinyin: 'ān yì', meaning: '惬意、舒坦', scene: '喝茶晒太阳的时候说' },
+      { word: '雄起', pinyin: 'xióng qǐ', meaning: '加油！', scene: '看球赛、比赛助威必备' },
+      { word: '摆龙门阵', pinyin: 'bǎi lóngmén zhèn', meaning: '聊天、侃大山', scene: '老友茶馆闲聊' },
+      { word: '要得', pinyin: 'yào dé', meaning: '好、行', scene: '答应别人请求时说' },
+      { word: '扎起', pinyin: 'zhā qǐ', meaning: '撑腰、力挺', scene: '朋友需要支持的时候' },
+    ],
+  },
+  guide: {
+    eyebrow: '入境指南',
+    title: '入境游实用工具箱',
+    hero: '专为第一次来中国的你准备的落地生存指南',
+    payment: {
+      title: '支付',
+      items: [
+        { title: '绑卡即扫', desc: '支付宝、微信支付支持绑定境外银行卡（Visa/Mastercard 等），下载 App 实名认证后即可像本地人一样扫码消费。' },
+        { title: '外卡有限额', desc: '境外卡单笔与单日消费有上限，大额支付前留意 App 内的限额提示。' },
+        { title: '备少量现金', desc: '街边小摊与部分小店可能只收现金，随身备少量人民币更稳妥。' },
+      ],
+    },
+    transport: {
+      title: '交通',
+      items: [
+        { title: '12306 英文版', desc: '中国铁路官网与 App 有英文版，用护照注册即可购票，也可到车站人工窗口购买。' },
+        { title: '地铁扫码进站', desc: '成都地铁可在人工窗口购票，或用支付宝/微信内的乘车码扫码进站。' },
+        { title: '网约车有英文界面', desc: '滴滴等网约车 App 提供英文界面，输入目的地即可叫车，无需口头沟通。' },
+      ],
+    },
+    hotel: {
+      title: '住宿',
+      items: [
+        { title: '选“涉外接待”资质酒店', desc: '预订时留意酒店是否具备涉外接待资质，部分民宿与小店无法接待境外旅客。' },
+        { title: '入住需登记证件', desc: '办理入住时需出示护照，由前台扫描并上传住宿登记信息，这是所有境外旅客的规定流程。' },
+      ],
+    },
+    telecom: {
+      title: '通讯',
+      items: [
+        { title: 'eSIM 与国际漫游', desc: '出发前可购买支持中国大陆的 eSIM，或开通国际漫游、落地后办理本地 SIM 卡。' },
+        { title: '装好三件套 App', desc: '提前装好地图（高德/百度）、翻译与支付 App，并下载离线地图包以防没网。' },
+      ],
+    },
+    emergency: {
+      title: '应急',
+      items: [
+        { title: '紧急电话', desc: '报警 110 · 急救 120 · 火警 119。' },
+        { title: '领保热线 12308', desc: '外交部全球领事保护热线 12308（+86-10-12308），在境外遇到困难可随时求助。' },
+        { title: '护照丢失怎么办', desc: '立即到就近派出所报案，并联系本国驻华使领馆补办证件。' },
+      ],
+    },
+    etiquette: {
+      title: '礼仪小贴士',
+      items: [
+        { title: '筷子不插饭上', desc: '筷子竖插在米饭上形似上香，是餐桌上的大忌。' },
+        { title: '自觉排队', desc: '车站、景区与餐厅门口请自觉排队，插队会引人侧目。' },
+        { title: '餐厅一般不砍价', desc: '正规餐厅与商场明码标价；逛集市、古玩市场时可以礼貌议价。' },
+      ],
+    },
+  },
+  passport: {
+    eyebrow: '数字足迹',
+    title: '旅行护照',
+    hero: '每逛一个景点，自动盖下一枚纪念章；集满生成专属护照证书',
+    progress: '已集 {count} / {total} 枚',
+    stampEmpty: '还没有印章，去景点页逛逛，开启你的集章之旅吧',
+    generate: '生成护照证书',
+    download: '下载 PNG',
+    close: '关闭',
+    generating: '证书生成中…',
+    generateFailed: '护照证书生成失败，请稍后重试',
+    loadFailed: '景点数据加载失败，请稍后重试',
+    posterTitle: '成都旅行护照',
+    brand: '蜀韵·成都',
+    scanTip: '扫码打开我的旅行护照',
+    issuedAt: '生成日期 {date}',
+    cardBadge: '已集 {count} 枚',
+    collect: '去集章',
   },
   login: {
     title: '登录',

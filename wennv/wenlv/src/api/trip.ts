@@ -373,6 +373,8 @@ export interface StoryCardResponse {
   success: boolean
   language: 'zh' | 'en' | 'ja'
   fallback: boolean
+  /** true 表示本次文案来自后端持久化缓存,未重新调用 LLM */
+  cached?: boolean
   title?: string
   body?: string
 }
@@ -381,15 +383,18 @@ export type StoryCardLanguage = 'zh' | 'en' | 'ja'
 
 /**
  * 生成旅行故事卡文案(AI 生成失败时后端返回 fallback:true,前端需用本地模板兜底)
+ * regenerate=false 时优先返回后端持久化缓存;true 时强制重新调用 LLM 生成
  */
 export async function generateStoryCard(
   planId: string,
-  language: StoryCardLanguage
+  language: StoryCardLanguage,
+  regenerate = false
 ): Promise<StoryCardResponse> {
   try {
     const response = await apiClient.post<StoryCardResponse>('/api/trip/story-card', {
       plan_id: planId,
       language,
+      regenerate,
     })
     return response.data
   } catch (error: any) {

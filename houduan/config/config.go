@@ -72,9 +72,8 @@ type Config struct {
 		MapPerMin         int
 		ImagePerMin       int
 	}
-	// Log 日志模块:按级别分文件落盘到 logs/ 目录,报错带错误 ID
+	// Log 日志模块:统一落库 MySQL log_entries 表,报错带错误 ID
 	Log struct {
-		Dir           string
 		Level         string
 		Console       bool
 		RetentionDays int
@@ -148,8 +147,7 @@ func Load() *Config {
 	c.RateLimit.MapPerMin = getEnvInt("RL_MAP_PER_MIN", 60)
 	c.RateLimit.ImagePerMin = getEnvInt("RL_IMAGE_PER_MIN", 30)
 
-	// 日志模块:分级分文件落盘,报错带错误 ID
-	c.Log.Dir = getEnv("LOG_DIR", "logs")
+	// 日志模块:统一落库 MySQL log_entries 表,报错带错误 ID
 	c.Log.Level = getEnv("LOG_LEVEL", "info")
 	c.Log.Console = getEnv("LOG_CONSOLE", "true") != "false"
 	c.Log.RetentionDays = getEnvInt("LOG_RETENTION_DAYS", 30)

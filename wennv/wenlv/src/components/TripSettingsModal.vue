@@ -125,8 +125,8 @@
 import { reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import type { RuntimeSettings } from '@/trip/types'
-import { getRuntimeSettings, saveRuntimeSettings } from '@/trip/services/api'
+import type { RuntimeSettings } from '@/types/trip'
+import { getRuntimeSettings, saveRuntimeSettings } from '@/api/trip'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{

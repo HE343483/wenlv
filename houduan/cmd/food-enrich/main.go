@@ -157,6 +157,10 @@ func mustDB(cfg *config.Config, migrate bool) *gorm.DB {
 	if err != nil {
 		logger.Fatalf("MySQL 连接失败: %v", err)
 	}
+	// 工具日志落库 log_entries(module=food-enrich)
+	if err := logger.SetDB(db); err != nil {
+		logger.Fatalf("日志表 log_entries 初始化失败: %v", err)
+	}
 	if !migrate {
 		logger.Infof("dry-run 模式:跳过数据库迁移(不写库)")
 		return db
