@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -309,6 +310,38 @@ func (h *TripToolHandler) MapPOI(c *gin.Context) {
 		message = "未获取到 POI 数据"
 	}
 	c.JSON(http.StatusOK, gin.H{"success": len(pois) > 0, "message": message, "data": pois})
+}
+
+// MapIPLocate 按客户端 IP 定位省市(高德 IP 定位代理)。
+// 用于天气按钮自动定位访客所在城市;境外/内网 IP 或失败时返回 success=false,前端降级默认城市。
+func (h *TripToolHandler) MapIPLocate(c *gin.Context) {
+	loc := h.amap.IPLocate(c.Request.Context(), clientPublicIP(c))
+	if loc == nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "IP 定位失败", "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "IP 定位成功",
+		"data":    gin.H{"province": loc.Province, "city": loc.City, "adcode": loc.Adcode},
+	})
+}
+
+// clientPublicIP 提取客户端公网 IP:优先反向代理头,取不到再回退 RemoteAddr。
+func clientPublicIP(c *gin.Context) string {
+	if ip := strings.TrimSpace(c.GetHeader("X-Real-IP")); ip != "" {
+		return ip
+	}
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
+			return first
+		}
+	}
+	ip := strings.TrimSpace(c.Request.RemoteAddr)
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		return host
+	}
+	return ip
 }
 
 // MapWeather 查询天气。

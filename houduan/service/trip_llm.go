@@ -189,11 +189,12 @@ func (l *TripLLM) ChatStream(ctx context.Context, messages []llmMessage, tempera
 	}
 
 	body, err := json.Marshal(llmRequest{
-		Model:       model,
-		Messages:    messages,
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
-		Stream:      true,
+		Model:           model,
+		Messages:        messages,
+		Temperature:     temperature,
+		MaxTokens:       maxTokens,
+		Stream:          true,
+		ReasoningEffort: llmThinkingLevel(), // 思考型模型必须显式指定,否则默认思考深度会拖慢首字延迟
 	})
 	if err != nil {
 		return err

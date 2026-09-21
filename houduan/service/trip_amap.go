@@ -102,6 +102,40 @@ func (s *AmapService) getJSON(ctx context.Context, endpoint string, params url.V
 	return nil
 }
 
+// IPLocateResult 高德 IP 定位结果。
+type IPLocateResult struct {
+	Province string
+	City     string
+	Adcode   string
+}
+
+// IPLocate 按客户端 IP 定位省市(高德 v3/ip)。ip 为空时由高德按请求方出口 IP 定位。
+// 该接口仅支持境内 IP;定位失败或境外 IP 返回 nil,调用方降级默认城市。
+func (s *AmapService) IPLocate(ctx context.Context, ip string) *IPLocateResult {
+	params := url.Values{}
+	if ip != "" {
+		params.Set("ip", ip)
+	}
+	var result struct {
+		Status   string `json:"status"`
+		Province any    `json:"province"` // 直辖市/境外异常时高德可能返回 []，用 toStringValue 兜底
+		City     any    `json:"city"`
+		Adcode   string `json:"adcode"`
+	}
+	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/ip", params, &result); err != nil {
+		s.warnOnce("ip-locate", "[Amap] IP 定位请求失败: "+err.Error())
+		return nil
+	}
+	if result.Status != "1" || result.Adcode == "" {
+		return nil
+	}
+	return &IPLocateResult{
+		Province: toStringValue(result.Province),
+		City:     toStringValue(result.City),
+		Adcode:   result.Adcode,
+	}
+}
+
 // GeocodeRaw 地理编码(地址 → 坐标),失败返回 nil。
 func (s *AmapService) GeocodeRaw(ctx context.Context, address, city string) *model.Location {
 	if s.apiKey() == "" || strings.TrimSpace(address) == "" {

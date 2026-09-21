@@ -42,7 +42,8 @@ async function ensureCityList() {
   cascadeLoading.value++
   cascadeError.value = null
   try {
-    cityList.value = await fetchRegionChildren('四川省')
+    // 从当前定位省份开始级联(IP 定位可能落在四川省之外)
+    cityList.value = await fetchRegionChildren(weatherStore.location.province || '四川省')
   } catch {
     cascadeError.value = '加载行政区划失败'
   } finally {

@@ -157,11 +157,13 @@ func Setup(h *handler.Bootstrap, validate func(ctx context.Context, token string
 				mapGroup.GET("/poi", rl.MapLimit(), h.TripTool.MapPOI)
 				mapGroup.GET("/weather", rl.MapLimit(), h.TripTool.MapWeather)
 				mapGroup.GET("/districts", rl.MapLimit(), h.TripTool.MapDistricts)
+				mapGroup.GET("/ip-locate", rl.MapLimit(), h.TripTool.MapIPLocate)
 				mapGroup.POST("/route", rl.MapLimit(), h.TripTool.MapRoute)
 			} else {
 				mapGroup.GET("/poi", h.TripTool.MapPOI)
 				mapGroup.GET("/weather", h.TripTool.MapWeather)
 				mapGroup.GET("/districts", h.TripTool.MapDistricts)
+				mapGroup.GET("/ip-locate", h.TripTool.MapIPLocate)
 				mapGroup.POST("/route", h.TripTool.MapRoute)
 			}
 			mapGroup.GET("/health", h.TripTool.MapHealth)

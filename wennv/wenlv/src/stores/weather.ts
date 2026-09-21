@@ -80,6 +80,31 @@ export const useWeatherStore = defineStore('weather', () => {
   /* 区域筛选防抖：快速切换时仅发起最后一次请求 */
   let districtFetchTimer: ReturnType<typeof setTimeout> | null = null
 
+  /* IP 自动定位只尝试一次（失败不再重试，保持默认成都锦江区） */
+  let ipLocateDone = false
+
+  /** 按客户端 IP 自动定位城市（后端高德 v3/ip 代理）。
+   *  成功则把默认位置改写为访客所在市（IP 定位精确到市级，展示与查询均用市）；
+   *  境外/内网 IP 或接口失败时静默保持默认位置。 */
+  async function locateByIP() {
+    if (ipLocateDone) return
+    ipLocateDone = true
+    try {
+      const loc = await get<{ province: string; city: string; adcode: string }>('/map/ip-locate')
+      if (loc?.adcode) {
+        const city = loc.city || loc.province || '成都市'
+        location.value = {
+          province: loc.province || city,
+          cityName: city,
+          districtName: city,
+          districtAdcode: loc.adcode,
+        }
+      }
+    } catch {
+      /* 定位失败保持默认位置 */
+    }
+  }
+
   /** 区域选择(行政区划级联) — 防抖拉取,命中缓存则零请求 */
   function selectRegion(sel: {
     cityName: string
@@ -106,6 +131,9 @@ export const useWeatherStore = defineStore('weather', () => {
   /** 拉取天气;force=true 跳过缓存强制刷新(面板刷新按钮) */
   async function fetchWeather(force = false) {
     const seq = ++fetchSeq
+    // 首次拉取前先按 IP 定位城市,拿到真实位置后再查天气
+    await locateByIP()
+    if (seq !== fetchSeq) return // 定位期间发生了新的请求,放弃本次
     const adcode = location.value.districtAdcode
     if (!adcode) return
     state.value = 'loading'
