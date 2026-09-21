@@ -21,8 +21,8 @@ const navItems = [
   { key: 'food', path: '/home/food' },
   { key: 'routes', path: '/home/routes' },
   { key: 'favorites', path: '/home/favorites' },
-  { key: 'guide', path: '/guide' },
   { key: 'passport', path: '/passport' },
+  { key: 'guide', path: '/guide' },
 ] as const
 
 const router = useRouter()
