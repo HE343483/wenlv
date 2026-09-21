@@ -3,13 +3,13 @@
     ref="rootRef"
     class="ai-chat-floating"
     :class="{ dragging: isDragging }"
-    :style="{ '--chat-tx': `${offset.x}px`, '--chat-ty': `${offset.y}px` }"
+    :style="{ '--chat-tx': `${offset.x}px`, '--chat-ty': `${offset.y}px`, '--chat-scale': chatScale }"
     @pointerdown="onDragStart"
     @click.capture="onClickCapture"
   >
     <div class="container-ai-input">
       <div v-for="index in 15" :key="`chat-area-${index}`" class="area"></div>
-      <div class="container-wrap" :class="{ open: chatOpen }">
+      <div class="container-wrap" :class="{ open: chatOpen, resizing }">
         <div class="card">
           <div class="background-blur-balls">
             <div class="balls">
@@ -19,7 +19,12 @@
               <span class="ball cyan"></span>
             </div>
           </div>
-          <div class="content-card" :class="{ clickable: !chatOpen }" @click="openChatPanel">
+          <div
+            class="content-card"
+            :class="{ clickable: !chatOpen, resizing }"
+            :style="chatOpen ? { width: `${PANEL_W}px`, height: `${PANEL_H}px` } : undefined"
+            @click="openChatPanel"
+          >
             <div class="background-blur-card">
               <div class="eyes">
                 <span class="eye"></span>
@@ -43,6 +48,19 @@
           </div>
           <div class="container-ai-chat" @click.stop>
             <button type="button" class="chat-close-btn btn-round btn-danger" @click.stop="closeChatPanel">×</button>
+            <!-- 面板缩放手柄(左上角):向上拖拽整体放大(文字/开关/按钮同步放大),上限防止面板过大 -->
+            <button
+              type="button"
+              class="chat-resize-handle"
+              :title="t('result.chat.resizeHandle')"
+              :aria-label="t('result.chat.resizeHandle')"
+              @pointerdown.stop.prevent="onResizeStart"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M10 4 4 10" />
+                <path d="M16 4 4 16" />
+              </svg>
+            </button>
             <div class="chat">
               <!-- 历史会话 / 新会话(仅登录用户) -->
               <div v-if="isLoggedIn" class="chat-toolbar">
@@ -597,6 +615,65 @@ const onClickCapture = (e: MouseEvent) => {
   }
 }
 
+// ===== 面板缩放:拖拽右上角手柄整体等比放大,并限制最大尺寸 =====
+// 面板内部按 PANEL_W×PANEL_H 的大尺寸排版(如 44px 字号),再整体缩放显示。
+// 缩放是等比的,所以拉大时内部文字/开关/按钮会一起变大,不会出现框大字小。
+const PANEL_SCALE = 0.3
+const PANEL_W = 1260
+const PANEL_H = 1100
+/** 屏幕上允许的最大面板尺寸(px),避免面板被放得过大 */
+const MAX_PANEL_SCREEN_W = 680
+const MAX_PANEL_SCREEN_H = 760
+
+const chatScale = ref(PANEL_SCALE)
+const resizing = ref(false)
+
+let resizeStart: { py: number; scale: number; maxScale: number } | null = null
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+
+const onResizeStart = (e: PointerEvent) => {
+  if (e.button !== 0) return
+  // 手柄在面板左上角:锚点到窗口右缘/上缘的剩余空间决定还能放大多少
+  const rect = rootRef.value?.getBoundingClientRect()
+  const anchorLeft = rect ? rect.left : 8
+  const anchorTop = rect ? rect.top : window.innerHeight - 8
+  resizeStart = {
+    py: e.clientY,
+    scale: chatScale.value,
+    maxScale: Math.max(
+      PANEL_SCALE,
+      Math.min(
+        MAX_PANEL_SCREEN_W / PANEL_W,
+        MAX_PANEL_SCREEN_H / PANEL_H,
+        (window.innerWidth - anchorLeft - 16) / PANEL_W,
+        (anchorTop - 16) / PANEL_H
+      )
+    ),
+  }
+  resizing.value = true
+  window.addEventListener('pointermove', onResizeMove)
+  window.addEventListener('pointerup', onResizeEnd)
+}
+
+const onResizeMove = (e: PointerEvent) => {
+  if (!resizeStart) return
+  // 面板锚定在左下角、只能向右上生长,故左上角手柄只在纵向跟随鼠标:向上拖 = 放大。
+  // 换算保持精确跟随——面板高度 = PANEL_H × scale,上移 1px 即 scale 增加 1/PANEL_H。
+  chatScale.value = clamp(
+    resizeStart.scale - (e.clientY - resizeStart.py) / PANEL_H,
+    PANEL_SCALE,
+    resizeStart.maxScale
+  )
+}
+
+const onResizeEnd = () => {
+  window.removeEventListener('pointermove', onResizeMove)
+  window.removeEventListener('pointerup', onResizeEnd)
+  resizeStart = null
+  resizing.value = false
+}
+
 const sendQuickQuestion = (q: string) => {
   chatInput.value = q
   void sendChatMessage()
@@ -720,8 +797,8 @@ const consumeSSEResponse = async (res: Response, assistantMsg: ChatMessage) => {
   left: 8px;
   bottom: 8px;
   z-index: 1000;
-  /* translate 在 scale 之前组合,位移不受缩放影响 */
-  transform: translate(var(--chat-tx, 0px), var(--chat-ty, 0px)) scale(0.3);
+  /* translate 在 scale 之前组合,位移不受缩放影响;缩放值由拖拽手柄调节,内部文字随之等比放大 */
+  transform: translate(var(--chat-tx, 0px), var(--chat-ty, 0px)) scale(var(--chat-scale, 0.3));
   cursor: grab;
   touch-action: none;
 }
@@ -764,6 +841,18 @@ const consumeSSEResponse = async (res: Response, assistantMsg: ChatMessage) => {
   transform: scale(0.95);
 }
 
+/* 正在拖拽调节尺寸时保持原尺寸,避免 :active 缩放干扰 */
+.container-wrap.resizing:active {
+  transform: none;
+}
+
+/* 拖拽调节尺寸时关闭过渡,保证跟手 */
+.container-wrap.resizing,
+.container-wrap.resizing .card,
+.container-wrap.resizing .content-card {
+  transition: none;
+}
+
 .container-wrap:after {
   content: "";
   position: absolute;
@@ -784,11 +873,6 @@ const consumeSSEResponse = async (res: Response, assistantMsg: ChatMessage) => {
 
 .container-wrap.open .eyes {
   opacity: 0;
-}
-
-.container-wrap.open .content-card {
-  width: 1260px;
-  height: 1100px;
 }
 
 .container-wrap.open .background-blur-balls {
@@ -967,6 +1051,37 @@ const consumeSSEResponse = async (res: Response, assistantMsg: ChatMessage) => {
   font-size: 50px;
   line-height: 1;
   cursor: pointer;
+}
+
+/* 面板缩放手柄(面板左上角):向上拖拽整体放大 */
+.chat-resize-handle {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 4;
+  width: 62px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #8a9a9e;
+  cursor: ns-resize;
+  touch-action: none;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    opacity: 1;
+    color: #3e7d8a;
+  }
+
+  & svg {
+    width: 38px;
+    height: 38px;
+  }
 }
 
 .container-wrap .card .chat {
@@ -1820,11 +1935,6 @@ const consumeSSEResponse = async (res: Response, assistantMsg: ChatMessage) => {
     left: 12px;
     bottom: 12px;
     width: 220px;
-    height: 220px;
-  }
-
-  .container-wrap.open .content-card {
-    width: 300px;
     height: 220px;
   }
 

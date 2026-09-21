@@ -289,6 +289,7 @@
       "quickMealQuestion": "推荐的餐厅价格如何？",
       "placeholder": "输入您关于行程的问题...",
       "send": "发送",
+      "resizeHandle": "按住向上拖动可整体放大窗口(文字同步变大)",
       "replyFallback": "抱歉，未能获取回复，请稍后再试",
       "networkError": "网络连接异常，请检查后端服务是否已启动"
     },

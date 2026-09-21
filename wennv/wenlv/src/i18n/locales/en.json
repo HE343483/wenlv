@@ -289,6 +289,7 @@
       "quickMealQuestion": "What are the prices of recommended restaurants?",
       "placeholder": "Ask your itinerary question...",
       "send": "Send",
+      "resizeHandle": "Drag up to enlarge the window (text scales too)",
       "replyFallback": "Sorry, no reply was received. Please try again later",
       "networkError": "Network error, please check whether backend service is running"
     },
