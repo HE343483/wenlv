@@ -1,4 +1,4 @@
-/** 用户 Store — 个人信息 / 收藏 / 打卡景点（含照片）- localStorage 持久化 */
+/** 用户 Store — 个人信息 / 收藏（景点·美食·路线）/ 打卡景点（含照片）- localStorage 持久化 */
 
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
@@ -20,6 +20,9 @@ export interface VisitRecord {
   /** 现场照片 dataURL 列表，最多 9 张 */
   photos: string[]
 }
+
+/** 收藏目标类型（与后端 target_type 一致）：景点 / 美食 / 路线 */
+export type FavoriteType = 'scenic' | 'food' | 'route'
 
 interface PersistedState {
   profile: UserProfile
@@ -92,66 +95,67 @@ export const useUserStore = defineStore('user', () => {
     profile.value.avatar = dataUrl
   }
 
-  function isFavorite(spotId: string): boolean {
-    return favorites.value.includes(spotId)
+  /** 是否已收藏（收藏ID形如 scenic-12 / food-3 / route-1） */
+  function isFavorite(id: string): boolean {
+    return favorites.value.includes(id)
   }
 
-  /** 后端景点ID（scenic-{数字}）→ 数字ID；非该格式返回 null */
-  function scenicNumericId(spotId: string): number | null {
-    const m = /^scenic-(\d+)$/.exec(spotId)
-    return m ? Number(m[1]) : null
+  /** 后端收藏ID（scenic-12 / food-3 / route-1）→ 类型与数字ID；非该格式返回 null */
+  function parseFavoriteId(id: string): { type: FavoriteType; numericId: number } | null {
+    const m = /^(scenic|food|route)-(\d+)$/.exec(id)
+    return m ? { type: m[1] as FavoriteType, numericId: Number(m[2]) } : null
   }
 
-  /** 登录后从后端同步收藏列表（target_type=scenic），覆盖本地缓存 */
+  /** 登录后从后端同步全部收藏（景点/美食/路线），覆盖本地缓存 */
   async function syncFavorites() {
     if (!hasToken()) return
     try {
-      const items = await listFavorites('scenic')
-      favorites.value = items.map(i => `scenic-${i.target_id}`)
+      const items = await listFavorites()
+      favorites.value = items.map(i => `${i.target_type}-${i.target_id}`)
     } catch {
       /* 同步失败时保留本地缓存 */
     }
   }
 
   /** 切换收藏：乐观更新本地，再调后端接口；失败回滚 */
-  async function toggleFavorite(spotId: string) {
-    const exists = favorites.value.includes(spotId)
-    const nid = scenicNumericId(spotId)
-    if (!hasToken() || nid === null) {
-      // 未登录或非后端景点ID：保持本地行为
-      if (exists) favorites.value = favorites.value.filter(id => id !== spotId)
-      else favorites.value.push(spotId)
+  async function toggleFavorite(id: string) {
+    const exists = favorites.value.includes(id)
+    const target = parseFavoriteId(id)
+    if (!hasToken() || !target) {
+      // 未登录或非后端数字ID：保持本地行为
+      if (exists) favorites.value = favorites.value.filter(x => x !== id)
+      else favorites.value.push(id)
       return
     }
     try {
       if (exists) {
-        favorites.value = favorites.value.filter(id => id !== spotId)
-        await apiRemoveFavorite('scenic', nid)
+        favorites.value = favorites.value.filter(x => x !== id)
+        await apiRemoveFavorite(target.type, target.numericId)
       } else {
-        favorites.value.push(spotId)
-        await addFavorite('scenic', nid)
+        favorites.value.push(id)
+        await addFavorite(target.type, target.numericId)
       }
     } catch (err) {
       // 接口失败回滚本地状态
-      if (exists) favorites.value.push(spotId)
-      else favorites.value = favorites.value.filter(id => id !== spotId)
+      if (exists) favorites.value.push(id)
+      else favorites.value = favorites.value.filter(x => x !== id)
       throw err
     }
   }
 
   /** 取消收藏：乐观更新本地，再调后端接口；失败回滚 */
-  async function removeFavorite(spotId: string) {
-    const exists = favorites.value.includes(spotId)
-    const nid = scenicNumericId(spotId)
-    if (!hasToken() || nid === null) {
-      favorites.value = favorites.value.filter(id => id !== spotId)
+  async function removeFavorite(id: string) {
+    const exists = favorites.value.includes(id)
+    const target = parseFavoriteId(id)
+    if (!hasToken() || !target) {
+      favorites.value = favorites.value.filter(x => x !== id)
       return
     }
     try {
-      favorites.value = favorites.value.filter(id => id !== spotId)
-      await apiRemoveFavorite('scenic', nid)
+      favorites.value = favorites.value.filter(x => x !== id)
+      await apiRemoveFavorite(target.type, target.numericId)
     } catch (err) {
-      if (exists) favorites.value.push(spotId)
+      if (exists) favorites.value.push(id)
       throw err
     }
   }

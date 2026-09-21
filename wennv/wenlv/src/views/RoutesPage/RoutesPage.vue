@@ -7,8 +7,9 @@
  * 弹窗内站点时间线带配图与简介,并可一键「用 AI 生成同款行程」跳 /trip 预填表单。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { useUserStore } from '@/stores/user'
 import { listRoutes, parseRouteStops, type RouteItem, type RouteStop } from '@/api/content'
 import { pickDesc } from '@/utils/storyI18n'
 import { curatedRoutes, type Locale } from '@/data/curatedRoutes'
@@ -17,8 +18,10 @@ import dictEn from '@/locales/en'
 import dictJa from '@/locales/ja'
 import HomeBanner from '@/components/HomeBanner.vue'
 
+const route = useRoute()
 const router = useRouter()
 const langStore = useLanguageStore()
+const userStore = useUserStore()
 
 const locale = computed<Locale>(() => (langStore.lang === 'en' ? 'en' : langStore.lang === 'ja' ? 'ja' : 'zh'))
 
@@ -49,6 +52,8 @@ interface RouteStopView {
 }
 interface RouteView {
   key: string
+  /** 后端路线数字ID(静态兜底数据无此字段,此时不显示收藏按钮) */
+  id?: number
   image: string
   title: string
   desc: string
@@ -82,6 +87,7 @@ function fromDB(item: RouteItem): RouteView {
     .map(v => interestMap[v] ?? v)
   return {
     key: item.route_key,
+    id: item.id,
     image: item.cover_image || '',
     title,
     desc: item.description || '',
@@ -140,6 +146,7 @@ onMounted(async () => {
     // 否则 querySelectorAll('.route-row') 查不到元素,行会永远停留在 opacity:0
     await nextTick()
     setupReveal()
+    openRouteFromQuery()
   }
 })
 
@@ -222,6 +229,29 @@ function openDetail(r: RouteView) {
 
 function closeDetail() {
   activeRoute.value = null
+  // 清除 URL 上的定位参数,保证再次从收藏页进入同一路线时能重新打开弹窗
+  if (route.query.route) router.replace({ name: 'internal-routes' })
+}
+
+/** 从收藏页跳转过来时(?route={route_key})自动打开对应路线详情弹窗 */
+function openRouteFromQuery() {
+  const wantKey = String(route.query.route ?? '')
+  if (!wantKey) return
+  const hit = routes.value.find(r => r.key === wantKey)
+  if (hit) activeRoute.value = hit
+}
+
+/** ── 路线收藏(后端 target_type=route;静态兜底路线无数字ID,不显示收藏按钮) ── */
+function isRouteFav(r: RouteView): boolean {
+  return r.id != null && userStore.isFavorite(`route-${r.id}`)
+}
+
+function toggleRouteFav(r: RouteView) {
+  if (r.id == null) return
+  userStore.toggleFavorite(`route-${r.id}`).catch((err: unknown) => {
+    // 接口失败已回滚本地状态，此处提示用户
+    alert(err instanceof Error ? err.message : '操作失败')
+  })
 }
 
 /** 进入 AI 行程页并预填该路线 */
@@ -298,6 +328,21 @@ function pad(n: number): string {
           </div>
 
           <div class="route-row__actions">
+            <button
+              v-if="r.id != null"
+              type="button"
+              class="route-row__fav"
+              :class="{ 'route-row__fav--active': isRouteFav(r) }"
+              :title="isRouteFav(r) ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite')"
+              :aria-label="isRouteFav(r) ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite')"
+              :aria-pressed="isRouteFav(r)"
+              @click.stop="toggleRouteFav(r)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+                <path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z" :fill="isRouteFav(r) ? 'currentColor' : 'none'"/>
+              </svg>
+              {{ isRouteFav(r) ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite') }}
+            </button>
             <button type="button" class="route-row__detail" @click.stop="openDetail(r)">
               {{ langStore.t('routes.viewDetail') }}
             </button>
@@ -567,8 +612,34 @@ function pad(n: number): string {
 
 .route-row__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-2);
+}
+
+/* 路线收藏:与查看详情同款的胶囊按钮,收藏后变实心描边 */
+.route-row__fav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  transition: all var(--transition-fast);
+}
+
+.route-row__fav:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold-dark);
+}
+
+.route-row__fav--active {
+  border-color: color-mix(in srgb, var(--color-gold) 55%, transparent);
+  color: var(--color-gold-dark);
 }
 
 .route-row__detail {

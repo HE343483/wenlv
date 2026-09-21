@@ -7,6 +7,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { useUserStore } from '@/stores/user'
 import { listFoods, listFoodCards } from '@/api/content'
 import type { FoodItem } from '@/api/content'
 import { pickDesc, pickName } from '@/utils/storyI18n'
@@ -14,11 +15,24 @@ import AppIcon from '@/components/AppIcon.vue'
 import HomeBanner from '@/components/HomeBanner.vue'
 
 const langStore = useLanguageStore()
+const userStore = useUserStore()
 const router = useRouter()
 
 /* 跳转美食详情页（key 作为 :id） */
 function goFoodDetail(key: string) {
   router.push({ name: 'food-detail', params: { id: key } })
+}
+
+/* ── 图鉴菜品收藏(后端 target_type=food) ── */
+function isFoodFav(id: number): boolean {
+  return userStore.isFavorite(`food-${id}`)
+}
+
+function toggleFoodFav(id: number) {
+  userStore.toggleFavorite(`food-${id}`).catch((err: unknown) => {
+    // 接口失败已回滚本地状态，此处提示用户
+    alert(err instanceof Error ? err.message : '操作失败')
+  })
 }
 
 /* ── 成都味道图鉴(后端接口数据,爬虫自动维护) ── */
@@ -390,6 +404,18 @@ const foodStreets = [
               @error="($event.target as HTMLImageElement).style.display = 'none'"
             />
             <span v-if="f.tags" class="food-grid__tag">{{ (f.tags || '').split(',')[0] }}</span>
+            <button
+              type="button"
+              class="food-grid__fav"
+              :class="{ 'food-grid__fav--active': isFoodFav(f.id) }"
+              :title="isFoodFav(f.id) ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite')"
+              :aria-label="isFoodFav(f.id) ? langStore.t('scenic.favorited') : langStore.t('scenic.favorite')"
+              @click.stop="toggleFoodFav(f.id)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+                <path d="M12 21C12 21 3 15.5 3 9.5C3 6.5 5 4.5 8 4.5C10 4.5 11.5 5.8 12 7C12.5 5.8 14 4.5 16 4.5C19 4.5 21 6.5 21 9.5C21 15.5 12 21 12 21Z" :fill="isFoodFav(f.id) ? 'currentColor' : 'none'"/>
+              </svg>
+            </button>
           </div>
           <div class="food-grid__body">
             <h3 class="food-grid__name">
@@ -1074,6 +1100,36 @@ const foodStreets = [
   color: #fff;
   background: rgba(196, 62, 29, 0.88);
   backdrop-filter: blur(4px);
+}
+
+/* 图鉴卡片收藏按钮(与景点卡片一致的右上角心形) */
+.food-grid__fav {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full, 999px);
+  color: var(--color-text-muted, #8a7f74);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.06));
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.food-grid__fav:hover {
+  color: var(--color-gold, #c8a45c);
+  border-color: var(--color-gold, #c8a45c);
+}
+
+.food-grid__fav--active {
+  color: var(--color-cinnabar, #c43e1d);
+  border-color: color-mix(in srgb, var(--color-cinnabar, #c43e1d) 55%, transparent);
 }
 
 .food-grid__body {

@@ -79,6 +79,11 @@ function splitSentences(text: string): string[] {
 /**
  * 朗读文本:逐句创建 SpeechSynthesisUtterance 入队。
  * 朗读开始 isSpeaking=true,全部句子结束(或中途 stopSpeaking)后复位 false。
+ *
+ * 兼容性处理(修复"按钮可点但没有声音"):
+ * 1. Chrome/Edge 在 cancel() 之后同一事件循环内入队的 Utterance 会被静默丢弃,
+ *    因此先 stopSpeaking() 再延迟 100ms 入队;
+ * 2. 合成引擎若处于 paused 状态,新入队的语句不会发声,入队前先 resume()。
  */
 export function speak(text: string, lang: Language): void {
   const trimmed = text.trim()
@@ -88,26 +93,35 @@ export function speak(text: string, lang: Language): void {
   refreshVoices()
 
   const gen = generation
-  const sentences = splitSentences(trimmed)
-  if (!sentences.length) return
-  isSpeaking.value = true
+  window.setTimeout(() => {
+    // 延迟期间又调用了 stopSpeaking()/新的 speak(),放弃本次入队
+    if (gen !== generation) return
+    window.speechSynthesis.resume()
 
-  let remaining = sentences.length
-  const settle = () => {
-    remaining -= 1
-    if (remaining <= 0 && gen === generation) isSpeaking.value = false
-  }
+    const sentences = splitSentences(trimmed)
+    if (!sentences.length) return
+    isSpeaking.value = true
 
-  for (const sentence of sentences) {
-    const utterance = new SpeechSynthesisUtterance(sentence)
-    utterance.lang = BCP47[lang]
-    utterance.rate = 0.95
-    const voice = pickVoice(lang)
-    if (voice) utterance.voice = voice
-    utterance.onend = settle
-    utterance.onerror = settle
-    window.speechSynthesis.speak(utterance)
-  }
+    let remaining = sentences.length
+    const settle = () => {
+      remaining -= 1
+      if (remaining <= 0 && gen === generation) isSpeaking.value = false
+    }
+
+    for (const sentence of sentences) {
+      const utterance = new SpeechSynthesisUtterance(sentence)
+      utterance.lang = BCP47[lang]
+      utterance.rate = 0.95
+      const voice = pickVoice(lang)
+      if (voice) utterance.voice = voice
+      utterance.onend = settle
+      utterance.onerror = (event) => {
+        console.warn('[speech] 朗读出错:', (event as SpeechSynthesisErrorEvent).error ?? event)
+        settle()
+      }
+      window.speechSynthesis.speak(utterance)
+    }
+  }, 100)
 }
 
 /** 停止朗读:取消队列并复位状态 */

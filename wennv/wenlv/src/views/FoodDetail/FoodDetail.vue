@@ -145,8 +145,12 @@ const displayDesc = computed(() => {
 /* 文化注解:仅非中文语言且后端已生成时展示(类别页无此字段,自动为空) */
 const cultureNotes = computed(() => pickCultureNote(food.value, langStore.lang))
 
-/* ── 多语语音导览:朗读当前语言的美食故事(类别页无 desc,按钮置灰) ── */
-const speakText = computed(() => (food.value ? pickDesc(food.value, langStore.lang).trim() : ''))
+/* ── 多语语音导览:朗读当前语言的美食故事;分类页无 desc,朗读类别概述 ── */
+const speakText = computed(() => {
+  if (food.value) return pickDesc(food.value, langStore.lang).trim()
+  if (isFallback.value) return categoryIntro.value.trim()
+  return ''
+})
 const voiceAvailable = computed(() => !!speakText.value && hasVoiceFor(langStore.lang))
 const voiceTitle = computed(() => {
   if (voiceSpeaking.value) return langStore.t('voice.stop')
