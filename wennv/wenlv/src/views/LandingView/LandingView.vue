@@ -501,7 +501,7 @@ const heroContentStyle = computed(() => ({
   transform: `translate3d(0, ${-heroProgress.value * 46}px, 0)`,
 }))
 const heroBottomShadeStyle = computed(() => ({
-  opacity: `${(0.48 + toneProgress.value * 0.44) * (fogEnabled.value ? 1 : 0)}`,
+  opacity: '1',
 }))
 const lowerShadeStyle = computed(() => ({
   opacity: `${(0.34 + toneProgress.value * 0.52) * (fogEnabled.value ? 1 : 0)}`,
@@ -661,6 +661,7 @@ const handleSubmit = async () => {
   min-height: 100vh;
   position: relative;
   display: block;
+  background-color: transparent !important;
   background-size: cover !important;
   background-repeat: no-repeat !important;
   background-position: center center !important;
@@ -856,7 +857,7 @@ const handleSubmit = async () => {
 }
 
 .landing-header .content-center .container {
-  transform: translate3d(0, 45px, 0);
+  transform: translate3d(0, -80px, 0);
 }
 
 /* moving-clouds: 依赖 global.css 的定位 (bottom:0, width:250em, cloudLoop 80s) */
@@ -911,21 +912,21 @@ const handleSubmit = async () => {
 .hero-bottom-shade {
   position: absolute;
   inset: auto 0 0 0;
-  height: 56%;
-  z-index: 1;
+  height: 58%;
+  z-index: 2;
   pointer-events: none;
   background: linear-gradient(
-    to top,
-    rgba(248, 243, 233, 0.95) 0%,
-    rgba(248, 243, 233, 0.6) 46%,
-    rgba(248, 243, 233, 0) 100%
+    180deg,
+    transparent 0%,
+    rgba(248, 243, 233, 0.35) 42%,
+    rgba(248, 243, 233, 0.82) 72%,
+    var(--color-bg, #f8f3e9) 100%
   );
-  transition: opacity 0.18s linear;
 }
 
 
 .form-section {
-  margin-top: -112px;
+  margin-top: -250px;
   padding: 0 20px 86px;
   position: relative;
   z-index: 3;
