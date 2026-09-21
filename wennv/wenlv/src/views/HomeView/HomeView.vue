@@ -13,11 +13,24 @@ import Carousel from '@/components/Carousel.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import HeroRipple from '@/components/HeroRipple.vue'
 import CultureScroll from '@/components/CultureScroll.vue'
+import HomeIntro from '@/components/HomeIntro.vue'
 import type { CarouselItem } from '@/components/Carousel.vue'
 
 const router = useRouter()
 const langStore = useLanguageStore()
 const heroRippleRef = ref<InstanceType<typeof HeroRipple> | null>(null)
+
+/* ──── 出场动画 ────
+ * 每个浏览器会话首次进入首页时播放「蜀韵长卷」动画，
+ * 动画结束（或用户跳过）后 Hero 内容渐次升起 */
+const showIntro = ref(!sessionStorage.getItem('home-intro-played'))
+const heroRevealed = ref(!showIntro.value)
+
+function onIntroDone() {
+  showIntro.value = false
+  heroRevealed.value = true
+  sessionStorage.setItem('home-intro-played', '1')
+}
 
 function scrollToExplore() {
   document.getElementById('explore')?.scrollIntoView({ behavior: 'smooth' })
@@ -185,11 +198,13 @@ function setSectionRef(el: unknown, index: number) {
 
 <template>
   <div class="homepage shu-pattern">
+    <!-- 出场动画：蜀韵长卷，等待首页内容加载完毕后淡出 -->
+    <HomeIntro v-if="showIntro" @done="onIntroDone" />
     <NavBar />
     <PandaCursor />
 
     <!-- ──── HERO ──── -->
-    <section class="hero">
+    <section class="hero" :class="{ 'hero--revealed': heroRevealed }">
       <div class="hero__bg">
         <div
           class="hero__photo"
@@ -637,6 +652,45 @@ function setSectionRef(el: unknown, index: number) {
 @keyframes float-down {
   0%, 100% { transform: translateY(0); opacity: 1; }
   50% { transform: translateY(8px); opacity: 0.5; }
+}
+
+/* ========================================
+   出场动画结束后 — Hero 内容渐次升起
+   （仅在本会话播放过出场动画时生效）
+   ======================================== */
+.hero--revealed .hero__content > * {
+  animation: hero-rise 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.hero--revealed .hero__content > :nth-child(1) { animation-delay: 0.05s; }
+.hero--revealed .hero__content > :nth-child(2) { animation-delay: 0.18s; }
+.hero--revealed .hero__content > :nth-child(3) { animation-delay: 0.32s; }
+.hero--revealed .hero__content > :nth-child(4) { animation-delay: 0.46s; }
+
+.hero--revealed .hero__shu {
+  animation: shu-watermark-in 1.6s ease 0.2s both;
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shu-watermark-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  to {
+    opacity: 0.9;
+    filter: blur(0);
+  }
 }
 
 /* ========================================
