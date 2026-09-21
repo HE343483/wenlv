@@ -104,6 +104,7 @@
     "endDateRequired": "Please select an end date",
     "travelDaysLabel": "Trip Duration",
     "travelDaysUnit": "days",
+    "cityDaysLabel": "Stay Days",
     "transportationLabel": "Transportation",
     "transportation": {
       "public": "Public Transit",

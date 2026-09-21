@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -109,9 +110,31 @@ type IPLocateResult struct {
 	Adcode   string
 }
 
-// IPLocate 按客户端 IP 定位省市(高德 v3/ip)。ip 为空时由高德按请求方出口 IP 定位。
-// 该接口仅支持境内 IP;定位失败或境外 IP 返回 nil,调用方降级默认城市。
+// IPLocate 按客户端 IP 定位省市(两级链路)。
+// 1) 高德 v3/ip(Key 需在控制台开通"IP 定位"服务,未开通时静默返回空);
+// 2) 兜底 ipwho.is 免费库取经纬度,再用高德逆地理编码转中文省市 + adcode。
+// ip 为空或内网地址时由服务按出口 IP 定位;全部失败返回 nil,调用方降级默认城市。
 func (s *AmapService) IPLocate(ctx context.Context, ip string) *IPLocateResult {
+	if isPrivateIP(ip) {
+		ip = ""
+	}
+	if r := s.ipLocateAmap(ctx, ip); r != nil {
+		return r
+	}
+	return s.ipLocateRegeoFallback(ctx, ip)
+}
+
+// isPrivateIP 判断是否内网/回环地址:外部 IP 库不识别这类地址,需去掉参数走出口 IP 定位。
+func isPrivateIP(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	return parsed.IsLoopback() || parsed.IsPrivate() || parsed.IsLinkLocalUnicast() || parsed.IsUnspecified()
+}
+
+// ipLocateAmap 高德 v3/ip 定位(境内 IP;Key 未开通该服务时返回空数据,视为失败)。
+func (s *AmapService) ipLocateAmap(ctx context.Context, ip string) *IPLocateResult {
 	params := url.Values{}
 	if ip != "" {
 		params.Set("ip", ip)
@@ -120,19 +143,81 @@ func (s *AmapService) IPLocate(ctx context.Context, ip string) *IPLocateResult {
 		Status   string `json:"status"`
 		Province any    `json:"province"` // 直辖市/境外异常时高德可能返回 []，用 toStringValue 兜底
 		City     any    `json:"city"`
-		Adcode   string `json:"adcode"`
+		Adcode   any    `json:"adcode"` // Key 未开通 IP 定位服务时高德返回 [],string 解析会报错
 	}
 	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/ip", params, &result); err != nil {
 		s.warnOnce("ip-locate", "[Amap] IP 定位请求失败: "+err.Error())
 		return nil
 	}
-	if result.Status != "1" || result.Adcode == "" {
+	adcode := toStringValue(result.Adcode)
+	if result.Status != "1" || adcode == "" || adcode == "[]" {
 		return nil
 	}
 	return &IPLocateResult{
 		Province: toStringValue(result.Province),
 		City:     toStringValue(result.City),
-		Adcode:   result.Adcode,
+		Adcode:   adcode,
+	}
+}
+
+// ipLocateRegeoFallback 兜底定位:ipwho.is 查 IP 的经纬度,再用高德逆地理编码换取中文省市与 adcode。
+func (s *AmapService) ipLocateRegeoFallback(ctx context.Context, ip string) *IPLocateResult {
+	endpoint := "https://ipwho.is/"
+	if ip != "" {
+		endpoint += ip
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		s.warnOnce("ip-locate-fallback", "[Amap] ipwho.is 请求失败: "+err.Error())
+		return nil
+	}
+	defer resp.Body.Close()
+	var who struct {
+		Success   bool     `json:"success"`
+		Country   string   `json:"country"`
+		Latitude  *float64 `json:"latitude"`
+		Longitude *float64 `json:"longitude"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8192)).Decode(&who); err != nil ||
+		!who.Success || who.Latitude == nil || who.Longitude == nil {
+		return nil
+	}
+
+	// 非中国 IP 不再反查(高德逆地理对境外支持有限,且本站面向境内访客)
+	if !strings.Contains(who.Country, "China") {
+		return nil
+	}
+
+	params := url.Values{}
+	params.Set("location", fmt.Sprintf("%.6f,%.6f", *who.Longitude, *who.Latitude))
+	var regeo struct {
+		Status    string `json:"status"`
+		Regeocode struct {
+			AddressComponent struct {
+				Province any    `json:"province"`
+				City     any    `json:"city"`
+				Adcode   string `json:"adcode"`
+			} `json:"addressComponent"`
+		} `json:"regeocode"`
+	}
+	if err := s.getJSON(ctx, "https://restapi.amap.com/v3/geocode/regeo", params, &regeo); err != nil {
+		s.warnOnce("ip-locate-fallback", "[Amap] IP 兜底逆地理失败: "+err.Error())
+		return nil
+	}
+	if regeo.Status != "1" || regeo.Regeocode.AddressComponent.Adcode == "" {
+		return nil
+	}
+	ac := regeo.Regeocode.AddressComponent
+	province := toStringValue(ac.Province)
+	// 直辖市高德返回 city 为 [],此时 province 即城市名
+	return &IPLocateResult{
+		Province: province,
+		City:     firstNonEmpty(toStringValue(ac.City), province),
+		Adcode:   ac.Adcode,
 	}
 }
 

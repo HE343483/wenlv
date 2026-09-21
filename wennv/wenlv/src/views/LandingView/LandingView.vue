@@ -57,6 +57,19 @@
                       @change="onCityInput(row)"
                     />
                   </a-form-item>
+                  <a-form-item class="city-row-days">
+                    <template #label>
+                      <span class="field-label">{{ t('home.cityDaysLabel') }}</span>
+                    </template>
+                    <a-input-number
+                      v-model:value="row.days"
+                      :min="1"
+                      :max="30"
+                      :precision="0"
+                      size="large"
+                      class="field-input"
+                    />
+                  </a-form-item>
                   <button
                     v-if="formData.cities.length > 1"
                     type="button"
@@ -385,7 +398,7 @@ import { districts } from '@/data/chengdu'
 import type { Dayjs } from 'dayjs'
 
 type LandingFormData = {
-  cities: Array<{ city: string; districts: string[] }>
+  cities: Array<{ city: string; districts: string[]; days: number }>
   dates: [Dayjs, Dayjs] | null
   transportation: string
   accommodation: string
@@ -439,7 +452,7 @@ const formRules = computed(() => ({
 }))
 
 const formData = reactive<LandingFormData>({
-  cities: [{ city: '', districts: [] }],
+  cities: [{ city: '', districts: [], days: 1 }],
   dates: null,
   transportation: '公共交通',
   accommodation: '经济型酒店',
@@ -490,10 +503,10 @@ const syncDistrictFreeText = () => {
   formData.free_text_input = lines.join('\n')
 }
 
-const totalDays = computed(() => {
-  if (!formData.dates) return 0
-  return formData.dates[1].diff(formData.dates[0], 'day') + 1
-})
+// 总天数 = 各城市停留天数之和(逐城指定,不再由日期区间推导)
+const totalDays = computed(() =>
+  formData.cities.reduce((sum, r) => sum + Math.max(1, Math.floor(r.days || 1)), 0),
+)
 
 /**
  * 精选路线预填：路线页「用 AI 生成同款行程」跳转 /trip?prefill=<路线id> 时，
@@ -504,7 +517,7 @@ const applyCuratedRoutePrefill = () => {
   const curated = findCuratedRoute(typeof prefillId === 'string' ? prefillId : undefined)
   if (!curated) return
   const routeTitle = langStore.t(`routes.items.${curated.id}.title`)
-  formData.cities = [{ city: '成都', districts: [] }]
+  formData.cities = [{ city: '成都', districts: [], days: 1 }]
   formData.preferences = [...curated.interests]
   formData.free_text_input = `参考精选路线「${routeTitle}」：${curated.stops.map(s => stopName(s, 'zh')).join(' → ')}`
   message.info(t('home.prefillApplied', { name: routeTitle }))
@@ -524,7 +537,7 @@ function onSourceChange(e: any) {
 
 const addCity = () => {
   if (formData.cities.length >= 5) return
-  formData.cities.push({ city: '', districts: [] })
+  formData.cities.push({ city: '', districts: [], days: 1 })
 }
 
 const removeCity = (index: number) => {
@@ -658,17 +671,13 @@ const handleSubmit = async () => {
     panelHeight.value = panelRef.value.offsetHeight
   }
 
-  // 把行程总天数按城市均摊（前面的城市多摊余数），供后端按城市分配日程
-  const daysOf = (total: number, count: number): number[] => {
-    const base = Math.max(1, Math.floor(total / Math.max(count, 1)))
-    const days = Array.from({ length: count }, () => base)
-    let left = total - days.reduce((s, d) => s + d, 0)
-    for (let i = 0; left > 0; i = (i + 1) % count, left--) days[i]! += 1
-    return days
-  }
-  const dayList = daysOf(totalDays.value, validCities.length)
-  const citiesPayload: CityStay[] = validCities.map((cs, i) => ({ city: cs.city.trim(), days: dayList[i] ?? 1 }))
-  const [startDate, endDate] = formData.dates
+  // 各城市停留天数由用户逐城指定,总天数 = 各城之和;结束日期按出发日 + 总天数自动推算
+  const citiesPayload: CityStay[] = validCities.map(cs => ({
+    city: cs.city.trim(),
+    days: Math.max(1, Math.floor(cs.days || 1)),
+  }))
+  const [startDate] = formData.dates
+  const endDate = startDate.add(totalDays.value - 1, 'day')
 
   // 生成任务挂在全局 store 上：切换页面不会中断，完成后以 notification 提醒
   void tripTask.start({

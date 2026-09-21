@@ -660,10 +660,34 @@ func (s *TripTaskStore) GetStoryCard(planID string, lang string) (*TripStoryCard
 	return cards[lang], nil
 }
 
-// DeletePlan 删除一条落库的历史计划。
+// DeletePlan 删除一条历史计划:同时清理 MySQL 落库行、内存任务与磁盘兜底文件。
+// 只删库会导致 History 在库查询为空时回退内存(historyFromMemory),已删记录"复活"。
 func (s *TripTaskStore) DeletePlan(planID string) error {
 	if s.db == nil {
 		return gorm.ErrInvalidDB
 	}
-	return s.db.Where("plan_id = ?", planID).Delete(&model.TripPlanRecord{}).Error
+	// 1. 删落库行;plan_id 未命中时兜底按 task_id 再删一次(早期失败记录可能只有 task_id)
+	res := s.db.Where("plan_id = ?", planID).Delete(&model.TripPlanRecord{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		if err := s.db.Where("task_id = ?", planID).Delete(&model.TripPlanRecord{}).Error; err != nil {
+			return err
+		}
+	}
+	// 2. 删内存任务与磁盘兜底文件(内存 plan_id 缺省时等于 task_id,一并匹配)
+	taskIDs := make([]string, 0, 2)
+	s.mu.Lock()
+	for id, t := range s.tasks {
+		if t.TaskID == planID || t.PlanID == planID {
+			taskIDs = append(taskIDs, id)
+			delete(s.tasks, id)
+		}
+	}
+	s.mu.Unlock()
+	for _, id := range taskIDs {
+		_ = os.Remove(s.filePath(id))
+	}
+	return nil
 }

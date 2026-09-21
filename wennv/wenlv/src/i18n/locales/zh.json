@@ -104,6 +104,7 @@
     "endDateRequired": "请选择结束日期",
     "travelDaysLabel": "旅行天数",
     "travelDaysUnit": "天",
+    "cityDaysLabel": "停留天数",
     "transportationLabel": "交通方式",
     "transportation": {
       "public": "公共交通",
