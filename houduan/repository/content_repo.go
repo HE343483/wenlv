@@ -279,8 +279,11 @@ func applyQuery(q *gorm.DB, opts QueryOptions) *gorm.DB {
 }
 
 func pageSize(ps int) int {
-	if ps <= 0 || ps > MaxPageSize {
+	if ps <= 0 {
 		return DefaultPageSize
+	}
+	if ps > MaxPageSize {
+		return MaxPageSize
 	}
 	return ps
 }

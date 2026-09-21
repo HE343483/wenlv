@@ -37,18 +37,24 @@
               <h3>{{ t('home.step1') }}</h3>
             </div>
 
-            <!-- 多城市动态列表 -->
+            <!-- 成都专区景点：可只选一个区，也可勾选同一区内多个景点 -->
             <div class="city-list">
-              <div v-for="(cs, idx) in formData.cities" :key="idx" class="city-row">
+              <div class="city-row">
                 <a-form-item class="city-row-name" :rules="[{ required: true, message: t('home.cityRequired') }]">
                   <template #label>
-                    <span class="field-label">{{ t('home.cityNLabel', { n: idx + 1 }) }}</span>
+                    <span class="field-label">{{ t('home.cityLabel') }}</span>
                   </template>
-                  <a-input
-                    v-model:value="cs.city"
+                  <a-cascader
+                    :value="chengduRow.spotPaths"
+                    :options="chengduSpotOptions"
                     :placeholder="t('home.cityPlaceholder')"
                     size="large"
-                    class="field-input"
+                    class="field-input city-cascader"
+                    multiple
+                    change-on-select
+                    show-checked-strategy="show-child"
+                    :show-search="{ filter: filterChengduSpot }"
+                    @change="onSpotChange"
                   />
                 </a-form-item>
                 <a-form-item class="city-row-days">
@@ -56,7 +62,7 @@
                     <span class="field-label">{{ t('home.cityStayDays') }}</span>
                   </template>
                   <a-input-number
-                    v-model:value="cs.days"
+                    v-model:value="chengduRow.days"
                     :min="1"
                     :max="15"
                     size="large"
@@ -64,16 +70,7 @@
                     style="width: 100%"
                   />
                 </a-form-item>
-                <button
-                  v-if="formData.cities.length > 1"
-                  type="button"
-                  class="city-remove-btn"
-                  @click="removeCity(idx)"
-                >×</button>
               </div>
-              <button type="button" class="city-add-btn" @click="addCity">
-                + {{ t('home.addCity') }}
-              </button>
             </div>
 
             <!-- 日期与天数 -->
@@ -367,11 +364,13 @@ import { useTripTaskStore } from '@/stores/tripTask'
 import { findCuratedRoute, stopName } from '@/data/curatedRoutes'
 import { useLanguageStore } from '@/stores/language'
 import NavBar from '@/components/NavBar.vue'
+import TripSettingsModal from '@/components/TripSettingsModal.vue'
 import type { TripHistoryItem, CityStay } from '@/types/trip'
+import { districts, scenicSpots } from '@/data/chengdu'
 import type { Dayjs } from 'dayjs'
 
 type LandingFormData = {
-  cities: Array<{ city: string; days: number }>
+  cities: Array<{ city: string; days: number; spotPath: string[]; spotPaths: string[][] }>
   start_date: Dayjs | null
   transportation: string
   accommodation: string
@@ -425,7 +424,7 @@ const formRules = computed(() => ({
 }))
 
 const formData = reactive<LandingFormData>({
-  cities: [{ city: '', days: 2 }],
+  cities: [{ city: '', days: 2, spotPath: [], spotPaths: [] }],
   start_date: null,
   transportation: '公共交通',
   accommodation: '经济型酒店',
@@ -433,6 +432,89 @@ const formData = reactive<LandingFormData>({
   free_text_input: '',
   attraction_source: 'xhs',
 })
+
+/** 模板直接取首行，避免可选链在 v-model 下报 undefined */
+const chengduRow = computed(() => {
+  if (formData.cities.length === 0) {
+    formData.cities.push({ city: '', days: 2, spotPath: [], spotPaths: [] })
+  }
+  return formData.cities[0] as { city: string; days: number; spotPath: string[]; spotPaths: string[][] }
+})
+
+/* 成都区县 → 景点二级联查：a-cascader 数据源（区 children 景点，可搜索） */
+const chengduSpotOptions = computed(() =>
+  districts.map(d => ({
+    value: d.id,
+    label: langStore.lang === 'en' ? d.nameEn : d.nameZh,
+    children: scenicSpots
+      .filter(s => s.districtId === d.id)
+      .map(s => ({
+        value: s.id,
+        label: langStore.lang === 'en' ? s.nameEn : s.nameZh,
+      })),
+  })).filter(d => d.children.length > 0),
+)
+
+/** 级联搜索：区名 / 拼音 / 景点名均可命中 */
+const filterChengduSpot = (inputValue: string, path: any[]) => {
+  const keyword = inputValue.trim().toLowerCase()
+  if (!keyword) return true
+  return path.some(option => {
+    const label = String(option?.label ?? '').toLowerCase()
+    const value = String(option?.value ?? '').toLowerCase()
+    return label.includes(keyword) || value.includes(keyword)
+  })
+}
+
+/** 区县 / 景点名国际化回退 */
+const spotNameOf = (kind: 'district' | 'spot', id: string): string => {
+  if (kind === 'district') {
+    const d = districts.find(item => item.id === id)
+    if (!d) return id
+    return langStore.lang === 'en' ? d.nameEn : d.nameZh
+  }
+  const s = scenicSpots.find(item => item.id === id)
+  if (!s) return id
+  return langStore.lang === 'en' ? s.nameEn : s.nameZh
+}
+
+/** 多选级联选择后：city 固定“成都”，选中景点拼入 free_text_input 供 AI 参考 */
+const onSpotChange = (val: unknown) => {
+  const row = chengduRow.value
+  const paths = normalizeSpotPaths(val)
+  // 同区约束：只保留首个选中区，其余区的勾选自动丢弃并提示
+  const firstDistrict = paths[0]?.[0]
+  const kept = firstDistrict ? paths.filter(p => p[0] === firstDistrict) : []
+  if (kept.length < paths.length) {
+    message.warning(t('home.sameDistrictOnly'))
+  }
+  row.spotPaths = kept
+  row.spotPath = kept[0] ?? []
+  row.city = kept.length > 0 ? '成都' : ''
+  syncSpotFreeText()
+}
+
+/** multiple 模式返回 string[][]，单选/清空时做归一化兜底 */
+const normalizeSpotPaths = (val: unknown): string[][] => {
+  if (!Array.isArray(val)) return []
+  if (val.length === 0) return []
+  if (Array.isArray(val[0])) return (val as string[][]).map(p => [...p])
+  return [[...(val as string[])]]
+}
+
+/** 景点选择变化时同步自由文本：只改“想去景点”这一行，不动用户手写内容 */
+const syncSpotFreeText = () => {
+  const paths = chengduRow.value.spotPaths
+  const picked = paths.map((path) => {
+    const [districtId, spotId] = path
+    const districtName = spotNameOf('district', districtId ?? '')
+    const spotName = spotId ? spotNameOf('spot', spotId) : ''
+    return spotName ? `${districtName}·${spotName}` : districtName
+  })
+  const lines = formData.free_text_input.split('\n').filter(line => !line.startsWith('想去景点：'))
+  if (picked.length > 0) lines.unshift(`想去景点：${picked.join('、')}`)
+  formData.free_text_input = lines.join('\n')
+}
 
 const totalDays = computed(() => formData.cities.reduce((sum, cs) => sum + (cs.days || 1), 0))
 
@@ -445,7 +527,7 @@ const applyCuratedRoutePrefill = () => {
   const curated = findCuratedRoute(typeof prefillId === 'string' ? prefillId : undefined)
   if (!curated) return
   const routeTitle = langStore.t(`routes.items.${curated.id}.title`)
-  formData.cities = [{ city: '成都', days: curated.days }]
+  formData.cities = [{ city: '成都', days: curated.days, spotPath: [], spotPaths: [] }]
   formData.preferences = [...curated.interests]
   formData.free_text_input = `参考精选路线「${routeTitle}」：${curated.stops.map(s => stopName(s, 'zh')).join(' → ')}`
   message.info(t('home.prefillApplied', { name: routeTitle }))
@@ -470,7 +552,7 @@ const computedEndDate = computed(() => {
 
 const addCity = () => {
   if (formData.cities.length >= 5) return
-  formData.cities.push({ city: '', days: 2 })
+  formData.cities.push({ city: '', days: 2, spotPath: [], spotPaths: [] })
 }
 
 const removeCity = (index: number) => {
@@ -1011,6 +1093,37 @@ const handleSubmit = async () => {
 .city-row-name {
   flex: 2;
   margin-bottom: 0;
+}
+
+.city-cascader-wrap {
+  position: relative;
+}
+
+.city-cascader {
+  width: 100%;
+}
+
+.city-clear-btn {
+  position: absolute;
+  top: 50%;
+  right: 34px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8A9A9E;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.city-clear-btn:hover {
+  background: rgba(46, 58, 61, 0.08);
+  color: #B8453E;
 }
 
 .city-row-days {

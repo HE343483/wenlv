@@ -73,7 +73,7 @@ const router = createRouter({
       component: () => import('@/views/TravelGuidePage.vue'),
     },
     {
-      // 数字足迹护照 — 公开集章页
+      // 数字足迹护照 — 需登录后使用，未登录由路由守卫先跳登录
       path: '/passport',
       name: 'travel-passport',
       component: () => import('@/views/PassportPage.vue'),
@@ -110,10 +110,10 @@ router.beforeEach((to) => {
   }
   if (to.name === 'home') return true
   if (to.path.startsWith('/scenic/') || to.path.startsWith('/food/')) return true
-  // 入境游工具箱/旅行护照:面向境外游客的公开内容页,未登录也可访问
-  if (to.name === 'travel-guide' || to.name === 'travel-passport') return true
+  // 入境游工具箱:面向境外游客的公开内容页,未登录也可访问
+  if (to.name === 'travel-guide') return true
   if (!hasToken()) {
-    return { name: 'login' }
+    return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (meta?.guest) return { name: 'home' }
   return true

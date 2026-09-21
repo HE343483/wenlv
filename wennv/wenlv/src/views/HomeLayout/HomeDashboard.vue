@@ -433,6 +433,9 @@ onMounted(async () => {
     <!-- ──── 数字足迹护照入口 ──── -->
     <section class="passport-entry">
       <button type="button" class="passport-entry__card" @click="goPassport">
+        <span class="passport-entry__icon" aria-hidden="true">
+          <AppIcon name="passport" :size="48" />
+        </span>
         <span class="passport-entry__body">
           <span class="passport-entry__title">{{ langStore.t('passport.title') }}</span>
           <span class="passport-entry__desc">{{ langStore.t('passport.hero') }}</span>
@@ -924,9 +927,20 @@ onMounted(async () => {
 .passport-entry__icon {
   display: flex;
   align-items: center;
-  font-size: var(--text-3xl);
-  line-height: 1;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
+  color: var(--color-surface);
+  background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 6px 16px rgba(45, 106, 79, 0.30);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.passport-entry__card:hover .passport-entry__icon {
+  transform: rotate(-6deg) scale(1.05);
+  box-shadow: 0 10px 22px rgba(45, 106, 79, 0.38);
 }
 
 .passport-entry__body {
